@@ -1,0 +1,18 @@
+.tools/
+bin/
+obj/
+publish/
+artifacts/
+# Local release archives belong in GitHub Releases.
+/*.zip
+/*.rar
+/*.7z
+# Local IDE and Python build caches.
+.vs/
+__pycache__/
+*.py[cod]
+*.suo
+*.user
+*.bphoto
+models/*.onnx
+models/bioclip2/vision*.onnx*

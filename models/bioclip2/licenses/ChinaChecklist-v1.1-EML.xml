@@ -1,0 +1,171 @@
+    <eml:eml xmlns:eml="eml://ecoinformatics.org/eml-2.1.1"
+             xmlns:dc="http://purl.org/dc/terms/"
+             xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+             xsi:schemaLocation="eml://ecoinformatics.org/eml-2.1.1 http://rs.gbif.org/schema/eml-gbif-profile/1.2/eml.xsd"
+             packageId="7e276a96-73ea-4efc-8ffb-e74ef573ef6c/v1.1" system="http://gbif.org" scope="system"
+    xml:lang="eng">
+
+        <dataset>
+                <alternateIdentifier>7e276a96-73ea-4efc-8ffb-e74ef573ef6c</alternateIdentifier>
+                <alternateIdentifier>http://www.gbifchina.org.cn/resource?r=chinacol2023</alternateIdentifier>
+                <title xml:lang="eng">Catalogue of Life China 2023 Annual Checklist</title>
+                    <creator>
+            <individualName>
+                <surName>The Biodiversity Committee of Chinese Academy of Sciences</surName>
+            </individualName>
+            <organizationName>The Biodiversity Committee of Chinese Academy of Sciences</organizationName>
+            <positionName>Hosting Institution</positionName>
+            <address>
+                    <deliveryPoint>20 Nanxincun, Xiangshan, Haidian District</deliveryPoint>
+                    <city>Beijing</city>
+                    <administrativeArea>Beijing</administrativeArea>
+                    <postalCode>100093</postalCode>
+                    <country>CN</country>
+            </address>
+                    </creator>
+                    <associatedParty>
+            <individualName>
+                    <givenName>Maofang</givenName>
+                <surName>Luo</surName>
+            </individualName>
+            <organizationName>The Biodiversity Committee of Chinese Academy of Sciences</organizationName>
+            <positionName>Engineer</positionName>
+            <address>
+                    <deliveryPoint>20 Nanxincun, Xiangshan, Haidian District</deliveryPoint>
+                    <city>Beijing</city>
+                    <administrativeArea>Beijing</administrativeArea>
+                    <postalCode>100093</postalCode>
+                    <country>CN</country>
+            </address>
+            <role>pointOfContact</role>
+                    </associatedParty>
+                    <associatedParty>
+            <individualName>
+                    <givenName>Zheping</givenName>
+                <surName>Xu</surName>
+            </individualName>
+            <organizationName>National Science Library, Chinese Academy of Sciences(CAS)</organizationName>
+            <positionName>Senior Engineer</positionName>
+            <address>
+                    <deliveryPoint>No. 33, Beisihuanxilu,Zhongguancun, Haidian District</deliveryPoint>
+                    <city>Beijing</city>
+                    <administrativeArea>Beijing</administrativeArea>
+                    <postalCode>100190</postalCode>
+                    <country>CN</country>
+            </address>
+            <electronicMailAddress>xuzp@mail.las.ac.cn</electronicMailAddress>
+            <role>metadataProvider</role>
+                    </associatedParty>
+            <pubDate>
+                    2024-02-21
+            </pubDate>
+            <language>eng</language>
+                <abstract>
+                            <para>Organized by the Biodiversity Committee of Chinese Academy of Sciences (BC-CAS), Catalogue of Life China 2023 Annual Checklist edition has been compiled by Species 2000 China Node. It is sponsored by the Strategic Priority Research Program of the Chinese Academy of Sciences (CAS) （XDA19050202）, Biological Resources Programme of CAS and National Basic Science Data Center. This project is implemented by the Institute of Zoology, CAS, cooperating with the Institute of Botany, Institute of Microbiology, Institute of Oceanology, Chengdu Institute of Biology et al.
+
+Species 2000 China Node is a regional hub of the Species 2000 program launched in October 2006. The goal of Species 2000 China Node project is to provide a validated checklist of all species distributed in China. Since 2008, the project has compiled and published an electronic version of the annual checklist of the Catalogue of Life China. There are 148674 species &amp; infraspecific taxa in 2023 Annual Checklist of Catalogue of Life China, including 135061 species and 13613 infraspecific taxa.</para>
+                </abstract>
+                        <keywordSet>
+                                    <keyword>Catalogue of Life
+Species checklist
+China</keyword>
+                            <keywordThesaurus>GBIF Dataset Type Vocabulary: http://rs.gbif.org/vocabulary/gbif/dataset_type_2015-07-10.xml</keywordThesaurus>
+                        </keywordSet>
+                <intellectualRights>
+                    <para>This work is licensed under a <ulink url="http://creativecommons.org/licenses/by-nc/4.0/legalcode"><citetitle>Creative Commons Attribution Non Commercial (CC-BY-NC 4.0) License</citetitle></ulink>.</para>
+                </intellectualRights>
+                <distribution scope="document">
+                    <online>
+                        <url function="information">http://www.sp2000.org.cn/</url>
+                    </online>
+                </distribution>
+                <coverage>
+                        <geographicCoverage>
+                                <geographicDescription>China</geographicDescription>
+                            <boundingCoordinates>
+                                <westBoundingCoordinate>73.2</westBoundingCoordinate>
+                                <eastBoundingCoordinate>135.5</eastBoundingCoordinate>
+                                <northBoundingCoordinate>53.8</northBoundingCoordinate>
+                                <southBoundingCoordinate>3.5</southBoundingCoordinate>
+                            </boundingCoordinates>
+                        </geographicCoverage>
+                                <taxonomicCoverage>
+                                        <generalTaxonomicCoverage>The total species number in the Annual Checklist CoL-China, 2023 is 148674 spp. &amp; infraspecific taxa.
+Animalia (Animals). 65362 spp. &amp; 4296 infraspecific taxa.
+Bacteria. 463 spp. &amp; 6 infraspecific taxa.
+Chromista. 1968 spp. &amp; 413 infraspecific taxa.
+Fungi. 24571 spp. &amp; 1124 infraspecific taxa.
+Plantae (Plants). 39539 spp. &amp; 7561 infraspecific taxa.
+Protozoa. 2503 spp. &amp; 63 infraspecific taxa.
+Viruses. 655 spp. &amp; 150 infraspecific taxa.</generalTaxonomicCoverage>
+                                        <taxonomicClassification>
+                                                <taxonRankName>kingdom</taxonRankName>
+                                            <taxonRankValue>Animalia</taxonRankValue>
+                                        </taxonomicClassification>
+                                        <taxonomicClassification>
+                                                <taxonRankName>kingdom</taxonRankName>
+                                            <taxonRankValue>Bacteria</taxonRankValue>
+                                        </taxonomicClassification>
+                                        <taxonomicClassification>
+                                                <taxonRankName>kingdom</taxonRankName>
+                                            <taxonRankValue>Chromista</taxonRankValue>
+                                        </taxonomicClassification>
+                                        <taxonomicClassification>
+                                                <taxonRankName>kingdom</taxonRankName>
+                                            <taxonRankValue>Fungi</taxonRankValue>
+                                        </taxonomicClassification>
+                                        <taxonomicClassification>
+                                                <taxonRankName>kingdom</taxonRankName>
+                                            <taxonRankValue>Plantae</taxonRankValue>
+                                        </taxonomicClassification>
+                                        <taxonomicClassification>
+                                                <taxonRankName>kingdom</taxonRankName>
+                                            <taxonRankValue>Protozoa</taxonRankValue>
+                                        </taxonomicClassification>
+                                        <taxonomicClassification>
+                                                <taxonRankName>kingdom</taxonRankName>
+                                            <taxonRankValue>Viruses</taxonRankValue>
+                                        </taxonomicClassification>
+                                </taxonomicCoverage>
+                </coverage>
+                <maintenance>
+                    <description>
+                        <para></para>
+                    </description>
+                    <maintenanceUpdateFrequency>annually</maintenanceUpdateFrequency>
+                </maintenance>
+
+                    <contact>
+            <individualName>
+                <surName>The Biodiversity Committee of Chinese Academy of Sciences</surName>
+            </individualName>
+            <organizationName>The Biodiversity Committee of Chinese Academy of Sciences</organizationName>
+            <positionName>Hosting Institution</positionName>
+            <address>
+                    <deliveryPoint>20 Nanxincun, Xiangshan, Haidian District</deliveryPoint>
+                    <city>Beijing</city>
+                    <administrativeArea>Beijing</administrativeArea>
+                    <postalCode>100093</postalCode>
+                    <country>CN</country>
+            </address>
+                    </contact>
+                <methods>
+                            <methodStep>
+                                <description>
+                                    <para></para>
+                                </description>
+                            </methodStep>
+                </methods>
+        </dataset>
+            <additionalMetadata>
+                <metadata>
+                    <gbif>
+                            <dateStamp>2024-02-21T00:47:31.646+08:00</dateStamp>
+                            <hierarchyLevel>dataset</hierarchyLevel>
+                                <citation>The Biodiversity Committee of Chinese Academy of Sciences (2024). Catalogue of Life China 2023 Annual Checklist. Version 1.1. Chinese Academy of Sciences (CAS). Checklist dataset. http://www.gbifchina.org.cn/resource?r=chinacol2023&amp;v=1.1</citation>
+                            <resourceLogoUrl>http://www.gbifchina.org.cn/logo.do?r=chinacol2023</resourceLogoUrl>
+                            <dc:replaces>7e276a96-73ea-4efc-8ffb-e74ef573ef6c/v1.1.xml</dc:replaces>
+                    </gbif>
+                </metadata>
+            </additionalMetadata>
+    </eml:eml>

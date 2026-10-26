@@ -1,0 +1,71 @@
+{
+  "SharedOfficialSourceIndices": [],
+  "IdenticalVectorGroups": [],
+  "RejectedSynonymMappings": [
+    {
+      "Candidate": "Hierococcyx hyperythrus",
+      "Synonym": "Dendrocopos hyperythrus",
+      "OfficialIndex": 350769,
+      "OfficialTaxonomy": [
+        "Animalia",
+        "Chordata",
+        "Aves",
+        "Piciformes",
+        "Picidae",
+        "Dendrocopos",
+        "hyperythrus"
+      ],
+      "Reason": "Synonym is another accepted CAS species"
+    },
+    {
+      "Candidate": "Stachyris humei",
+      "Synonym": "Phylloscopus humei",
+      "OfficialIndex": 347839,
+      "OfficialTaxonomy": [
+        "Animalia",
+        "Chordata",
+        "Aves",
+        "Passeriformes",
+        "Phylloscopidae",
+        "Phylloscopus",
+        "humei"
+      ],
+      "Reason": "Synonym is another accepted CAS species"
+    },
+    {
+      "Candidate": "Terpsiphone incei",
+      "Synonym": "Terpsiphone paradisi",
+      "OfficialIndex": 346571,
+      "OfficialTaxonomy": [
+        "Animalia",
+        "Chordata",
+        "Aves",
+        "Passeriformes",
+        "Monarchidae",
+        "Terpsiphone",
+        "paradisi"
+      ],
+      "Reason": "Synonym is another accepted CAS species"
+    },
+    {
+      "Candidate": "Erythrogenys erythrocnemis",
+      "OfficialIndex": 349415,
+      "ConflictingCandidates": [
+        "Erythrogenys erythrocnemis",
+        "Erythrogenys gravivox"
+      ],
+      "Reason": "Official vector row is shared with another accepted candidate"
+    },
+    {
+      "Candidate": "Erythrogenys gravivox",
+      "OfficialIndex": 349415,
+      "ConflictingCandidates": [
+        "Erythrogenys erythrocnemis",
+        "Erythrogenys gravivox"
+      ],
+      "Reason": "Official vector row is shared with another accepted candidate"
+    }
+  ],
+  "MappingPolicy": "Exact accepted binomial first; otherwise CAS-linked synonym, identical order and family, not another accepted species, no shared source rows",
+  "Note": "Taxonomic splits/aliases may share training concepts. Candidate count does not imply that every candidate is a separately learned or reliably distinguishable model class."
+}

@@ -1,0 +1,13 @@
+{
+  "candidates.json": "ae2c162758f25a82fba63a6c4373b25c15440297f35c2160f9323a40aba8781c",
+  "china-unmatched.json": "7d88a0d7ab46f91bd952a630582112dfa1245660e23e6f28f072ccc200304a9c",
+  "embeddings.f32": "c830c0657951e06935cbad2cd66fdbf98beaf353225924459c73e41144ee470d",
+  "licenses/BioCLIP2-MIT.txt": "a8d48c87f39b50f070f727fe73641d8d9f62f9e8fd9b114f786aaf50cef12265",
+  "licenses/ChinaChecklist-CC-BY-NC-4.0.txt": "41003d4a74749c0220e33dd415042164b5a1093ed401f36277234f772d22d3d0",
+  "licenses/ChinaChecklist-v1.1-EML.xml": "d75192a8e65c4de446b3d26cf27f5768a6e6e58416c970b99d734335d71f86af",
+  "licenses/TreeOfLife-CC0-1.0.txt": "a2010f343487d3f7618affe54f789f5487602331c0a8d03f49e9a7c547cf0499",
+  "licenses/TreeOfLife-source-card.txt": "4e231609b900ba1c4e0c34c8e130fd14b63fe219031126f208fa9b54df0004d9",
+  "metadata.json": "1ad6b559bd0b1042e84bb14242db3235c074cdb2dc5dd40df2f6c8e2fa232c56",
+  "taxonomy-ambiguities.json": "be9b3ea5532a6f85cfdaf403b1b6abca55e5a761dfae2738840a553418482f8e",
+  "vision.onnx": "3904d174a33d574f118aa9fed099dfeeac0a6dd561668d24a690b3ad6c268770"
+}

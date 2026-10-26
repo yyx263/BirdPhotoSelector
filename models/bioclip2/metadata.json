@@ -1,0 +1,82 @@
+{
+  "Model": "BioCLIP 2",
+  "Dimension": 768,
+  "CandidateScope": "China",
+  "CandidateCount": 1394,
+  "InputSize": 224,
+  "Preprocessing": "openclip-bicubic-shortest-224-center-crop",
+  "CropPolicy": "SquareContext20-v1",
+  "InputName": "pixel_values",
+  "OutputName": "image_embedding",
+  "InputShape": [
+    1,
+    3,
+    224,
+    224
+  ],
+  "OutputShape": [
+    1,
+    768
+  ],
+  "InputDataType": "float32",
+  "Mean": [
+    0.48145466,
+    0.4578275,
+    0.40821073
+  ],
+  "Std": [
+    0.26862954,
+    0.26130258,
+    0.27577711
+  ],
+  "EmbeddingFormat": "Little-endian float32 row-major [CandidateCount,768], L2-normalized",
+  "Score": "Cosine similarity; uncalibrated, not a probability",
+  "ConfidenceMethod": "BioCLIP2CandidateSoftmax-v1",
+  "LearnedLogitScale": 4.605170249938965,
+  "ConfidenceLogitScale": 100.00000639508755,
+  "ConfidenceNote": "Softmax over installed candidates using the official checkpoint temperature; not calibrated identification accuracy or open-set rejection.",
+  "ModelLicense": "MIT",
+  "CandidateLicense": "CC-BY-NC-4.0",
+  "TextCompilationLicense": "CC0-1.0",
+  "ModelSource": "https://huggingface.co/imageomics/bioclip-2",
+  "ModelRevision": "2957b322090f9cb17ae72c71981c7218a28d81e0",
+  "TextSource": "https://huggingface.co/datasets/imageomics/TreeOfLife-200M",
+  "TextRevision": "5f2dc493b3dc0e544438a04038ab15faa646b749",
+  "ChinaChecklist": "CAS Catalogue of Life China 2023 v1.1; https://doi.org/10.15468/ae6ush",
+  "ChinaAcceptedBirdSpecies": 1445,
+  "ExactAcceptedNameMatches": 1327,
+  "CASLinkedSynonymMatches": 67,
+  "RejectedSynonymMappingCount": 5,
+  "ExcludedMissingEmbedding": 51,
+  "ChineseNameCount": 1394,
+  "ExcludedCandidatesFile": "china-unmatched.json",
+  "TaxonomyAmbiguitiesFile": "taxonomy-ambiguities.json",
+  "SharedSourceIndexCount": 0,
+  "IdenticalVectorGroups": 0,
+  "EmbeddingNormRange": [
+    0.9999998807907104,
+    1.0000001192092896
+  ],
+  "ONNXOpset": 17,
+  "BuildVersions": {
+    "PyTorchVersion": "2.5.1+cpu",
+    "OpenCLIPVersion": "2.30.0",
+    "ONNXVersion": "1.16.2"
+  },
+  "CoverageNote": "Fixed CAS 2023 China candidate set; not a claim to cover all current birds of China. Unmatched names are excluded, not substituted with unrelated species.",
+  "TaxonomyMappingPolicy": "Use exact accepted binomial vectors only when available; otherwise require CAS-linked synonym with the same publisher order and family, excluding another accepted CAS species and excluding shared ambiguous vector rows.",
+  "SourceSHA256": {
+    "OfficialModel": "b7b2bf6fbc95799e42630e394cf95803892ab447c1a8ab629dbc82fbeaf7dfef",
+    "OfficialLabels": "4648928b006f85d83d28e5a27074ca9363465d82e778d708b369c5eaf54b8ef5",
+    "OfficialModelConfig": "1bf947e96e943fe50efd5c3e26c37f843a2fa3c358967719a68c8a6d17ce68c8",
+    "OfficialTextEmbeddings": "c72442de7b0cb7fcb55ab7ca08099d0f42fbd6769efe16ca64c1daa7a8b87db2",
+    "ChinaChecklistArchive": "9c17cdea98e210b2acc6ccf482580a22991a568455e0d6d3b58ba0ea5c675d1b"
+  },
+  "AssetSHA256": {
+    "vision.onnx": "3904d174a33d574f118aa9fed099dfeeac0a6dd561668d24a690b3ad6c268770",
+    "candidates.json": "ae2c162758f25a82fba63a6c4373b25c15440297f35c2160f9323a40aba8781c",
+    "embeddings.f32": "c830c0657951e06935cbad2cd66fdbf98beaf353225924459c73e41144ee470d",
+    "china-unmatched.json": "7d88a0d7ab46f91bd952a630582112dfa1245660e23e6f28f072ccc200304a9c",
+    "taxonomy-ambiguities.json": "be9b3ea5532a6f85cfdaf403b1b6abca55e5a761dfae2738840a553418482f8e"
+  }
+}

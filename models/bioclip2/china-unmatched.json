@@ -1,0 +1,1008 @@
+[
+  {
+    "ChineseName": "白眉苦恶鸟",
+    "ScientificName": "Amaurornis cinerea",
+    "Taxonomy": [
+      "Animalia",
+      "Chordata",
+      "Aves",
+      "Gruiformes",
+      "Rallidae",
+      "Amaurornis",
+      "cinerea"
+    ],
+    "SourceTaxonId": "5af00f7d-67bb-4116-9b27-8c10f4db9fab",
+    "Synonyms": [
+      "Zapornia cinerea"
+    ],
+    "Source": "CAS Catalogue of Life China 2023 v1.1; https://doi.org/10.15468/ae6ush",
+    "License": "CC-BY-NC-4.0",
+    "ExcludedReason": "No exact accepted binomial or unambiguous same-order-and-family CAS-linked synonym in pinned Imageomics Aves labels"
+  },
+  {
+    "ChineseName": "厚嘴苇莺",
+    "ScientificName": "Arundinax aedon",
+    "Taxonomy": [
+      "Animalia",
+      "Chordata",
+      "Aves",
+      "Passeriformes",
+      "Acrocephalidae",
+      "Arundinax",
+      "aedon"
+    ],
+    "SourceTaxonId": "f52dfc1f-4e88-4bf3-a8cd-bf3068b8970d",
+    "Synonyms": [
+      "Acrocephalus aedon"
+    ],
+    "Source": "CAS Catalogue of Life China 2023 v1.1; https://doi.org/10.15468/ae6ush",
+    "License": "CC-BY-NC-4.0",
+    "ExcludedReason": "No exact accepted binomial or unambiguous same-order-and-family CAS-linked synonym in pinned Imageomics Aves labels"
+  },
+  {
+    "ChineseName": "红眉松雀",
+    "ScientificName": "Carpodacus subhimachala",
+    "Taxonomy": [
+      "Animalia",
+      "Chordata",
+      "Aves",
+      "Passeriformes",
+      "Fringillidae",
+      "Carpodacus",
+      "subhimachala"
+    ],
+    "SourceTaxonId": "ad13d050-4da2-472b-87bb-fe035cbbbac9",
+    "Synonyms": [
+      "Pinicola subhimachala"
+    ],
+    "Source": "CAS Catalogue of Life China 2023 v1.1; https://doi.org/10.15468/ae6ush",
+    "License": "CC-BY-NC-4.0",
+    "ExcludedReason": "No exact accepted binomial or unambiguous same-order-and-family CAS-linked synonym in pinned Imageomics Aves labels"
+  },
+  {
+    "ChineseName": "棕薮鸲",
+    "ScientificName": "Cercotrichas galactotes",
+    "Taxonomy": [
+      "Animalia",
+      "Chordata",
+      "Aves",
+      "Passeriformes",
+      "Muscicapidae",
+      "Cercotrichas",
+      "galactotes"
+    ],
+    "SourceTaxonId": "2c79fec9-f64a-48e9-8aa7-a06827f074ba",
+    "Synonyms": [],
+    "Source": "CAS Catalogue of Life China 2023 v1.1; https://doi.org/10.15468/ae6ush",
+    "License": "CC-BY-NC-4.0",
+    "ExcludedReason": "No exact accepted binomial or unambiguous same-order-and-family CAS-linked synonym in pinned Imageomics Aves labels"
+  },
+  {
+    "ChineseName": "黄腹扇尾鹟",
+    "ScientificName": "Chelidorhynx hypoxanthus",
+    "Taxonomy": [
+      "Animalia",
+      "Chordata",
+      "Aves",
+      "Passeriformes",
+      "Stenostiridae",
+      "Chelidorhynx",
+      "hypoxanthus"
+    ],
+    "SourceTaxonId": "853e49a8-7310-4057-aa8a-c92402212eba",
+    "Synonyms": [
+      "Rhipidura hypoxantha"
+    ],
+    "Source": "CAS Catalogue of Life China 2023 v1.1; https://doi.org/10.15468/ae6ush",
+    "License": "CC-BY-NC-4.0",
+    "ExcludedReason": "No exact accepted binomial or unambiguous same-order-and-family CAS-linked synonym in pinned Imageomics Aves labels"
+  },
+  {
+    "ChineseName": "三趾鸦雀",
+    "ScientificName": "Cholornis paradoxus",
+    "Taxonomy": [
+      "Animalia",
+      "Chordata",
+      "Aves",
+      "Passeriformes",
+      "Sylviidae",
+      "Cholornis",
+      "paradoxus"
+    ],
+    "SourceTaxonId": "72f9836a-2531-4786-b235-4de8b3079638",
+    "Synonyms": [
+      "Paradoxornis paradoxus"
+    ],
+    "Source": "CAS Catalogue of Life China 2023 v1.1; https://doi.org/10.15468/ae6ush",
+    "License": "CC-BY-NC-4.0",
+    "ExcludedReason": "No exact accepted binomial or unambiguous same-order-and-family CAS-linked synonym in pinned Imageomics Aves labels"
+  },
+  {
+    "ChineseName": "达乌里寒鸦",
+    "ScientificName": "Corvus dauuricus",
+    "Taxonomy": [
+      "Animalia",
+      "Chordata",
+      "Aves",
+      "Passeriformes",
+      "Corvidae",
+      "Corvus",
+      "dauuricus"
+    ],
+    "SourceTaxonId": "11791258-2e5a-4dee-a8b5-db001a7b6401",
+    "Synonyms": [
+      "Coloeus dauuricus khamensis",
+      "Corvus fuscicollis",
+      "Corvus neglectus"
+    ],
+    "Source": "CAS Catalogue of Life China 2023 v1.1; https://doi.org/10.15468/ae6ush",
+    "License": "CC-BY-NC-4.0",
+    "ExcludedReason": "No exact accepted binomial or unambiguous same-order-and-family CAS-linked synonym in pinned Imageomics Aves labels"
+  },
+  {
+    "ChineseName": "寒鸦",
+    "ScientificName": "Corvus monedula",
+    "Taxonomy": [
+      "Animalia",
+      "Chordata",
+      "Aves",
+      "Passeriformes",
+      "Corvidae",
+      "Corvus",
+      "monedula"
+    ],
+    "SourceTaxonId": "af188849-13a2-4af6-b689-8e0150337188",
+    "Synonyms": [
+      "Coloeus monedula pontocaspicus",
+      "Coloeus monedula sophiae",
+      "Corvus collaris",
+      "Corvus coloeus schluteri",
+      "Corvus coloeus tischleri",
+      "Corvus soemmerringii",
+      "Corvus ultracollaris"
+    ],
+    "Source": "CAS Catalogue of Life China 2023 v1.1; https://doi.org/10.15468/ae6ush",
+    "License": "CC-BY-NC-4.0",
+    "ExcludedReason": "No exact accepted binomial or unambiguous same-order-and-family CAS-linked synonym in pinned Imageomics Aves labels"
+  },
+  {
+    "ChineseName": "黄喉穗鹛",
+    "ScientificName": "Cyanoderma ambiguum",
+    "Taxonomy": [
+      "Animalia",
+      "Chordata",
+      "Aves",
+      "Passeriformes",
+      "Timaliidae",
+      "Cyanoderma",
+      "ambiguum"
+    ],
+    "SourceTaxonId": "1308ce2f-bbfa-4701-bfac-8b7e7610b28f",
+    "Synonyms": [
+      "Stachyris ambigua"
+    ],
+    "Source": "CAS Catalogue of Life China 2023 v1.1; https://doi.org/10.15468/ae6ush",
+    "License": "CC-BY-NC-4.0",
+    "ExcludedReason": "No exact accepted binomial or unambiguous same-order-and-family CAS-linked synonym in pinned Imageomics Aves labels"
+  },
+  {
+    "ChineseName": "金头穗鹛",
+    "ScientificName": "Cyanoderma chrysaeum",
+    "Taxonomy": [
+      "Animalia",
+      "Chordata",
+      "Aves",
+      "Passeriformes",
+      "Timaliidae",
+      "Cyanoderma",
+      "chrysaeum"
+    ],
+    "SourceTaxonId": "7c3e8d0c-204e-449a-82b5-9cc42b2d6cff",
+    "Synonyms": [
+      "Stachyris chrysaea"
+    ],
+    "Source": "CAS Catalogue of Life China 2023 v1.1; https://doi.org/10.15468/ae6ush",
+    "License": "CC-BY-NC-4.0",
+    "ExcludedReason": "No exact accepted binomial or unambiguous same-order-and-family CAS-linked synonym in pinned Imageomics Aves labels"
+  },
+  {
+    "ChineseName": "黑颏穗鹛",
+    "ScientificName": "Cyanoderma pyrrhops",
+    "Taxonomy": [
+      "Animalia",
+      "Chordata",
+      "Aves",
+      "Passeriformes",
+      "Timaliidae",
+      "Cyanoderma",
+      "pyrrhops"
+    ],
+    "SourceTaxonId": "99821fe7-44b7-43aa-8b4e-5448cba3207f",
+    "Synonyms": [
+      "Stachyris pyrrhops"
+    ],
+    "Source": "CAS Catalogue of Life China 2023 v1.1; https://doi.org/10.15468/ae6ush",
+    "License": "CC-BY-NC-4.0",
+    "ExcludedReason": "No exact accepted binomial or unambiguous same-order-and-family CAS-linked synonym in pinned Imageomics Aves labels"
+  },
+  {
+    "ChineseName": "红头穗鹛",
+    "ScientificName": "Cyanoderma ruficeps",
+    "Taxonomy": [
+      "Animalia",
+      "Chordata",
+      "Aves",
+      "Passeriformes",
+      "Timaliidae",
+      "Cyanoderma",
+      "ruficeps"
+    ],
+    "SourceTaxonId": "b8499479-0f72-49ac-92f2-22276af3b254",
+    "Synonyms": [
+      "Stachyris ruficeps"
+    ],
+    "Source": "CAS Catalogue of Life China 2023 v1.1; https://doi.org/10.15468/ae6ush",
+    "License": "CC-BY-NC-4.0",
+    "ExcludedReason": "No exact accepted binomial or unambiguous same-order-and-family CAS-linked synonym in pinned Imageomics Aves labels"
+  },
+  {
+    "ChineseName": "褐额啄木鸟",
+    "ScientificName": "Dendrocopos auriceps",
+    "Taxonomy": [
+      "Animalia",
+      "Chordata",
+      "Aves",
+      "Piciformes",
+      "Picidae",
+      "Dendrocopos",
+      "auriceps"
+    ],
+    "SourceTaxonId": "5cebd302-15d0-4ce9-b77e-51333f61c40a",
+    "Synonyms": [],
+    "Source": "CAS Catalogue of Life China 2023 v1.1; https://doi.org/10.15468/ae6ush",
+    "License": "CC-BY-NC-4.0",
+    "ExcludedReason": "No exact accepted binomial or unambiguous same-order-and-family CAS-linked synonym in pinned Imageomics Aves labels"
+  },
+  {
+    "ChineseName": "星头啄木鸟",
+    "ScientificName": "Dendrocopos canicapillus",
+    "Taxonomy": [
+      "Animalia",
+      "Chordata",
+      "Aves",
+      "Piciformes",
+      "Picidae",
+      "Dendrocopos",
+      "canicapillus"
+    ],
+    "SourceTaxonId": "9f6f630e-8962-4dbd-aa17-2e8f030d8d33",
+    "Synonyms": [],
+    "Source": "CAS Catalogue of Life China 2023 v1.1; https://doi.org/10.15468/ae6ush",
+    "License": "CC-BY-NC-4.0",
+    "ExcludedReason": "No exact accepted binomial or unambiguous same-order-and-family CAS-linked synonym in pinned Imageomics Aves labels"
+  },
+  {
+    "ChineseName": "赤胸啄木鸟",
+    "ScientificName": "Dendrocopos cathpharius",
+    "Taxonomy": [
+      "Animalia",
+      "Chordata",
+      "Aves",
+      "Piciformes",
+      "Picidae",
+      "Dendrocopos",
+      "cathpharius"
+    ],
+    "SourceTaxonId": "33d88c95-3991-49f6-b83f-28903d7c51f7",
+    "Synonyms": [],
+    "Source": "CAS Catalogue of Life China 2023 v1.1; https://doi.org/10.15468/ae6ush",
+    "License": "CC-BY-NC-4.0",
+    "ExcludedReason": "No exact accepted binomial or unambiguous same-order-and-family CAS-linked synonym in pinned Imageomics Aves labels"
+  },
+  {
+    "ChineseName": "小星头啄木鸟",
+    "ScientificName": "Dendrocopos kizuki",
+    "Taxonomy": [
+      "Animalia",
+      "Chordata",
+      "Aves",
+      "Piciformes",
+      "Picidae",
+      "Dendrocopos",
+      "kizuki"
+    ],
+    "SourceTaxonId": "d392eccd-a805-41ac-9f46-f83b7f6d9491",
+    "Synonyms": [],
+    "Source": "CAS Catalogue of Life China 2023 v1.1; https://doi.org/10.15468/ae6ush",
+    "License": "CC-BY-NC-4.0",
+    "ExcludedReason": "No exact accepted binomial or unambiguous same-order-and-family CAS-linked synonym in pinned Imageomics Aves labels"
+  },
+  {
+    "ChineseName": "小斑啄木鸟",
+    "ScientificName": "Dendrocopos minor",
+    "Taxonomy": [
+      "Animalia",
+      "Chordata",
+      "Aves",
+      "Piciformes",
+      "Picidae",
+      "Dendrocopos",
+      "minor"
+    ],
+    "SourceTaxonId": "faf568b1-8452-4c0e-94a8-97337ae776ce",
+    "Synonyms": [],
+    "Source": "CAS Catalogue of Life China 2023 v1.1; https://doi.org/10.15468/ae6ush",
+    "License": "CC-BY-NC-4.0",
+    "ExcludedReason": "No exact accepted binomial or unambiguous same-order-and-family CAS-linked synonym in pinned Imageomics Aves labels"
+  },
+  {
+    "ChineseName": "华南斑胸钩嘴鹛",
+    "ScientificName": "Erythrogenys swinhoei",
+    "Taxonomy": [
+      "Animalia",
+      "Chordata",
+      "Aves",
+      "Passeriformes",
+      "Timaliidae",
+      "Erythrogenys",
+      "swinhoei"
+    ],
+    "SourceTaxonId": "7eecd572-4c3e-4e8a-964f-6d5ffe91e7b3",
+    "Synonyms": [],
+    "Source": "CAS Catalogue of Life China 2023 v1.1; https://doi.org/10.15468/ae6ush",
+    "License": "CC-BY-NC-4.0",
+    "ExcludedReason": "No exact accepted binomial or unambiguous same-order-and-family CAS-linked synonym in pinned Imageomics Aves labels"
+  },
+  {
+    "ChineseName": "琉球姬鹟",
+    "ScientificName": "Ficedula owstoni",
+    "Taxonomy": [
+      "Animalia",
+      "Chordata",
+      "Aves",
+      "Passeriformes",
+      "Muscicapidae",
+      "Ficedula",
+      "owstoni"
+    ],
+    "SourceTaxonId": "0635e300-02cb-4b28-bead-1afbba193b85",
+    "Synonyms": [],
+    "Source": "CAS Catalogue of Life China 2023 v1.1; https://doi.org/10.15468/ae6ush",
+    "License": "CC-BY-NC-4.0",
+    "ExcludedReason": "No exact accepted binomial or unambiguous same-order-and-family CAS-linked synonym in pinned Imageomics Aves labels"
+  },
+  {
+    "ChineseName": "栗尾姬鹟",
+    "ScientificName": "Ficedula ruficauda",
+    "Taxonomy": [
+      "Animalia",
+      "Chordata",
+      "Aves",
+      "Passeriformes",
+      "Muscicapidae",
+      "Ficedula",
+      "ruficauda"
+    ],
+    "SourceTaxonId": "82e33855-ee38-4490-87cb-311a23348960",
+    "Synonyms": [],
+    "Source": "CAS Catalogue of Life China 2023 v1.1; https://doi.org/10.15468/ae6ush",
+    "License": "CC-BY-NC-4.0",
+    "ExcludedReason": "No exact accepted binomial or unambiguous same-order-and-family CAS-linked synonym in pinned Imageomics Aves labels"
+  },
+  {
+    "ChineseName": "斑背噪鹛",
+    "ScientificName": "Garrulax lunulatus",
+    "Taxonomy": [
+      "Animalia",
+      "Chordata",
+      "Aves",
+      "Passeriformes",
+      "Leiothrichidae",
+      "Garrulax",
+      "lunulatus"
+    ],
+    "SourceTaxonId": "d7bce738-a9dc-4a17-a7e1-851408d36611",
+    "Synonyms": [
+      "Ianthocincla lunulatus",
+      "Janthocincla lunulatus"
+    ],
+    "Source": "CAS Catalogue of Life China 2023 v1.1; https://doi.org/10.15468/ae6ush",
+    "License": "CC-BY-NC-4.0",
+    "ExcludedReason": "No exact accepted binomial or unambiguous same-order-and-family CAS-linked synonym in pinned Imageomics Aves labels"
+  },
+  {
+    "ChineseName": "海南画眉",
+    "ScientificName": "Garrulax owstoni",
+    "Taxonomy": [
+      "Animalia",
+      "Chordata",
+      "Aves",
+      "Passeriformes",
+      "Leiothrichidae",
+      "Garrulax",
+      "owstoni"
+    ],
+    "SourceTaxonId": "7393d33a-920c-4c63-984b-eaba33bc241a",
+    "Synonyms": [],
+    "Source": "CAS Catalogue of Life China 2023 v1.1; https://doi.org/10.15468/ae6ush",
+    "License": "CC-BY-NC-4.0",
+    "ExcludedReason": "No exact accepted binomial or unambiguous same-order-and-family CAS-linked synonym in pinned Imageomics Aves labels"
+  },
+  {
+    "ChineseName": "淡脚树莺",
+    "ScientificName": "Hemitesia pallidipes",
+    "Taxonomy": [
+      "Animalia",
+      "Chordata",
+      "Aves",
+      "Passeriformes",
+      "Cettiidae",
+      "Hemitesia",
+      "pallidipes"
+    ],
+    "SourceTaxonId": "2d7acf3c-cff8-41f4-be71-c5f19ebfef42",
+    "Synonyms": [
+      "Cettia pallidipes"
+    ],
+    "Source": "CAS Catalogue of Life China 2023 v1.1; https://doi.org/10.15468/ae6ush",
+    "License": "CC-BY-NC-4.0",
+    "ExcludedReason": "No exact accepted binomial or unambiguous same-order-and-family CAS-linked synonym in pinned Imageomics Aves labels"
+  },
+  {
+    "ChineseName": "北棕腹鹰鹃",
+    "ScientificName": "Hierococcyx hyperythrus",
+    "Taxonomy": [
+      "Animalia",
+      "Chordata",
+      "Aves",
+      "Cuculiformes",
+      "Cuculidae",
+      "Hierococcyx",
+      "hyperythrus"
+    ],
+    "SourceTaxonId": "bc2e4ced-20ca-4659-a524-5a941c8aeb98",
+    "Synonyms": [
+      "Dendrocopos hyperythrus"
+    ],
+    "Source": "CAS Catalogue of Life China 2023 v1.1; https://doi.org/10.15468/ae6ush",
+    "License": "CC-BY-NC-4.0",
+    "ExcludedReason": "No exact accepted binomial or unambiguous same-order-and-family CAS-linked synonym in pinned Imageomics Aves labels"
+  },
+  {
+    "ChineseName": "远东树莺",
+    "ScientificName": "Horornis canturians",
+    "Taxonomy": [
+      "Animalia",
+      "Chordata",
+      "Aves",
+      "Passeriformes",
+      "Cettiidae",
+      "Horornis",
+      "canturians"
+    ],
+    "SourceTaxonId": "12dde4bc-5ac5-4b1f-8b17-ced61329dba3",
+    "Synonyms": [
+      "Cettia canturians"
+    ],
+    "Source": "CAS Catalogue of Life China 2023 v1.1; https://doi.org/10.15468/ae6ush",
+    "License": "CC-BY-NC-4.0",
+    "ExcludedReason": "No exact accepted binomial or unambiguous same-order-and-family CAS-linked synonym in pinned Imageomics Aves labels"
+  },
+  {
+    "ChineseName": "栗背奇鹛",
+    "ScientificName": "Leioptila annectens",
+    "Taxonomy": [
+      "Animalia",
+      "Chordata",
+      "Aves",
+      "Passeriformes",
+      "Leiothrichidae",
+      "Leioptila",
+      "annectens"
+    ],
+    "SourceTaxonId": "e9def52d-63bf-43ae-a501-8d5df27b2ccf",
+    "Synonyms": [
+      "Heterophasia annectens"
+    ],
+    "Source": "CAS Catalogue of Life China 2023 v1.1; https://doi.org/10.15468/ae6ush",
+    "License": "CC-BY-NC-4.0",
+    "ExcludedReason": "No exact accepted binomial or unambiguous same-order-and-family CAS-linked synonym in pinned Imageomics Aves labels"
+  },
+  {
+    "ChineseName": "白腹短翅鸲",
+    "ScientificName": "Luscinia phoenicuroides",
+    "Taxonomy": [
+      "Animalia",
+      "Chordata",
+      "Aves",
+      "Passeriformes",
+      "Muscicapidae",
+      "Luscinia",
+      "phoenicuroides"
+    ],
+    "SourceTaxonId": "0c006967-94f5-4bce-8d36-5e2a626df579",
+    "Synonyms": [
+      "Hodgsonius phaenicuroides"
+    ],
+    "Source": "CAS Catalogue of Life China 2023 v1.1; https://doi.org/10.15468/ae6ush",
+    "License": "CC-BY-NC-4.0",
+    "ExcludedReason": "No exact accepted binomial or unambiguous same-order-and-family CAS-linked synonym in pinned Imageomics Aves labels"
+  },
+  {
+    "ChineseName": "白腿小隼",
+    "ScientificName": "Microhierax melanoleucus",
+    "Taxonomy": [
+      "Animalia",
+      "Chordata",
+      "Aves",
+      "Falconiformes",
+      "Falconidae",
+      "Microhierax",
+      "melanoleucus"
+    ],
+    "SourceTaxonId": "897af146-ba0f-4779-b63d-0bda47f1f84b",
+    "Synonyms": [
+      "Microhierax chinensis"
+    ],
+    "Source": "CAS Catalogue of Life China 2023 v1.1; https://doi.org/10.15468/ae6ush",
+    "License": "CC-BY-NC-4.0",
+    "ExcludedReason": "No exact accepted binomial or unambiguous same-order-and-family CAS-linked synonym in pinned Imageomics Aves labels"
+  },
+  {
+    "ChineseName": "纹胸鹛",
+    "ScientificName": "Mixornis gularis",
+    "Taxonomy": [
+      "Animalia",
+      "Chordata",
+      "Aves",
+      "Passeriformes",
+      "Timaliidae",
+      "Mixornis",
+      "gularis"
+    ],
+    "SourceTaxonId": "a4896336-a218-46bf-bd62-2db0d539c93d",
+    "Synonyms": [
+      "Macronous gularis"
+    ],
+    "Source": "CAS Catalogue of Life China 2023 v1.1; https://doi.org/10.15468/ae6ush",
+    "License": "CC-BY-NC-4.0",
+    "ExcludedReason": "No exact accepted binomial or unambiguous same-order-and-family CAS-linked synonym in pinned Imageomics Aves labels"
+  },
+  {
+    "ChineseName": "北灰鹟",
+    "ScientificName": "Muscicapa dauurica",
+    "Taxonomy": [
+      "Animalia",
+      "Chordata",
+      "Aves",
+      "Passeriformes",
+      "Muscicapidae",
+      "Muscicapa",
+      "dauurica"
+    ],
+    "SourceTaxonId": "1e951a84-db5f-4eda-bcc3-413a149c5d86",
+    "Synonyms": [],
+    "Source": "CAS Catalogue of Life China 2023 v1.1; https://doi.org/10.15468/ae6ush",
+    "License": "CC-BY-NC-4.0",
+    "ExcludedReason": "No exact accepted binomial or unambiguous same-order-and-family CAS-linked synonym in pinned Imageomics Aves labels"
+  },
+  {
+    "ChineseName": "白尾蓝地鸲",
+    "ScientificName": "Myiomela leucurum",
+    "Taxonomy": [
+      "Animalia",
+      "Chordata",
+      "Aves",
+      "Passeriformes",
+      "Muscicapidae",
+      "Myiomela",
+      "leucurum"
+    ],
+    "SourceTaxonId": "67de9cbb-524f-46c5-8a68-0ef5d4b33eb8",
+    "Synonyms": [
+      "Cinclidium leucurum"
+    ],
+    "Source": "CAS Catalogue of Life China 2023 v1.1; https://doi.org/10.15468/ae6ush",
+    "License": "CC-BY-NC-4.0",
+    "ExcludedReason": "No exact accepted binomial or unambiguous same-order-and-family CAS-linked synonym in pinned Imageomics Aves labels"
+  },
+  {
+    "ChineseName": "震旦鸦雀",
+    "ScientificName": "Paradoxornis heudei",
+    "Taxonomy": [
+      "Animalia",
+      "Chordata",
+      "Aves",
+      "Passeriformes",
+      "Sylviidae",
+      "Paradoxornis",
+      "heudei"
+    ],
+    "SourceTaxonId": "9ba28370-ca74-48ec-a45d-05aed6207dcb",
+    "Synonyms": [],
+    "Source": "CAS Catalogue of Life China 2023 v1.1; https://doi.org/10.15468/ae6ush",
+    "License": "CC-BY-NC-4.0",
+    "ExcludedReason": "No exact accepted binomial or unambiguous same-order-and-family CAS-linked synonym in pinned Imageomics Aves labels"
+  },
+  {
+    "ChineseName": "黄腹山雀",
+    "ScientificName": "Pardaliparus venustulus",
+    "Taxonomy": [
+      "Animalia",
+      "Chordata",
+      "Aves",
+      "Passeriformes",
+      "Paridae",
+      "Pardaliparus",
+      "venustulus"
+    ],
+    "SourceTaxonId": "f02707ce-54ad-46d2-9b59-02941b046e0e",
+    "Synonyms": [
+      "Parus venustulus"
+    ],
+    "Source": "CAS Catalogue of Life China 2023 v1.1; https://doi.org/10.15468/ae6ush",
+    "License": "CC-BY-NC-4.0",
+    "ExcludedReason": "No exact accepted binomial or unambiguous same-order-and-family CAS-linked synonym in pinned Imageomics Aves labels"
+  },
+  {
+    "ChineseName": "绿嘴地鹃",
+    "ScientificName": "Phaenicophaeus tristis",
+    "Taxonomy": [
+      "Animalia",
+      "Chordata",
+      "Aves",
+      "Cuculiformes",
+      "Cuculidae",
+      "Phaenicophaeus",
+      "tristis"
+    ],
+    "SourceTaxonId": "2586e710-df56-456d-ad44-10dc2ec0cdf5",
+    "Synonyms": [
+      "Melias tristis",
+      "Rhopodytes tristis hainanus",
+      "Rhopodytes tristis longicudatus",
+      "Rhopodytes tristis saliens"
+    ],
+    "Source": "CAS Catalogue of Life China 2023 v1.1; https://doi.org/10.15468/ae6ush",
+    "License": "CC-BY-NC-4.0",
+    "ExcludedReason": "No exact accepted binomial or unambiguous same-order-and-family CAS-linked synonym in pinned Imageomics Aves labels"
+  },
+  {
+    "ChineseName": "蓝头红尾鸲",
+    "ScientificName": "Phoenicuropsis coeruleocephala",
+    "Taxonomy": [
+      "Animalia",
+      "Chordata",
+      "Aves",
+      "Passeriformes",
+      "Muscicapidae",
+      "Phoenicuropsis",
+      "coeruleocephala"
+    ],
+    "SourceTaxonId": "bea6fcc0-8e99-4a56-a407-2019318ca098",
+    "Synonyms": [
+      "Phoenicurus caeruleocephala"
+    ],
+    "Source": "CAS Catalogue of Life China 2023 v1.1; https://doi.org/10.15468/ae6ush",
+    "License": "CC-BY-NC-4.0",
+    "ExcludedReason": "No exact accepted binomial or unambiguous same-order-and-family CAS-linked synonym in pinned Imageomics Aves labels"
+  },
+  {
+    "ChineseName": "栗头织叶莺",
+    "ScientificName": "Phyllergates cucullatus",
+    "Taxonomy": [
+      "Animalia",
+      "Chordata",
+      "Aves",
+      "Passeriformes",
+      "Cettiidae",
+      "Phyllergates",
+      "cucullatus"
+    ],
+    "SourceTaxonId": "79c4504a-28bc-4a47-ab60-fa86780a7f76",
+    "Synonyms": [
+      "Orthotomus cucullatus"
+    ],
+    "Source": "CAS Catalogue of Life China 2023 v1.1; https://doi.org/10.15468/ae6ush",
+    "License": "CC-BY-NC-4.0",
+    "ExcludedReason": "No exact accepted binomial or unambiguous same-order-and-family CAS-linked synonym in pinned Imageomics Aves labels"
+  },
+  {
+    "ChineseName": "云南白斑尾柳莺",
+    "ScientificName": "Phylloscopus davisoni",
+    "Taxonomy": [
+      "Animalia",
+      "Chordata",
+      "Aves",
+      "Passeriformes",
+      "Phylloscopidae",
+      "Phylloscopus",
+      "davisoni"
+    ],
+    "SourceTaxonId": "b01f7204-20c4-4ac5-a8c4-cbb6d0b4a7f3",
+    "Synonyms": [
+      "Phylloscopus pseudes"
+    ],
+    "Source": "CAS Catalogue of Life China 2023 v1.1; https://doi.org/10.15468/ae6ush",
+    "License": "CC-BY-NC-4.0",
+    "ExcludedReason": "No exact accepted binomial or unambiguous same-order-and-family CAS-linked synonym in pinned Imageomics Aves labels"
+  },
+  {
+    "ChineseName": "华西柳莺",
+    "ScientificName": "Phylloscopus occisinensis",
+    "Taxonomy": [
+      "Animalia",
+      "Chordata",
+      "Aves",
+      "Passeriformes",
+      "Phylloscopidae",
+      "Phylloscopus",
+      "occisinensis"
+    ],
+    "SourceTaxonId": "28844eec-ac6a-483f-8f08-75d7e9e6cac1",
+    "Synonyms": [],
+    "Source": "CAS Catalogue of Life China 2023 v1.1; https://doi.org/10.15468/ae6ush",
+    "License": "CC-BY-NC-4.0",
+    "ExcludedReason": "No exact accepted binomial or unambiguous same-order-and-family CAS-linked synonym in pinned Imageomics Aves labels"
+  },
+  {
+    "ChineseName": "林柳莺",
+    "ScientificName": "Phylloscopus sibilatrix",
+    "Taxonomy": [
+      "Animalia",
+      "Chordata",
+      "Aves",
+      "Passeriformes",
+      "Phylloscopidae",
+      "Phylloscopus",
+      "sibilatrix"
+    ],
+    "SourceTaxonId": "3f4eb0c1-6f1e-46ce-93e6-86fa55db57c5",
+    "Synonyms": [],
+    "Source": "CAS Catalogue of Life China 2023 v1.1; https://doi.org/10.15468/ae6ush",
+    "License": "CC-BY-NC-4.0",
+    "ExcludedReason": "No exact accepted binomial or unambiguous same-order-and-family CAS-linked synonym in pinned Imageomics Aves labels"
+  },
+  {
+    "ChineseName": "蓝喉拟啄木鸟",
+    "ScientificName": "Psilopogon asiatica",
+    "Taxonomy": [
+      "Animalia",
+      "Chordata",
+      "Aves",
+      "Piciformes",
+      "Capitonidae",
+      "Psilopogon",
+      "asiatica"
+    ],
+    "SourceTaxonId": "386abe91-2ee7-445b-94ac-64dad788bdb0",
+    "Synonyms": [
+      "Megalaima asiatica"
+    ],
+    "Source": "CAS Catalogue of Life China 2023 v1.1; https://doi.org/10.15468/ae6ush",
+    "License": "CC-BY-NC-4.0",
+    "ExcludedReason": "No exact accepted binomial or unambiguous same-order-and-family CAS-linked synonym in pinned Imageomics Aves labels"
+  },
+  {
+    "ChineseName": "黑嘴鸥",
+    "ScientificName": "Saundersilarus saundersi",
+    "Taxonomy": [
+      "Animalia",
+      "Chordata",
+      "Aves",
+      "Charadriiformes",
+      "Laridae",
+      "Saundersilarus",
+      "saundersi"
+    ],
+    "SourceTaxonId": "2158b448-5445-4fd0-88c5-6415758f6e89",
+    "Synonyms": [
+      "Larus saundersi"
+    ],
+    "Source": "CAS Catalogue of Life China 2023 v1.1; https://doi.org/10.15468/ae6ush",
+    "License": "CC-BY-NC-4.0",
+    "ExcludedReason": "No exact accepted binomial or unambiguous same-order-and-family CAS-linked synonym in pinned Imageomics Aves labels"
+  },
+  {
+    "ChineseName": "台湾杂色山雀",
+    "ScientificName": "Sittiparus castaneoventris",
+    "Taxonomy": [
+      "Animalia",
+      "Chordata",
+      "Aves",
+      "Passeriformes",
+      "Paridae",
+      "Sittiparus",
+      "castaneoventris"
+    ],
+    "SourceTaxonId": "e7752d13-cd8a-412c-b948-97c11dae8aba",
+    "Synonyms": [],
+    "Source": "CAS Catalogue of Life China 2023 v1.1; https://doi.org/10.15468/ae6ush",
+    "License": "CC-BY-NC-4.0",
+    "ExcludedReason": "No exact accepted binomial or unambiguous same-order-and-family CAS-linked synonym in pinned Imageomics Aves labels"
+  },
+  {
+    "ChineseName": "黑胸楔嘴穗鹛",
+    "ScientificName": "Stachyris humei",
+    "Taxonomy": [
+      "Animalia",
+      "Chordata",
+      "Aves",
+      "Passeriformes",
+      "Timaliidae",
+      "Stachyris",
+      "humei"
+    ],
+    "SourceTaxonId": "0d006f2b-65b5-42da-a901-535f44dc5f04",
+    "Synonyms": [
+      "Phylloscopus humei"
+    ],
+    "Source": "CAS Catalogue of Life China 2023 v1.1; https://doi.org/10.15468/ae6ush",
+    "License": "CC-BY-NC-4.0",
+    "ExcludedReason": "No exact accepted binomial or unambiguous same-order-and-family CAS-linked synonym in pinned Imageomics Aves labels"
+  },
+  {
+    "ChineseName": "楔嘴穗鹛",
+    "ScientificName": "Stachyris roberti",
+    "Taxonomy": [
+      "Animalia",
+      "Chordata",
+      "Aves",
+      "Passeriformes",
+      "Timaliidae",
+      "Stachyris",
+      "roberti"
+    ],
+    "SourceTaxonId": "17f5f719-bcf3-4414-b361-7b219265b28c",
+    "Synonyms": [],
+    "Source": "CAS Catalogue of Life China 2023 v1.1; https://doi.org/10.15468/ae6ush",
+    "License": "CC-BY-NC-4.0",
+    "ExcludedReason": "No exact accepted binomial or unambiguous same-order-and-family CAS-linked synonym in pinned Imageomics Aves labels"
+  },
+  {
+    "ChineseName": "棕斑鸠",
+    "ScientificName": "Streptopelia senegalensis",
+    "Taxonomy": [
+      "Animalia",
+      "Chordata",
+      "Aves",
+      "Columbiformes",
+      "Columbidae",
+      "Streptopelia",
+      "senegalensis"
+    ],
+    "SourceTaxonId": "8e13264d-6380-432e-bad5-d695e40573ac",
+    "Synonyms": [
+      "Columba tsenegalensis",
+      "Streptopelia sengalensis",
+      "Turtur senegalensis"
+    ],
+    "Source": "CAS Catalogue of Life China 2023 v1.1; https://doi.org/10.15468/ae6ush",
+    "License": "CC-BY-NC-4.0",
+    "ExcludedReason": "No exact accepted binomial or unambiguous same-order-and-family CAS-linked synonym in pinned Imageomics Aves labels"
+  },
+  {
+    "ChineseName": "漠白喉林莺",
+    "ScientificName": "Sylvia minula",
+    "Taxonomy": [
+      "Animalia",
+      "Chordata",
+      "Aves",
+      "Passeriformes",
+      "Sylviidae",
+      "Sylvia",
+      "minula"
+    ],
+    "SourceTaxonId": "85faa91c-c529-439e-b1da-e1187ecf3eec",
+    "Synonyms": [],
+    "Source": "CAS Catalogue of Life China 2023 v1.1; https://doi.org/10.15468/ae6ush",
+    "License": "CC-BY-NC-4.0",
+    "ExcludedReason": "No exact accepted binomial or unambiguous same-order-and-family CAS-linked synonym in pinned Imageomics Aves labels"
+  },
+  {
+    "ChineseName": "东方寿带",
+    "ScientificName": "Terpsiphone affinis",
+    "Taxonomy": [
+      "Animalia",
+      "Chordata",
+      "Aves",
+      "Passeriformes",
+      "Monarchidae",
+      "Terpsiphone",
+      "affinis"
+    ],
+    "SourceTaxonId": "ef75b9da-8eb4-4dfe-9a62-2937e2058e70",
+    "Synonyms": [
+      "Garrulax affinis"
+    ],
+    "Source": "CAS Catalogue of Life China 2023 v1.1; https://doi.org/10.15468/ae6ush",
+    "License": "CC-BY-NC-4.0",
+    "ExcludedReason": "No exact accepted binomial or unambiguous same-order-and-family CAS-linked synonym in pinned Imageomics Aves labels"
+  },
+  {
+    "ChineseName": "寿带",
+    "ScientificName": "Terpsiphone incei",
+    "Taxonomy": [
+      "Animalia",
+      "Chordata",
+      "Aves",
+      "Passeriformes",
+      "Monarchidae",
+      "Terpsiphone",
+      "incei"
+    ],
+    "SourceTaxonId": "c75bb928-3b76-4bdb-a9ef-13d426390b67",
+    "Synonyms": [
+      "Terpsiphone paradisi"
+    ],
+    "Source": "CAS Catalogue of Life China 2023 v1.1; https://doi.org/10.15468/ae6ush",
+    "License": "CC-BY-NC-4.0",
+    "ExcludedReason": "No exact accepted binomial or unambiguous same-order-and-family CAS-linked synonym in pinned Imageomics Aves labels"
+  },
+  {
+    "ChineseName": "四川淡背地鸫",
+    "ScientificName": "Zoothera griseiceps",
+    "Taxonomy": [
+      "Animalia",
+      "Chordata",
+      "Aves",
+      "Passeriformes",
+      "Turdidae",
+      "Zoothera",
+      "griseiceps"
+    ],
+    "SourceTaxonId": "303c4ac9-cbb6-4c7b-a447-13b790f8b06c",
+    "Synonyms": [],
+    "Source": "CAS Catalogue of Life China 2023 v1.1; https://doi.org/10.15468/ae6ush",
+    "License": "CC-BY-NC-4.0",
+    "ExcludedReason": "No exact accepted binomial or unambiguous same-order-and-family CAS-linked synonym in pinned Imageomics Aves labels"
+  },
+  {
+    "ChineseName": "台湾斑胸钩嘴鹛",
+    "ScientificName": "Erythrogenys erythrocnemis",
+    "Taxonomy": [
+      "Animalia",
+      "Chordata",
+      "Aves",
+      "Passeriformes",
+      "Timaliidae",
+      "Erythrogenys",
+      "erythrocnemis"
+    ],
+    "SourceTaxonId": "5a1ece66-3207-435a-8c53-10f20a8399f0",
+    "Synonyms": [
+      "Pomatorhinus erythrocnemis"
+    ],
+    "Source": "CAS Catalogue of Life China 2023 v1.1; https://doi.org/10.15468/ae6ush",
+    "License": "CC-BY-NC-4.0",
+    "EmbeddingSourceIndices": [
+      349415
+    ],
+    "MatchMethod": "CASAcceptedNameLinkedSynonym",
+    "ExcludedReason": "All synonym vector rows were ambiguous with another accepted candidate"
+  },
+  {
+    "ChineseName": "斑胸钩嘴鹛",
+    "ScientificName": "Erythrogenys gravivox",
+    "Taxonomy": [
+      "Animalia",
+      "Chordata",
+      "Aves",
+      "Passeriformes",
+      "Timaliidae",
+      "Erythrogenys",
+      "gravivox"
+    ],
+    "SourceTaxonId": "aa8a747e-45b5-44e0-8291-e73964da46f5",
+    "Synonyms": [
+      "Pomatorhinus erythrocnemis"
+    ],
+    "Source": "CAS Catalogue of Life China 2023 v1.1; https://doi.org/10.15468/ae6ush",
+    "License": "CC-BY-NC-4.0",
+    "EmbeddingSourceIndices": [
+      349415
+    ],
+    "MatchMethod": "CASAcceptedNameLinkedSynonym",
+    "ExcludedReason": "All synonym vector rows were ambiguous with another accepted candidate"
+  }
+]

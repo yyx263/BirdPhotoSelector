@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <PlatformTarget>x64</PlatformTarget>
+    <NuGetAudit>false</NuGetAudit>
+    <RestorePackagesPath>$(MSBuildThisFileDirectory)../.tools/packages</RestorePackagesPath>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../BirdPhotoSelector.csproj" />
+  </ItemGroup>
+</Project>
