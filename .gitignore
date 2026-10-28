@@ -2,6 +2,7 @@
 bin/
 obj/
 publish/
+Tests/
 artifacts/
 # Local release archives belong in GitHub Releases.
 /*.zip

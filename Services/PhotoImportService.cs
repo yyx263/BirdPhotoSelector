@@ -14,26 +14,34 @@ public sealed class ImportResult
 public sealed class PhotoImportService
 {
     public Task<ImportResult> ImportAsync(IEnumerable<string> paths, IEnumerable<string> existingFileNames,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default, IProgress<PhotoOperationProgress>? progress = null)
     {
         var inputs = paths.ToArray();
         var names = new HashSet<string>(existingFileNames, StringComparer.OrdinalIgnoreCase);
         return Task.Run(() =>
         {
             var result = new ImportResult();
-            foreach (string path in inputs)
+            for (int index = 0; index < inputs.Length; index++)
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                if (!IsJpegExtension(path)) { result.SkippedUnsupported++; continue; }
-                if (names.Contains(Path.GetFileName(path))) { result.SkippedDuplicate++; continue; }
+                string path = inputs[index];
+                progress?.Report(new(index, inputs.Length, index + 1, path, "正在导入"));
+                cancellationToken.ThrowIfCancellationRequested();
+                string stage = "已导入";
                 try
                 {
+                    if (!IsJpegExtension(path))
+                    { result.SkippedUnsupported++; stage = "已跳过不支持的格式"; continue; }
+                    if (names.Contains(Path.GetFileName(path)))
+                    { result.SkippedDuplicate++; stage = "已跳过同名照片"; continue; }
                     var item = LoadPhoto(path);
                     result.Added.Add(item);
                     names.Add(item.FileName);
                 }
                 catch (Exception ex) when (ex is not OperationCanceledException)
-                { result.Errors.Add($"{Path.GetFileName(path)}：{ex.Message}"); }
+                { result.Errors.Add($"{Path.GetFileName(path)}：{ex.Message}"); stage = "导入失败"; }
+                finally
+                { progress?.Report(new(index + 1, inputs.Length, index + 1, path, stage, FileCompleted: true)); }
             }
             return result;
         }, cancellationToken);

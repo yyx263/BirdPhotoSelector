@@ -35,10 +35,10 @@
       <StackPanel Orientation="Horizontal" VerticalAlignment="Center"><TextBlock Text="本次挑选" FontSize="15" FontWeight="SemiBold"/><TextBlock Text="{Binding LibrarySummary}" Foreground="#8C9BA9" Margin="16,0,0,0" VerticalAlignment="Center"/></StackPanel>
       <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" IsEnabled="{Binding CanEdit}">
         <TextBlock Text="背景相似阈值" Foreground="#AAB7C3" VerticalAlignment="Center"/>
-        <Slider Width="100" Minimum="0.3" Maximum="0.99" Value="{Binding Threshold}" Margin="12,0,8,0" VerticalAlignment="Center" ToolTip="越高越严格；只合并导入顺序中连续且背景相似的照片"/>
+        <Slider x:Name="GroupingThresholdSlider" Width="100" Minimum="0" Maximum="1" SmallChange="0.01" LargeChange="0.1" Value="{Binding Threshold}" Margin="12,0,8,0" VerticalAlignment="Center" ToolTip="越高越严格；新版 50% 相当于旧版 95%，只合并导入顺序中连续且背景相似的照片"/>
         <TextBlock Text="{Binding Threshold,StringFormat={}{0:P0}}" Width="43" VerticalAlignment="Center" Foreground="#9DDFC4"/>
-        <Button Content="自动分组" Click="Analyze_Click" Padding="15,8" Margin="0,0,8,0" ToolTip="处理当前全部照片：合并连续相似背景并定位所有鸟，默认查看最大的一只"/>
-        <Button x:Name="RecognizeSpeciesButton" Content="识别鸟种" Click="RecognizeSpecies_Click" Padding="15,8" Background="#344940" ToolTip="按已定位的鸟框识别当前列表全部照片中的鸟；默认限定中国鸟种候选，不改变分组"/>
+        <Button Content="自动分组" Click="Analyze_Click" Padding="15,8" Margin="0,0,8,0" ToolTip="只合并连续相似背景，保留每张照片已有的鸟框、鸟种和视图"/>
+        <Button x:Name="RecognizeSpeciesButton" Content="识别鸟种" Click="RecognizeSpecies_Click" Padding="15,8" Background="#344940" ToolTip="逐张定位鸟并识别鸟种，默认限定中国鸟种候选；无需先分组，不改变现有分组"/>
       </StackPanel>
     </Grid>
     <Grid Grid.Row="2" Margin="14,0,14,10"><Grid.ColumnDefinitions><ColumnDefinition Width="190" MinWidth="150"/><ColumnDefinition Width="6"/><ColumnDefinition Width="148" MinWidth="125"/><ColumnDefinition Width="6"/><ColumnDefinition Width="*" MinWidth="580"/></Grid.ColumnDefinitions>
@@ -122,7 +122,7 @@
                   </Grid>
                 </DataTemplate></ListBox.ItemTemplate>
               </ListBox>
-              <TextBlock Grid.Row="1" Text="先自动分组定位鸟，再点击“识别鸟种”" Foreground="#738994" FontSize="12" HorizontalAlignment="Center" VerticalAlignment="Center" IsHitTestVisible="False">
+              <TextBlock Grid.Row="1" Text="点击“识别鸟种”自动定位并识别鸟" Foreground="#738994" FontSize="12" HorizontalAlignment="Center" VerticalAlignment="Center" IsHitTestVisible="False">
                 <TextBlock.Style><Style TargetType="TextBlock"><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers><DataTrigger Binding="{Binding CurrentPhoto.Birds.Count,TargetNullValue=0}" Value="0"><Setter Property="Visibility" Value="Visible"/></DataTrigger></Style.Triggers></Style></TextBlock.Style>
               </TextBlock>
             </Grid>
@@ -141,7 +141,7 @@
         </Border>
       </Grid>
     </Grid>
-    <Border Grid.Row="3" Background="#181F27" BorderBrush="#29343F" BorderThickness="0,1,0,0" Padding="20,0"><DockPanel VerticalAlignment="Center"><StackPanel DockPanel.Dock="Right" Orientation="Horizontal"><ProgressBar Width="130" Height="4" Value="{Binding Progress}" Maximum="100" Margin="0,0,12,0" Visibility="{Binding IsBusy,Converter={StaticResource BoolVisibility}}" Foreground="#9DDFC4"/><Button Content="取消" Click="Cancel_Click" Padding="10,3" Margin="0,0,14,0" Visibility="{Binding IsBusy,Converter={StaticResource BoolVisibility}}"/><TextBlock Text="{Binding AutoSaveSummary}" ToolTip="{Binding AutoSavePath}" Foreground="#7F948E" FontSize="10" Margin="0,0,16,0" VerticalAlignment="Center"/><TextBlock Text="{Binding RatingSummary}" Foreground="#8FA29E" FontSize="11" VerticalAlignment="Center"/></StackPanel><TextBlock Text="{Binding Status}" Foreground="#8C9BA9" FontSize="11" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/></DockPanel></Border>
+    <Border Grid.Row="3" Background="#181F27" BorderBrush="#29343F" BorderThickness="0,1,0,0" Padding="20,0"><DockPanel VerticalAlignment="Center"><StackPanel DockPanel.Dock="Right" Orientation="Horizontal"><ProgressBar Width="130" Height="4" Value="{Binding Progress}" Maximum="100" Margin="0,0,12,0" Visibility="{Binding IsBusy,Converter={StaticResource BoolVisibility}}" Foreground="#9DDFC4"/><Button Content="取消" Click="Cancel_Click" Padding="10,3" Margin="0,0,14,0" Visibility="{Binding IsBusy,Converter={StaticResource BoolVisibility}}"/><TextBlock Text="{Binding AutoSaveSummary}" ToolTip="{Binding AutoSavePath}" Foreground="#7F948E" FontSize="10" Margin="0,0,16,0" VerticalAlignment="Center"/><TextBlock Text="{Binding RatingSummary}" Foreground="#8FA29E" FontSize="11" VerticalAlignment="Center"/></StackPanel><TextBlock x:Name="OperationStatusText" Text="{Binding Status}" ToolTip="{Binding Status}" Foreground="#8C9BA9" FontSize="11" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/></DockPanel></Border>
   </Grid>
 </Window>
 

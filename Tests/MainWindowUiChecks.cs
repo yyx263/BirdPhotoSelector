@@ -85,6 +85,17 @@ internal static class MainWindowUiChecks
                 "real window bindings populate both group and in-group lists");
             Check(ReferenceEquals(photoList.SelectedItem, model.CurrentPhoto),
                 "initial photo-list selection matches the displayed photo");
+            var groupingThreshold = (Slider)window.FindName("GroupingThresholdSlider");
+            Check(groupingThreshold.Minimum == 0 && groupingThreshold.Maximum == 1 &&
+                  groupingThreshold.Value == .5 && model.Threshold == .5,
+                "the real grouping slider exposes the full recalibrated range and defaults to 50%");
+            string thresholdTip = groupingThreshold.ToolTip?.ToString() ?? "";
+            Check(thresholdTip.Contains("50%", StringComparison.Ordinal) && thresholdTip.Contains("95%", StringComparison.Ordinal),
+                "the real threshold control explains that the new midpoint equals the former 95% setting");
+            var recognizeButton = (Button)window.FindName("RecognizeSpeciesButton");
+            string recognitionTip = recognizeButton.ToolTip?.ToString() ?? "";
+            Check(recognitionTip.Contains("无需先分组", StringComparison.Ordinal) && recognitionTip.Contains("定位", StringComparison.Ordinal),
+                "the recognition action explains that bird localization runs without prior grouping");
             Check(((TextBlock)viewer.FindName("DetectionText")).Text.Contains("91%", StringComparison.Ordinal),
                 "bird confidence reaches the real detail-pane label");
             foreach (string field in new[] { "CapturedAt", "Camera", "FocalLength", "Aperture", "Shutter", "Iso", "ExposureBias" })
@@ -218,19 +229,30 @@ internal static class MainWindowUiChecks
                   ((StackPanel)dialog.FindName("DestinationPanel")).Visibility == Visibility.Collapsed &&
                   ((TextBlock)dialog.FindName("DeleteWarning")).Visibility == Visibility.Visible,
                 "delete-rejected mode clearly exposes its warning and hides export destination controls");
-            var reminder = new UnmarkedPhotosDialog(2);
-            var reminderSurface = CreateDialogSurface(reminder, 454, 200);
-            var reminderButtons = Descendants(reminderSurface).OfType<Button>().ToList();
-            var reminderLabels = reminderButtons.Select(button => button.Content?.ToString()).ToList();
-            Check(reminderLabels.Contains("返回挑选") && reminderLabels.Contains("继续导出"),
-                "unmarked-photo reminder offers return-to-review and continue-export choices");
-            foreach (var button in reminderButtons)
+            foreach (bool deleteOnly in new[] { false, true })
             {
-                Rect bounds = button.TransformToAncestor(reminderSurface).TransformBounds(new Rect(button.RenderSize));
-                Check(bounds.Left >= 0 && bounds.Right <= 455 && bounds.Bottom <= 201 && button.ActualWidth > 0,
-                    $"unmarked reminder action '{button.Content}' stays fully visible");
+                var reminder = new UnmarkedPhotosDialog(2, deleteOnly);
+                var reminderSurface = CreateDialogSurface(reminder, 454, 200);
+                var reminderButtons = Descendants(reminderSurface).OfType<Button>().ToList();
+                string continueLabel = deleteOnly ? "继续删除" : "继续导出";
+                Check(reminderButtons.Any(button => Equals(button.Content, "返回挑选") && button.IsCancel) &&
+                      reminderButtons.Any(button => Equals(button.Content, continueLabel)),
+                    $"unmarked-photo reminder offers return-to-review and '{continueLabel}' choices");
+                string message = ((TextBlock)reminder.FindName("MessageText")).Text;
+                Check(message.Contains("2 张未标记", StringComparison.Ordinal) &&
+                      message.Contains("返回挑选", StringComparison.Ordinal) &&
+                      message.Contains(deleteOnly ? "删除" : "导出", StringComparison.Ordinal),
+                    $"the {continueLabel} reminder reports the unmarked count and return-to-review behavior");
+                foreach (var button in reminderButtons)
+                {
+                    Rect bounds = button.TransformToAncestor(reminderSurface).TransformBounds(new Rect(button.RenderSize));
+                    Check(bounds.Left >= 0 && bounds.Right <= 455 && bounds.Bottom <= 201 && button.ActualWidth > 0,
+                        $"unmarked reminder action '{button.Content}' stays fully visible");
+                }
+                SaveScreenshot(reminderSurface, deleteOnly ? "unmarked-reminder-delete.png" : "unmarked-reminder.png", 454, 200);
+                reminder.Close();
             }
-            SaveScreenshot(reminderSurface, "unmarked-reminder.png", 454, 200);
+            TestUnmarkedFileOperationConfirmation(window, model, Check);
             TestClearList(window, root, model, viewer, photos, Check);
             model.SetGroups(Array.Empty<PhotoGroup>());
             model.Dirty = false;
@@ -592,6 +614,72 @@ internal static class MainWindowUiChecks
             (photo.ViewZoom, photo.ViewCenterX, photo.ViewCenterY) = view;
             viewer.ShowPhoto(photo, bitmap); model.IsPreviewReady = true;
             SettleBindings(root); model.Dirty = false;
+        }
+    }
+
+    private static void TestUnmarkedFileOperationConfirmation(MainWindow window, MainViewModel model,
+        Action<bool, string> check)
+    {
+        var confirm = typeof(MainWindow).GetMethod("ConfirmUnmarkedBeforeFileOperation",
+            System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+        check(confirm is not null, "file operations expose one production unmarked-photo confirmation entry point");
+        var photos = model.AllPhotos.ToArray();
+        check(photos.Length >= 2, "confirmation regression starts with rated and unmarked source-photo fixtures");
+        var ratings = photos.Select(photo => photo.Rating).ToArray();
+        var originalHashes = photos.Select(photo => System.Security.Cryptography.SHA256.HashData(File.ReadAllBytes(photo.FilePath))).ToArray();
+        var selected = model.CurrentPhoto;
+        var selectedGroup = model.CurrentGroup;
+        var ratedGroup = model.Groups.First(group => group.Photos.Contains(photos[^1]));
+        bool dirty = model.Dirty;
+        string status = model.Status;
+        try
+        {
+            foreach (var photo in photos) photo.Rating = PhotoRating.Unmarked;
+            photos[^1].Rating = PhotoRating.Reject;
+            int expectedCount = photos.Length - 1;
+            foreach (bool deleteOnly in new[] { false, true })
+            {
+                foreach (bool? response in new bool?[] { false, null, true })
+                {
+                    model.CurrentGroup = ratedGroup;
+                    model.CurrentPhoto = photos[^1];
+                    int shown = 0;
+                    Func<UnmarkedPhotosDialog, bool?> showReminder = reminder =>
+                    {
+                        shown++;
+                        check(Equals(((Button)reminder.FindName("ContinueButton")).Content, deleteOnly ? "继续删除" : "继续导出") &&
+                              ((TextBlock)reminder.FindName("MessageText")).Text.Contains($"{expectedCount} 张未标记", StringComparison.Ordinal),
+                            $"the production {(deleteOnly ? "delete" : "export")} confirmation receives the current count and matching action");
+                        reminder.Close();
+                        return response;
+                    };
+                    bool proceed = (bool)confirm!.Invoke(window, new object?[] { deleteOnly, showReminder })!;
+                    check(shown == 1 && proceed == (response == true),
+                        $"the {(deleteOnly ? "delete" : "export")} path requires an explicit continue response; response={response?.ToString() ?? "closed"}");
+                    check(ReferenceEquals(model.CurrentPhoto, response == true ? photos[^1] : photos[0]),
+                        $"the {(deleteOnly ? "delete" : "export")} path returns to the first unmarked photo on cancel or close only");
+                }
+            }
+            foreach (var photo in photos) photo.Rating = PhotoRating.Keep;
+            foreach (bool deleteOnly in new[] { false, true })
+            {
+                int shown = 0;
+                Func<UnmarkedPhotosDialog, bool?> showReminder = _ => { shown++; return false; };
+                bool proceed = (bool)confirm!.Invoke(window, new object?[] { deleteOnly, showReminder })!;
+                check(proceed && shown == 0,
+                    $"the {(deleteOnly ? "delete" : "export")} path proceeds without a reminder when every photo is rated");
+            }
+            check(photos.Select((photo, index) => File.Exists(photo.FilePath) &&
+                    System.Security.Cryptography.SHA256.HashData(File.ReadAllBytes(photo.FilePath)).SequenceEqual(originalHashes[index])).All(value => value),
+                "closing, canceling or accepting either reminder never exports or changes an original photo");
+        }
+        finally
+        {
+            for (int index = 0; index < photos.Length; index++) photos[index].Rating = ratings[index];
+            model.CurrentGroup = selectedGroup;
+            model.CurrentPhoto = selected;
+            model.Status = status;
+            model.Dirty = dirty;
         }
     }
 

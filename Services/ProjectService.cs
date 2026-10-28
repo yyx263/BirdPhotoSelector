@@ -7,7 +7,7 @@ namespace BirdPhotoSelector;
 public sealed class ProjectLoadResult
 {
     public List<PhotoGroup> Groups { get; } = new();
-    public double GroupingThreshold { get; internal set; } = 0.8;
+    public double GroupingThreshold { get; internal set; } = BirdPhotoSelector.GroupingThreshold.Default;
     public int SkippedMissing { get; internal set; }
     public int SkippedInvalid { get; internal set; }
     public int SkippedDuplicate { get; internal set; }
@@ -30,10 +30,12 @@ public sealed class ProjectService
         CancellationToken cancellationToken = default)
     {
         if (!IsProjectPath(path)) throw new InvalidDataException("工程文件必须使用 .json 扩展名。");
-        if (!double.IsFinite(groupingThreshold)) throw new ArgumentOutOfRangeException(nameof(groupingThreshold));
+        if (!double.IsFinite(groupingThreshold) || groupingThreshold is < 0 or > 1)
+            throw new ArgumentOutOfRangeException(nameof(groupingThreshold));
         var document = new ProjectDocument
         {
             GroupingThreshold = groupingThreshold,
+            GroupingThresholdScaleVersion = GroupingThreshold.ScaleVersion,
             Groups = groups.Select(group => (GroupRecord?)new GroupRecord
             {
                 Id = group.Id, Label = group.Label,
@@ -82,9 +84,17 @@ public sealed class ProjectService
                 ?? throw new InvalidDataException("工程文件为空。");
             if (document.Schema != "BirdPhotoSelector.Project" || document.Version != 1)
                 throw new InvalidDataException("工程格式或版本不受支持。");
-            if (document.Groups is null || !double.IsFinite(document.GroupingThreshold))
+            if (document.Groups is null || !double.IsFinite(document.GroupingThreshold) ||
+                document.GroupingThreshold is < 0 or > 1)
                 throw new InvalidDataException("工程文件缺少有效的分组信息。");
-            var result = new ProjectLoadResult { GroupingThreshold = document.GroupingThreshold };
+            if (document.GroupingThresholdScaleVersion is not (1 or GroupingThreshold.ScaleVersion))
+                throw new InvalidDataException("工程中的分组阈值刻度版本不受支持。");
+            var result = new ProjectLoadResult
+            {
+                GroupingThreshold = document.GroupingThresholdScaleVersion == 1
+                    ? GroupingThreshold.FromActual(document.GroupingThreshold)
+                    : document.GroupingThreshold
+            };
             var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             var ids = new HashSet<string>(StringComparer.Ordinal);
             foreach (var groupRecord in document.Groups)
@@ -161,6 +171,8 @@ public sealed class ProjectService
         [JsonRequired] public int Version { get; set; } = 1;
         public DateTimeOffset SavedAt { get; set; } = DateTimeOffset.UtcNow;
         [JsonRequired] public double GroupingThreshold { get; set; } = 0.8;
+        // Missing in 1.5 and earlier projects: those values are direct background scores.
+        public int GroupingThresholdScaleVersion { get; set; } = 1;
         [JsonRequired] public List<GroupRecord?>? Groups { get; set; } = new();
     }
     private sealed class GroupRecord

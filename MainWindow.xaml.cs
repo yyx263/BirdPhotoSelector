@@ -196,6 +196,21 @@ public partial class MainWindow : Window
         }
     }
 
+    private IProgress<T> OperationProgress<T>(Action<T> update)
+    {
+        var operation = _operation;
+        return new Progress<T>(value =>
+        {
+            if (!_isClosed && _vm.IsBusy && ReferenceEquals(_operation, operation)) update(value);
+        });
+    }
+
+    private IProgress<PhotoOperationProgress> FileProgress() => OperationProgress<PhotoOperationProgress>(p =>
+    {
+        _vm.Progress = p.Total > 0 ? p.Completed * 100.0 / p.Total : 0;
+        _vm.Status = p.Message + " · " + p.FilePath;
+    });
+
     private async void AddPhotos_Click(object sender, RoutedEventArgs e) => await ChoosePhotos();
     private async void ClearList_Click(object sender, RoutedEventArgs e) => await ClearSessionAsync();
     private async Task ClearSessionAsync()
@@ -227,7 +242,7 @@ public partial class MainWindow : Window
     private async Task Import(string[] files) => await RunOperation(async ct =>
     {
         _vm.Status = "正在读取照片和 EXIF 信息…";
-        var result = await _import.ImportAsync(files, _vm.AllPhotos.Select(p => p.FileName), ct);
+        var result = await _import.ImportAsync(files, _vm.AllPhotos.Select(p => p.FileName), ct, FileProgress());
         var groups = _vm.Groups.Select(g => g.Model).ToList();
         foreach (var photo in result.Added) { var group = new PhotoGroup(); group.Photos.Add(photo); groups.Add(group); }
         SetSessionGroups(groups, _vm.CurrentPhoto?.Id ?? result.Added.FirstOrDefault()?.Id);
@@ -246,29 +261,22 @@ public partial class MainWindow : Window
         if (_vm.PhotoCount == 0) { _vm.Status = "请先添加 JPG 照片"; return; }
         await RunOperation(async ct =>
         {
-            _vm.Status = "正在分析照片…";
+            _vm.Status = "正在按背景相似度分组…";
             var selectedId = _vm.CurrentPhoto?.Id;
             var photos = _vm.AllPhotos.ToList();
-            var progress = new Progress<AnalyzeProgress>(p => { _vm.Progress = p.Total > 0 ? p.Completed * 100.0 / p.Total : 0; _vm.Status = p.Message; });
+            var progress = OperationProgress<AnalyzeProgress>(p => { _vm.Progress = p.Total > 0 ? p.Completed * 100.0 / p.Total : 0; _vm.Status = p.Message; });
             using var analysis = new AnalysisService();
-            var result = await analysis.AnalyzeAsync(photos, _vm.Threshold, progress, ct);
+            var result = await analysis.AnalyzeAsync(photos, GroupingThreshold.ToActual(_vm.Threshold), progress, ct);
             ct.ThrowIfCancellationRequested();
             foreach (var outcome in result.Outcomes)
             {
                 var photo = photos.First(p => p.Id == outcome.PhotoId);
-                bool keepManualView = photo.SelectedBird is { IsManual: true };
-                if (!outcome.PreservedExistingBirds) photo.ReplaceAutomaticRegions(outcome.Birds);
-                photo.DetectionStatus = outcome.DetectionStatus;
                 photo.PixelWidth = outcome.PixelWidth; photo.PixelHeight = outcome.PixelHeight;
-                if (!keepManualView && !outcome.PreservedExistingBirds)
-                    photo.ViewZoom = photo.ViewCenterX = photo.ViewCenterY = null;
             }
             var groups = result.Groups.Select(list => { var g = new PhotoGroup(); foreach (var p in list) g.Photos.Add(p); return g; }).ToList();
             SetSessionGroups(groups, selectedId); _vm.Dirty = true;
-            int birds = photos.Count(p => p.Bird != null);
-            _vm.Status = $"自动分组完成 · {groups.Count} 个组 · {birds} / {photos.Count} 张有鸟 · 共 {photos.Sum(p => p.Birds.Count)} 只";
+            _vm.Status = $"自动分组完成 · {photos.Count} 张照片 · {groups.Count} 个组 · 已保留鸟框与鸟种结果";
             _vm.Progress = 100;
-            if (result.MissingModel) ShowMessage("背景分组已完成。\n\n未找到鸟类识别模型，或模型未能加载。请按使用说明运行 scripts/Setup-Model.ps1，并把 models 文件夹放在程序旁，然后重新分析。\n\n仍可手动缩放、评级和导出。", "鸟类识别模型不可用", MessageBoxImage.Information);
             if (result.Errors.Count > 0) ShowDetails("分析中的提示", result.Errors);
         });
     }
@@ -276,39 +284,38 @@ public partial class MainWindow : Window
     private async void RecognizeSpecies_Click(object sender, RoutedEventArgs e)
     {
         if (_vm.IsBusy) return;
-        if (!_vm.AllPhotos.Any(photo => photo.Birds.Count > 0))
-        { _vm.Status = "请先点击“自动分组”定位鸟，再识别鸟种"; return; }
+        if (_vm.PhotoCount == 0)
+        { _vm.Status = "请先添加 JPG 照片"; return; }
         await RunOperation(async ct =>
         {
             var photos = _vm.AllPhotos.ToList();
             var byId = photos.ToDictionary(photo => photo.Id);
-            var progress = new Progress<SpeciesProgress>(p =>
+            bool focusNewBird = _vm.CurrentPhoto is { Birds.Count: 0 };
+            var progress = OperationProgress<SpeciesProgress>(p =>
             {
                 _vm.Progress = p.Total > 0 ? p.Completed * 100.0 / p.Total : 0;
                 _vm.Status = p.Message;
             });
-            _vm.Status = "正在准备 BioCLIP 2 · 中国鸟种候选…";
+            _vm.Status = "正在准备鸟类定位与鸟种识别 · 中国鸟种候选…";
             // Keep the large inference session only for this batch, rather than retaining it
             // alongside the preview cache throughout the user's entire picking session.
-            using var recognition = new BirdSpeciesRecognitionService();
+            using var recognition = new BirdRecognitionWorkflow();
             var result = await recognition.RecognizeAsync(photos, chinaOnly: true, progress, ct);
             ct.ThrowIfCancellationRequested();
-            int matched = 0;
             foreach (var outcome in result.Outcomes)
             {
-                if (!byId.TryGetValue(outcome.PhotoId, out var photo) || outcome.BirdIndex < 0 || outcome.BirdIndex >= photo.Birds.Count) continue;
-                var bird = photo.Birds[outcome.BirdIndex];
-                if (outcome.Species is { IsValid: true } species) { bird.Species = species; matched++; }
-                bird.RecognitionStatus = outcome.Status + (outcome.Species is null && bird.Species is not null ? "；保留上次结果" : "");
+                if (byId.TryGetValue(outcome.PhotoId, out var photo)) outcome.ApplyTo(photo);
             }
             if (result.Outcomes.Count > 0) _vm.Dirty = true;
-            Viewer.RefreshBirdOverlays();
+            if (focusNewBird && _vm.CurrentPhoto is { Birds.Count: > 0 } current && _vm.IsPreviewReady)
+                Viewer.SelectBird(current.SelectedBirdIndex);
+            else Viewer.RefreshBirdOverlays();
             _vm.Progress = 100;
-            _vm.Status = result.MissingModel ? "鸟种识别未开始 · 模型资源不完整" :
-                matched == 0 && result.Errors.Count > 0 ? "鸟种识别未完成 · 请查看错误提示" :
-                $"鸟种识别完成 · 中国候选 · {matched} 只鸟有结果 · {result.SkippedPhotos} 张未定位照片已跳过";
+            _vm.Status = result.MissingModel ? "定位与鸟种识别未完整完成 · 模型资源不完整" :
+                result.MatchedBirds == 0 && result.Errors.Count > 0 ? "鸟种识别未完成 · 请查看错误提示" :
+                $"鸟种识别完成 · {photos.Count} 张照片 · 中国候选 · {result.MatchedBirds} 只鸟有结果 · {result.SkippedPhotos} 张无可用鸟框";
             if (result.MissingModel)
-                ShowMessage("BioCLIP 2 模型或中国鸟种候选文件不完整。\n\n请运行 scripts/Setup-SpeciesModel.ps1 准备模型，或使用包含 models/bioclip2 目录的完整发布包。\n\n已有的分组、鸟类定位、评级和导出仍可使用。", "鸟种识别模型未就绪", MessageBoxImage.Information);
+                ShowMessage("鸟类定位或鸟种识别模型资源不完整。\n\n定位模型：运行 scripts/Setup-Model.ps1。\n鸟种模型：运行 scripts/Setup-SpeciesModel.ps1。\n也可以使用包含完整 models 目录的发布包。\n\n已有的分组、鸟框、鸟种结果和评级会保留。", "识别模型未就绪", MessageBoxImage.Information);
             else if (result.Errors.Count > 0) ShowDetails("鸟种识别中的提示", result.Errors);
         });
     }
@@ -552,11 +559,7 @@ public partial class MainWindow : Window
         if (_vm.IsBusy || _vm.PhotoCount == 0) { _vm.Status = "请先添加照片并评级"; return; }
         var dialog = new ExportDialog(_vm.AllPhotos.ToList()) { Owner = this };
         if (dialog.ShowDialog() != true) return;
-        if (!dialog.DeleteOnly && _vm.UnmarkedCount > 0)
-        {
-            var reminder = new UnmarkedPhotosDialog(_vm.UnmarkedCount) { Owner = this };
-            if (reminder.ShowDialog() != true) { _vm.LocateFirstUnmarked(); return; }
-        }
+        if (!ConfirmUnmarkedBeforeFileOperation(dialog.DeleteOnly)) return;
         var photos = _vm.AllPhotos.Where(dialog.Includes).ToList();
         if (photos.Count == 0) { ShowMessage("没有符合所选评级的照片。", "没有待处理照片"); return; }
         if (dialog.DeleteOnly || dialog.RemoveOriginal)
@@ -568,16 +571,33 @@ public partial class MainWindow : Window
         {
             _vm.Status = dialog.DeleteOnly ? "正在移除舍弃的原文件…" : "正在复制照片并校验…";
             var result = dialog.DeleteOnly
-                ? await _export.DeleteAsync(photos, ct)
-                : await _export.ExportAsync(photos, dialog.Destination, dialog.RemoveOriginal, ct);
+                ? await _export.DeleteAsync(photos, ct, FileProgress())
+                : await _export.ExportAsync(photos, dialog.Destination, dialog.RemoveOriginal, ct, FileProgress());
             if (result.SourceRemoved.Count > 0) { RemoveFromSession(result.SourceRemoved); _vm.Dirty = true; }
             _vm.Status = $"操作完成 · 成功 {result.Succeeded.Count} 张 · 跳过 {result.Skipped.Count} 张 · 失败 {result.Errors.Count} 张"; _vm.Progress = 100;
             ShowMessage($"成功：{result.Succeeded.Count} 张\n已移除原文件：{result.SourceRemoved.Count} 张\n跳过：{result.Skipped.Count} 张\n失败：{result.Errors.Count} 张" +
                 (result.Skipped.Count + result.Errors.Count > 0 ? "\n\n" + string.Join("\n", result.Skipped.Concat(result.Errors).Take(12)) : ""), "处理完成", result.Errors.Count > 0 ? MessageBoxImage.Warning : MessageBoxImage.Information);
         });
     }
+
+    private bool ConfirmUnmarkedBeforeFileOperation(bool deleteOnly,
+        Func<UnmarkedPhotosDialog, bool?>? showReminder = null)
+    {
+        if (_vm.UnmarkedCount == 0) return true;
+        var reminder = new UnmarkedPhotosDialog(_vm.UnmarkedCount, deleteOnly);
+        bool? response;
+        if (showReminder is null)
+        {
+            reminder.Owner = this;
+            response = reminder.ShowDialog();
+        }
+        else response = showReminder(reminder);
+        bool proceed = response == true;
+        if (!proceed) _vm.LocateFirstUnmarked();
+        return proceed;
+    }
     private void Cancel_Click(object sender, RoutedEventArgs e) => _operation?.Cancel();
-    private void Help_Click(object sender, RoutedEventArgs e) => ShowMessage("1. 添加照片：直接多选 JPG，可从不同目录继续添加。同名文件自动跳过。“清空列表”仅移除当前列表，不删除原文件。\n2. 自动分组：按当前列表顺序合并连续相似背景，记录检测到的所有鸟，默认查看最大的一只。阈值越高，分组越严格。\n3. 识别鸟种：按列表中已定位的鸟框逐只识别，默认中国鸟种候选。下方每行对应左图同序号虚线框，可点击编号或结果切换主体。置信度根据全部候选的分数差距计算，并非实际准确率；鼠标悬停可查看原始相似度与相近候选。旧工程需重新识别后才有新置信度。\n4. 左侧全图固定；右侧滚轮缩放、拖动平移，白框指示当前区域，拖动和缩放均不会超出照片边界。缩放范围为适应画面至 200%；极小图片最高显示 200%。R 还原鸟类约占框 70% 的视图，也可点击适应画面。右上“手动选区”开启后拖框，松开即识别并追加编号，Esc 取消；在编号框或结果行右键可删除选区，剩余编号保持不变。重新分组保留手动选区。\n5. 两栏缩略图滚轮只滚动列表。方向键 / WASD 切换组内照片；Page Up / Page Down 切换照片组。在组内首尾继续切图，会衔接上一组最后一张或下一组第一张。\n6. 1 未标记，2 舍弃，3 保留，4 精选。评级保持选中状态；缩略图右键可快速评级，照片组右键仅用于独立照片。Ctrl / Shift 支持列表多选。\n7. 导出到自行选择的现有目录，不会自动创建子目录；同名目标跳过。存在未标记照片时可返回定位继续挑选。\n8. JSON 工程记录原始路径、分组、视图和评级，不打包照片。工程仅使用 .json 格式。\n9. 前后各预加载两张照片，缓存上限 512 MB（不含当前显示和解码缓冲）。每 5 分钟自动保存修改；未命名工程或原路径不可写时保存本机恢复文件，可点击“恢复自动保存”打开。\n\nCtrl+O 添加照片 · Ctrl+S 保存工程\n所有分析均在本机进行。", "羽选 · 使用帮助", MessageBoxImage.Information);
+    private void Help_Click(object sender, RoutedEventArgs e) => ShowMessage("1. 添加照片：直接多选 JPG，可从不同目录继续添加。同名文件自动跳过。“清空列表”仅移除当前列表，不删除原文件。\n2. 自动分组：只按当前列表顺序合并连续相似背景，保留已有鸟框、鸟种、当前选区与缩放视图。新版默认 50% 相当于旧版 95%，阈值越高分组越严格。\n3. 识别鸟种：逐张定位鸟并识别所有自动框及手动选区，无需先分组，默认中国鸟种候选。下方每行对应左图同序号虚线框，可点击编号或结果切换主体。置信度根据全部候选的分数差距计算，并非实际准确率；鼠标悬停可查看原始相似度与相近候选。旧工程需重新识别后才有新置信度。\n4. 左侧全图固定；右侧滚轮缩放、拖动平移，白框指示当前区域，拖动和缩放均不会超出照片边界。缩放范围为适应画面至 200%；极小图片最高显示 200%。R 还原鸟类约占框 70% 的视图，也可点击适应画面。右上“手动选区”开启后拖框，松开即识别并追加编号，Esc 取消；在编号框或结果行右键可删除选区，剩余编号保持不变。重新分组保留全部已有鸟框与识别结果。\n5. 两栏缩略图滚轮只滚动列表。方向键 / WASD 切换组内照片；Page Up / Page Down 切换照片组。在组内首尾继续切图，会衔接上一组最后一张或下一组第一张。\n6. 1 未标记，2 舍弃，3 保留，4 精选。评级保持选中状态；缩略图右键可快速评级，照片组右键仅用于独立照片。Ctrl / Shift 支持列表多选。\n7. 导出到自行选择的现有目录，不会自动创建子目录；同名目标跳过。导出或删除舍弃前若有未标记照片，可返回定位继续挑选；处理时显示当前照片序号和文件名。\n8. JSON 工程记录原始路径、分组、视图和评级，不打包照片。工程仅使用 .json 格式。\n9. 前后各预加载两张照片，缓存上限 512 MB（不含当前显示和解码缓冲）。每 5 分钟自动保存修改；未命名工程或原路径不可写时保存本机恢复文件，可点击“恢复自动保存”打开。\n\nCtrl+O 添加照片 · Ctrl+S 保存工程\n所有分析均在本机进行。", "羽选 · 使用帮助", MessageBoxImage.Information);
 
     private async void Window_PreviewKeyDown(object sender, KeyEventArgs e)
     {
