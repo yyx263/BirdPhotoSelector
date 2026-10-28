@@ -16,7 +16,8 @@ public sealed class ExportService
 {
     /// <summary>Copies into an existing folder, verifies SHA-256, then optionally recycles each source.</summary>
     public Task<FileOperationResult> ExportAsync(IEnumerable<PhotoItem> photos, string existingDestination,
-        bool removeOriginal, CancellationToken cancellationToken = default)
+        bool removeOriginal, CancellationToken cancellationToken = default,
+        IProgress<PhotoOperationProgress>? progress = null)
     {
         var items = photos.ToArray();
         string destination = Path.GetFullPath(existingDestination);
@@ -24,17 +25,22 @@ public sealed class ExportService
         return Task.Run(async () =>
         {
             var result = new FileOperationResult();
-            foreach (var photo in items)
+            for (int index = 0; index < items.Length; index++)
             {
                 if (cancellationToken.IsCancellationRequested) break;
+                var photo = items[index];
                 string? target = null;
-                bool ownsTarget = false, verified = false;
+                bool ownsTarget = false, verified = false, canceled = false;
+                string stage = "导出失败";
                 try
                 {
+                    progress?.Report(new(index, items.Length, index + 1, photo.FilePath, "正在复制"));
+                    cancellationToken.ThrowIfCancellationRequested();
                     target = Path.Combine(destination, photo.FileName);
                     if (Path.GetFullPath(photo.FilePath).Equals(Path.GetFullPath(target), StringComparison.OrdinalIgnoreCase))
-                    { result.Skipped.Add($"{photo.FileName}：源文件和目标文件相同。"); continue; }
-                    if (File.Exists(target)) { result.Skipped.Add($"{photo.FileName}：目标目录已存在同名文件。"); continue; }
+                    { result.Skipped.Add($"{photo.FileName}：源文件和目标文件相同。"); stage = "已跳过相同源文件和目标"; continue; }
+                    if (File.Exists(target))
+                    { result.Skipped.Add($"{photo.FileName}：目标目录已存在同名文件。"); stage = "已跳过目标同名文件"; continue; }
                     await using (var source = new FileStream(photo.FilePath, FileMode.Open, FileAccess.Read,
                         FileShare.Read, 131072, FileOptions.Asynchronous | FileOptions.SequentialScan))
                     await using (var output = new FileStream(target, FileMode.CreateNew, FileAccess.ReadWrite,
@@ -44,6 +50,8 @@ public sealed class ExportService
                         await source.CopyToAsync(output, cancellationToken);
                         await output.FlushAsync(cancellationToken);
                         output.Flush(flushToDisk: true);
+                        progress?.Report(new(index, items.Length, index + 1, photo.FilePath, "正在校验"));
+                        cancellationToken.ThrowIfCancellationRequested();
                         if (source.Length != output.Length) throw new IOException("复制后的文件大小校验失败，源文件已保留。");
                         source.Position = 0;
                         output.Position = 0;
@@ -54,14 +62,21 @@ public sealed class ExportService
                         verified = true;
                     }
                     result.Succeeded.Add(photo);
+                    stage = "已导出并校验";
                     if (removeOriginal && !cancellationToken.IsCancellationRequested)
                     {
-                        try { RemoveSource(photo.FilePath); result.SourceRemoved.Add(photo); }
-                        catch (Exception ex) { result.Errors.Add($"{photo.FileName}：已导出，但原文件未删除：{ex.Message}"); }
+                        progress?.Report(new(index, items.Length, index + 1, photo.FilePath, "正在移除原文件"));
+                        if (!cancellationToken.IsCancellationRequested)
+                        {
+                            try
+                            { RemoveSource(photo.FilePath); result.SourceRemoved.Add(photo); stage = "已导出并移除原文件"; }
+                            catch (Exception ex)
+                            { result.Errors.Add($"{photo.FileName}：已导出，但原文件未删除：{ex.Message}"); stage = "已导出，原文件未移除"; }
+                        }
                     }
                 }
                 catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-                { break; }
+                { canceled = true; stage = "已取消导出"; break; }
                 catch (Exception ex)
                 { result.Errors.Add($"{photo.FileName}：{ex.Message}"); }
                 finally
@@ -71,6 +86,8 @@ public sealed class ExportService
                         try { File.Delete(target); }
                         catch (Exception ex) { result.Errors.Add($"{photo.FileName}：未完成的目标文件无法清理：{ex.Message}"); }
                     }
+                    progress?.Report(new(canceled ? index : index + 1, items.Length, index + 1,
+                        photo.FilePath, stage, FileCompleted: !canceled));
                 }
             }
             return result;
@@ -78,23 +95,35 @@ public sealed class ExportService
     }
 
     /// <summary>The caller confirms the selected files before invoking this destructive operation.</summary>
-    public Task<FileOperationResult> DeleteAsync(IEnumerable<PhotoItem> photos, CancellationToken cancellationToken = default)
+    public Task<FileOperationResult> DeleteAsync(IEnumerable<PhotoItem> photos, CancellationToken cancellationToken = default,
+        IProgress<PhotoOperationProgress>? progress = null)
     {
         var items = photos.ToArray();
         return Task.Run(() =>
         {
             var result = new FileOperationResult();
-            foreach (var photo in items)
+            for (int index = 0; index < items.Length; index++)
             {
                 if (cancellationToken.IsCancellationRequested) break;
+                var photo = items[index];
+                progress?.Report(new(index, items.Length, index + 1, photo.FilePath, "正在删除"));
+                if (cancellationToken.IsCancellationRequested)
+                {
+                    progress?.Report(new(index, items.Length, index + 1, photo.FilePath, "已取消删除"));
+                    break;
+                }
+                string stage = "已删除";
                 try
                 {
-                    if (!File.Exists(photo.FilePath)) { result.Skipped.Add($"{photo.FileName}：文件已经不存在。"); continue; }
+                    if (!File.Exists(photo.FilePath))
+                    { result.Skipped.Add($"{photo.FileName}：文件已经不存在。"); stage = "已跳过不存在的文件"; continue; }
                     RemoveSource(photo.FilePath);
                     result.Succeeded.Add(photo);
                     result.SourceRemoved.Add(photo);
                 }
-                catch (Exception ex) { result.Errors.Add($"{photo.FileName}：{ex.Message}"); }
+                catch (Exception ex) { result.Errors.Add($"{photo.FileName}：{ex.Message}"); stage = "删除失败"; }
+                finally
+                { progress?.Report(new(index + 1, items.Length, index + 1, photo.FilePath, stage, FileCompleted: true)); }
             }
             return result;
         }, CancellationToken.None);

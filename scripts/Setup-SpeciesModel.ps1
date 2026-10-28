@@ -87,16 +87,27 @@ try {
         (Join-Path $AssetRoot 'licenses/TreeOfLife-CC0-1.0.txt') 'a2010f343487d3f7618affe54f789f5487602331c0a8d03f49e9a7c547cf0499'
     Get-PinnedFile 'https://huggingface.co/datasets/imageomics/TreeOfLife-200M/raw/5f2dc493b3dc0e544438a04038ab15faa646b749/README.md' `
         (Join-Path $AssetRoot 'licenses/TreeOfLife-source-card.txt') '4e231609b900ba1c4e0c34c8e130fd14b63fe219031126f208fa9b54df0004d9'
-    & $Python -c 'import sys,zipfile,pathlib; pathlib.Path(sys.argv[2]).write_bytes(zipfile.ZipFile(sys.argv[1]).read("eml.xml"))' `
-        (Join-Path $CacheRoot 'china-checklist.zip') (Join-Path $AssetRoot 'licenses/ChinaChecklist-v1.1-EML.xml')
+    # Pass the entry name as an argument: Windows PowerShell 5.1 strips embedded
+    # double quotes in native -c arguments before Python receives them.
+    & $Python -c 'import sys,zipfile,pathlib; pathlib.Path(sys.argv[2]).write_bytes(zipfile.ZipFile(sys.argv[1]).read(sys.argv[3]))' `
+        (Join-Path $CacheRoot 'china-checklist.zip') (Join-Path $AssetRoot 'licenses/ChinaChecklist-v1.1-EML.xml') 'eml.xml'
     if ($LASTEXITCODE -ne 0) { throw 'Could not extract verified China catalogue attribution.' }
     $TorchWheel = Join-Path $CacheRoot 'torch-2.5.1+cpu-cp312-cp312-win_amd64.whl'
     & $Python $Builder fetch 'https://download-r2.pytorch.org/whl/cpu/torch-2.5.1%2Bcpu-cp312-cp312-win_amd64.whl' `
         $TorchWheel 205405035 'a6b720410350765d3d77c01a5ce098a6c45af446284e45e87a98b8a16e7d564d'
     if ($LASTEXITCODE -ne 0) { throw 'CPU PyTorch download failed.' }
+    # Windows can expose its HTTPS proxy with an https:// scheme even when the
+    # local proxy accepts HTTP CONNECT. Use the same resolved proxy as .NET's
+    # successful downloads; --isolated otherwise leaves pip to reinterpret it.
+    $PipIndex = [Uri]'https://pypi.org/simple'
+    $PipProxy = [Net.WebRequest]::DefaultWebProxy.GetProxy($PipIndex)
+    $PipProxyArguments = @()
+    if ($null -ne $PipProxy -and $PipProxy -ne $PipIndex) {
+        $PipProxyArguments = @('--proxy', $PipProxy.AbsoluteUri)
+    }
     & $Python -m pip install --isolated --disable-pip-version-check --no-cache-dir --no-warn-script-location --no-deps --upgrade `
         --target (Join-Path $PythonRoot 'Lib/site-packages') --index-url https://pypi.org/simple `
-        --extra-index-url https://download.pytorch.org/whl/cpu --requirement $RequirementLock $TorchWheel
+        --extra-index-url https://download.pytorch.org/whl/cpu @PipProxyArguments --requirement $RequirementLock $TorchWheel
     if ($LASTEXITCODE -ne 0) { throw 'Project-local species export dependencies could not be installed.' }
     foreach ($Asset in @('weights', 'labels', 'text')) {
         & $Python $Builder download $Asset

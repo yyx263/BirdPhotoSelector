@@ -2,6 +2,6 @@
   <Grid Margin="25"><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
     <TextBlock Text="还有照片尚未评级" FontSize="21" FontWeight="SemiBold"/>
     <TextBlock x:Name="MessageText" Grid.Row="1" TextWrapping="Wrap" Margin="0,14,0,16" FontSize="14" Foreground="#AABAC6"/>
-    <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right"><Button Content="返回挑选" IsCancel="True" Margin="0,0,10,0"/><Button Content="继续导出" Style="{StaticResource PrimaryButton}" Click="Continue_Click"/></StackPanel>
+    <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right"><Button Content="返回挑选" IsCancel="True" Margin="0,0,10,0"/><Button x:Name="ContinueButton" Content="继续导出" Style="{StaticResource PrimaryButton}" Click="Continue_Click"/></StackPanel>
   </Grid>
 </Window>

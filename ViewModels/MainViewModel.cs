@@ -14,7 +14,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private bool _isBusy;
     private bool _dirty;
     private string _status = "准备就绪 · 添加照片，开始本次挑选";
-    private double _threshold = .82;
+    private double _threshold = GroupingThreshold.Default;
     private double _progress;
     private bool _isPreviewReady;
     private bool _updatingSelection;
@@ -59,7 +59,16 @@ public sealed class MainViewModel : INotifyPropertyChanged
     public string ProjectName { get; set; } = "未命名工程";
     public string WindowTitle => $"{(Dirty ? "● " : "")}{ProjectName} · 羽选 Bird Photo Selector";
     public string Status { get => _status; set { _status = value; Notify(); } }
-    public double Threshold { get => _threshold; set { _threshold = Math.Clamp(value, .3, .99); Notify(); Dirty = true; } }
+    public double Threshold
+    {
+        get => _threshold;
+        set
+        {
+            if (!double.IsFinite(value)) throw new ArgumentOutOfRangeException(nameof(value));
+            _threshold = Math.Clamp(value, 0, 1);
+            Notify(); Dirty = true;
+        }
+    }
     public double Progress { get => _progress; set { _progress = value; Notify(); } }
     public IEnumerable<PhotoItem> AllPhotos => Groups.SelectMany(g => g.Photos);
     public int PhotoCount => Groups.Sum(g => g.Photos.Count);

@@ -1,0 +1,7 @@
+# These model resources are verified byte-for-byte by asset-hashes.json.
+# The pinned generated JSON uses CRLF; upstream license text uses LF.
+/models/bioclip2/*.json text eol=crlf
+/models/bioclip2/licenses/*.txt text eol=lf
+# Preserve the upstream EML's mixed line endings and all vector bytes exactly.
+/models/bioclip2/licenses/*.xml -text whitespace=cr-at-eol
+/models/bioclip2/*.f32 binary

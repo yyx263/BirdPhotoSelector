@@ -84,7 +84,7 @@ internal static class MultiBirdChecks
                 var result = await analysis.AnalyzeAsync(new[] { photo }, .8);
                 Check(result.Outcomes.Single().Birds.Count == 2 && result.Outcomes.Single().PreservedExistingBirds &&
                       photo.Birds[0].Species?.ChineseName == "大山雀" && photo.SelectedBirdIndex == 1,
-                    "missing detector preserves all prior locations and species without mutating UI models on its worker");
+                    "background-only grouping preserves all prior locations and species without mutating UI models on its worker");
             }
             double score = BackgroundSimilarity.Compare(BackgroundSimilarity.DescribeAll(image, new[] { large, small }),
                 BackgroundSimilarity.DescribeAll(image, new[] { large, small }));

@@ -29,6 +29,9 @@ internal static class Program
             _assertions += AutoSaveChecks.RunAsync().GetAwaiter().GetResult();
             _assertions += PhotoPreviewCacheChecks.RunAsync().GetAwaiter().GetResult();
             _assertions += SpeciesRecognitionChecks.RunAsync().GetAwaiter().GetResult();
+            _assertions += GroupingThresholdChecks.RunAsync().GetAwaiter().GetResult();
+            _assertions += RecognitionWorkflowChecks.RunAsync().GetAwaiter().GetResult();
+            _assertions += BatchProgressChecks.RunAsync().GetAwaiter().GetResult();
             _assertions += ViewerUiChecks.Run();
             _assertions += MainWindowUiChecks.Run();
             RunAsync().GetAwaiter().GetResult();
@@ -228,8 +231,8 @@ internal static class Program
         using var analyzer = new AnalysisService(noModel);
         BirdBox? prior = first.Bird;
         var missingModel = await analyzer.AnalyzeAsync(new[] { first, second }, 0.82);
-        Check(missingModel.MissingModel && missingModel.Outcomes.Count == 2,
-            "missing model still completes background analysis");
+        Check(!missingModel.MissingModel && missingModel.Outcomes.Count == 2,
+            "background grouping never requires or loads a detection model");
         Check(missingModel.Outcomes[0].Bird is { X: 0.2, Y: 0.1, Width: 0.4, Height: 0.5 },
             "missing model preserves an existing valid bird location");
         Check(ReferenceEquals(first.Bird, prior) && first.DetectionStatus == "已识别鸟类",
@@ -291,14 +294,49 @@ internal static class Program
         File.Copy(samplePath, secondPath);
         var imported = await new PhotoImportService().ImportAsync(new[] { firstPath, secondPath }, Array.Empty<string>());
         Check(imported.Added.Count == 2 && imported.Errors.Count == 0, "real JPEG fixture copies import successfully");
+        // This integration exercises the real YOLO model and the production orchestration.
+        // Species is deliberately deterministic here; native BioCLIP validation has its own checks.
+        var fixtureSpecies = new SpeciesMatch("集成测试候选", "Testus integration", .61, Confidence: .88);
+        using var workflow = new BirdRecognitionWorkflow(modelPath,
+            recognizerOverride: (_, _, _, ct) =>
+            {
+                ct.ThrowIfCancellationRequested();
+                return new(fixtureSpecies, "集成测试候选 · 确定性编码器");
+            });
+        var recognized = await workflow.RecognizeAsync(imported.Added);
+        Check(!recognized.MissingModel && recognized.Errors.Count == 0 && recognized.Outcomes.Count == 2 &&
+              recognized.Outcomes.All(outcome => outcome.Birds.Any(bird => bird.Box is { IsValid: true, Confidence: >= 0.25 } &&
+                  bird.Species == fixtureSpecies)),
+            "the recognition command runs real localization before identifying both previously ungrouped photos");
+        Check(imported.Added.All(photo => photo.Birds.Count == 0),
+            "real inference returns detached results before explicit UI application");
+        var importedById = imported.Added.ToDictionary(photo => photo.Id);
+        foreach (var outcome in recognized.Outcomes) outcome.ApplyTo(importedById[outcome.PhotoId]);
+        foreach (var photo in imported.Added)
+        {
+            photo.ViewZoom = 2.1;
+            photo.ViewCenterX = .43;
+            photo.ViewCenterY = .57;
+        }
+        var stored = imported.Added.Select(photo => new
+        {
+            Photo = photo, Birds = photo.Birds.ToArray(), Selected = photo.SelectedBird,
+            photo.DetectionStatus, photo.NextBirdNumber
+        }).ToArray();
         using var analyzer = new AnalysisService(modelPath);
-        var analyzed = await analyzer.AnalyzeAsync(imported.Added, 0.90);
+        var analyzed = await analyzer.AnalyzeAsync(imported.Added, 0.95);
         Check(!analyzed.MissingModel && analyzed.Errors.Count == 0 && analyzed.Outcomes.Count == 2,
-            "real model batch analysis succeeds for both photos");
+            "background-only grouping succeeds for both localized real-model photos");
         Check(analyzed.Groups.Count == 1 && analyzed.Groups[0].Count == 2,
-            "real model groups the two same-scene photos together");
-        Check(analyzed.Outcomes.All(outcome => outcome.Bird is { IsValid: true, Confidence: >= 0.25 }),
-            "real model batch analysis locates the bird in every photo");
+            "the stricter background cutoff groups identical same-scene photos together");
+        Check(analyzed.Outcomes.All(outcome => outcome.PreservedExistingBirds &&
+                  outcome.Birds.All(bird => bird is { IsValid: true, Confidence: >= 0.25 })) &&
+              stored.All(entry => entry.Photo.Birds.SequenceEqual(entry.Birds) &&
+                  ReferenceEquals(entry.Photo.SelectedBird, entry.Selected) &&
+                  entry.Photo.Birds.All(bird => bird.Species == fixtureSpecies) &&
+                  entry.Photo.DetectionStatus == entry.DetectionStatus && entry.Photo.NextBirdNumber == entry.NextBirdNumber &&
+                  entry.Photo.ViewZoom == 2.1 && entry.Photo.ViewCenterX == .43 && entry.Photo.ViewCenterY == .57),
+            "regrouping preserves real detected objects, species, selection, stable numbering and the saved detail view");
 
         string outputDirectory = Path.Combine(Directory.GetCurrentDirectory(), "artifacts");
         Directory.CreateDirectory(outputDirectory);
@@ -313,24 +351,32 @@ internal static class Program
         for (int index = 0; index < demoPhotos.Added.Count; index++)
         {
             var photo = demoPhotos.Added[index];
-            photo.Bird = analyzed.Outcomes[index].Bird;
-            photo.DetectionStatus = analyzed.Outcomes[index].DetectionStatus;
+            var source = imported.Added[index];
+            photo.SetBirds(source.Birds.Select(bird => new DetectedBird
+            {
+                Number = bird.Number, IsManual = bird.IsManual, Box = bird.Box.Copy(),
+                Species = bird.Species, RecognitionStatus = bird.RecognitionStatus
+            }), source.SelectedBirdIndex, source.NextBirdNumber);
+            photo.DetectionStatus = source.DetectionStatus;
             photo.Rating = index == 0 ? PhotoRating.Favorite : PhotoRating.Keep;
             demoGroup.Photos.Add(photo);
         }
         string demoProject = Path.Combine(sampleDirectory, "native-test.json");
         var projects = new ProjectService();
-        await projects.SaveAsync(demoProject, new[] { demoGroup }, 0.90);
+        await projects.SaveAsync(demoProject, new[] { demoGroup }, 0.50);
         var reloadedDemo = await projects.LoadAsync(demoProject);
         Check(reloadedDemo.Groups.Count == 1 && reloadedDemo.Groups[0].Count == 2 &&
-              reloadedDemo.Groups[0].Photos.All(photo => photo.Bird is { IsValid: true }),
-            "real-model demo project reloads persistent photo copies and bird locations");
+              reloadedDemo.Groups[0].Photos.All(photo => photo.Bird is { IsValid: true } &&
+                  photo.Birds.All(bird => bird.Species == fixtureSpecies)),
+            "real-model demo project reloads persistent photo copies, bird locations and stored species evidence");
         var report = new
         {
             Model = modelPath,
             Sample = samplePath,
             detected.Status,
             Bird = detected.Bird,
+            RecognitionFixture = "real YOLO localization with deterministic species results; not native BioCLIP accuracy",
+            recognized.MatchedBirds,
             analyzed.MissingModel,
             GroupCount = analyzed.Groups.Count,
             PhotoCount = analyzed.Outcomes.Count,
@@ -338,7 +384,7 @@ internal static class Program
             PixelHeight = imported.Added[0].PixelHeight,
             DemoProject = demoProject,
             Outcomes = analyzed.Outcomes.Select(outcome => new { outcome.Bird, outcome.DetectionStatus }),
-            Assertions = 8,
+            Assertions = 10,
             CompletedUtc = DateTimeOffset.UtcNow
         };
         await File.WriteAllTextAsync(Path.Combine(outputDirectory, "integration-result.json"),
