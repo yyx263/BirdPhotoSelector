@@ -61,7 +61,8 @@ public partial class MainWindow : Window
         Loaded += async (_, _) =>
         {
             _autoSaveTimer.Start();
-            var file = Environment.GetCommandLineArgs().Skip(1).FirstOrDefault();
+            var file = Environment.GetCommandLineArgs().Skip(1).FirstOrDefault(argument =>
+                !string.Equals(argument, App.SoftwareRenderingArgument, StringComparison.OrdinalIgnoreCase));
             if (file != null && File.Exists(file) && ProjectService.IsProjectPath(file)) await OpenProject(file);
         };
     }
