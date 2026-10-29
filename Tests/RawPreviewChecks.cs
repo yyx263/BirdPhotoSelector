@@ -173,20 +173,21 @@ internal static class RawPreviewChecks
         var detail = (Image)viewer.FindName("DetailImage");
         var viewport = (Border)viewer.FindName("DetailViewport");
         double fit = Math.Min(viewport.ActualWidth / image.PixelWidth, viewport.ActualHeight / image.PixelHeight);
-        check(ReferenceEquals(viewer.CurrentImage, image) && overlay.Children.Count == 0 &&
+        check(ReferenceEquals(viewer.CurrentImage, image) && overlay.Children.Count == 2 &&
               Math.Abs(detail.Width / image.PixelWidth - fit) < 1e-6,
-            "a reviewed-source preview shows the supplied current pixels fitted to the whole frame without old boxes or saved JPG zoom");
-        check(!((ToggleButton)viewer.FindName("ManualRegionButton")).IsEnabled && !viewer.BeginManualRegionSelection() &&
-              !viewer.RequestDeleteRegion(photo.SelectedBird!),
-            "unverified source coordinates cannot be edited or mixed with a new manual region");
+            "a changed-source preview fits the current pixels initially and preserves its old editable boxes");
+        check(((ToggleButton)viewer.FindName("ManualRegionButton")).IsEnabled && viewer.BeginManualRegionSelection() &&
+              viewer.RequestDeleteRegion(photo.SelectedBird!),
+            "a source-change notice permits manual drawing and requests to delete existing regions");
+        viewer.CancelManualRegionSelection();
         double previousWidth = detail.Width;
         viewer.SelectBird(1);
-        check(photo.SelectedBirdIndex == 1 && detail.Width == previousWidth && photo.Birds[0] == oldBird &&
-              ((TextBlock)viewer.FindName("DetectionText")).Text.Contains("待核对", StringComparison.Ordinal),
-            "selecting preserved species evidence changes the result selection without navigating to an unverified old frame");
+        check(photo.SelectedBirdIndex == 1 && detail.Width > previousWidth && photo.Birds[0] == oldBird &&
+              !((TextBlock)viewer.FindName("DetectionText")).Text.Contains("待核对", StringComparison.Ordinal),
+            "selecting a preserved bird explicitly focuses its box while the footer shows normal bird information");
         viewer.RestoreBirdView();
-        check(Math.Abs(detail.Width / image.PixelWidth - fit) < 1e-6,
-            "restoring the detail view of an unverified source fits the image instead of applying old 70-percent bird geometry");
+        check(detail.Width / image.PixelWidth > fit && photo.GeometryStatus == PhotoGeometryStatus.NeedsReview,
+            "an explicit restore can focus the retained region without silently confirming its coordinate provenance");
     }
 
     private static PhotoItem ReviewPhoto(string jpgPath, string rawPath)

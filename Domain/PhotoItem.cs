@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using System.Collections.ObjectModel;
+using System.Collections.Specialized;
 using System.IO;
 using System.Runtime.CompilerServices;
 using System.Windows.Media.Imaging;
@@ -39,8 +40,15 @@ public sealed class DetectedBird : INotifyPropertyChanged
 {
     private SpeciesMatch? _species;
     private int _number;
+    private int _displayNumber;
     private string _recognitionStatus = "待识别";
+    // Number remains the persisted identity used to match asynchronous results.
     public int Number { get => _number; set { if (_number == value) return; _number = value; Notify(); } }
+    public int DisplayNumber
+    {
+        get => _displayNumber;
+        internal set { if (_displayNumber == value) return; _displayNumber = value; Notify(); }
+    }
     public bool IsManual { get; init; }
     public BirdBox Box { get; init; } = new();
     public SpeciesMatch? Species
@@ -87,6 +95,7 @@ public sealed class PhotoItem : INotifyPropertyChanged
     private PhotoGeometryStatus _geometryStatus;
     private PhotoRating _rating;
     private int _selectedBirdIndex;
+    private DetectedBird? _selectedBirdReference;
     public int NextBirdNumber { get; private set; } = 1;
     private string _detectionStatus = "尚未分析";
     private double? _viewZoom, _viewCenterX, _viewCenterY;
@@ -94,7 +103,11 @@ public sealed class PhotoItem : INotifyPropertyChanged
     private BitmapSource? _thumbnail;
     private int _pixelWidth, _pixelHeight;
 
-    public PhotoItem() => Assets = new(_assets);
+    public PhotoItem()
+    {
+        Assets = new(_assets);
+        Birds.CollectionChanged += OnBirdCollectionChanged;
+    }
 
     public string Id { get => _id; set => Set(ref _id, value); }
     public ReadOnlyObservableCollection<PhotoAsset> Assets { get; }
@@ -104,6 +117,7 @@ public sealed class PhotoItem : INotifyPropertyChanged
     public PhotoAsset? ActivePreviewAsset => _assets.FirstOrDefault(asset => asset.Id == _activePreviewAssetId);
     public string FormatLabel => _assets.Count == 2 ? "JPG + RAW" : _assets.FirstOrDefault()?.Kind switch
     { PhotoAssetKind.Jpg => "JPG", PhotoAssetKind.Raw => "RAW", _ => "" };
+    public string CompactFormatLabel => _assets.Count == 2 ? "J+R" : FormatLabel;
     public PhotoGeometryReference? GeometryReference => _geometryReference;
     public PhotoGeometryStatus GeometryStatus => _geometryStatus;
     public bool CanUseBirdGeometry => _geometryStatus == PhotoGeometryStatus.Current && ReferenceMatchesActive(_geometryReference);
@@ -262,6 +276,7 @@ public sealed class PhotoItem : INotifyPropertyChanged
         OnPropertyChanged(nameof(Assets)); OnPropertyChanged(nameof(PreferredPreviewAssetId)); OnPropertyChanged(nameof(ActivePreviewAssetId));
         OnPropertyChanged(nameof(PreferredPreviewAsset)); OnPropertyChanged(nameof(ActivePreviewAsset));
         OnPropertyChanged(nameof(FilePath)); OnPropertyChanged(nameof(FileName)); OnPropertyChanged(nameof(FormatLabel));
+        OnPropertyChanged(nameof(CompactFormatLabel));
         OnPropertyChanged(nameof(CanUseBirdGeometry));
     }
 
@@ -280,6 +295,7 @@ public sealed class PhotoItem : INotifyPropertyChanged
         {
             int index = Birds.Count == 0 ? 0 : Math.Clamp(value, 0, Birds.Count - 1);
             if (!Set(ref _selectedBirdIndex, index)) return;
+            _selectedBirdReference = SelectedBird;
             OnPropertyChanged(nameof(SelectedBird)); OnPropertyChanged(nameof(Bird));
         }
     }
@@ -320,8 +336,6 @@ public sealed class PhotoItem : INotifyPropertyChanged
     }
     public DetectedBird AddManualRegion(BirdBox box)
     {
-        if (_geometryStatus == PhotoGeometryStatus.NeedsReview)
-            throw new InvalidOperationException("原有选区坐标待核对，请先确认或重建当前来源的几何参考。");
         ArgumentNullException.ThrowIfNull(box);
         if (!box.IsValid) throw new ArgumentException("选区范围无效。", nameof(box));
         int number = NextBirdNumber;
@@ -355,7 +369,10 @@ public sealed class PhotoItem : INotifyPropertyChanged
     }
     private void NotifyBirds()
     {
-        if (Birds.Count == 0) SetGeometryReference(null, PhotoGeometryStatus.Unspecified);
+        _selectedBirdReference = SelectedBird;
+        RefreshDisplayNumbers();
+        if (Birds.Count == 0 && _geometryStatus != PhotoGeometryStatus.NeedsReview)
+            SetGeometryReference(null, PhotoGeometryStatus.Unspecified);
         else if (_geometryReference is null && _geometryStatus != PhotoGeometryStatus.NeedsReview && ActivePreviewAsset is { } active)
             SetGeometryReference(PhotoGeometryReference.Capture(active, PixelWidth, PixelHeight), PhotoGeometryStatus.Current);
         else if (_geometryReference is not null && (_geometryStatus != PhotoGeometryStatus.Current || !ReferenceMatchesActive(_geometryReference)))
@@ -363,6 +380,26 @@ public sealed class PhotoItem : INotifyPropertyChanged
         OnPropertyChanged(nameof(Birds)); OnPropertyChanged(nameof(SelectedBirdIndex));
         OnPropertyChanged(nameof(NextBirdNumber));
         OnPropertyChanged(nameof(SelectedBird)); OnPropertyChanged(nameof(Bird));
+    }
+    private void RefreshDisplayNumbers()
+    {
+        for (int index = 0; index < Birds.Count; index++) Birds[index].DisplayNumber = index + 1;
+    }
+    private void OnBirdCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    {
+        // Reordering display rows must not silently select a different bird.
+        var selected = _selectedBirdReference;
+        int retained = selected is null ? -1 : Birds.IndexOf(selected);
+        int index = retained >= 0 ? retained : Birds.Count == 0 ? 0 : Math.Clamp(_selectedBirdIndex, 0, Birds.Count - 1);
+        var current = Birds.Count == 0 ? null : Birds[index];
+        bool selectionChanged = index != _selectedBirdIndex || !ReferenceEquals(selected, current);
+        _selectedBirdIndex = index;
+        _selectedBirdReference = current;
+        RefreshDisplayNumbers();
+        if (selectionChanged)
+        {
+            OnPropertyChanged(nameof(SelectedBirdIndex)); OnPropertyChanged(nameof(SelectedBird)); OnPropertyChanged(nameof(Bird));
+        }
     }
     public string DetectionStatus { get => _detectionStatus; set => Set(ref _detectionStatus, value); }
     public double? ViewZoom { get => _viewZoom; set => Set(ref _viewZoom, value); }

@@ -96,12 +96,8 @@ internal static class MainWindowUiChecks
             string recognitionTip = recognizeButton.ToolTip?.ToString() ?? "";
             Check(recognitionTip.Contains("无需先分组", StringComparison.Ordinal) && recognitionTip.Contains("定位", StringComparison.Ordinal),
                 "the recognition action explains that bird localization runs without prior grouping");
-            var includeRaw = (CheckBox)window.FindName("IncludeRawCheckBox");
-            Check(includeRaw.IsChecked == true && model.IncludeRaw,
-                "RAW companion import is enabled by default in the production window");
-            includeRaw.IsChecked = false;
-            Check(!model.IncludeRaw, "the visible RAW checkbox controls the next import mode");
-            includeRaw.IsChecked = true;
+            Check(window.FindName("IncludeRawCheckBox") is null,
+                "automatic JPG/RAW pairing needs no import checkbox in the production window");
             var companion = new PhotoAsset(Path.ChangeExtension(first.FilePath, ".NEF"), PhotoAssetKind.Raw);
             first.AddAsset(companion);
             SettleBindings(root);

@@ -98,22 +98,23 @@ internal static class RawWindowChecks
                   ReferenceEquals(photo.GeometryReference, historicalFrame) && photo.GeometryReference?.AssetId == jpg.Id &&
                   photo.GeometryStatus == PhotoGeometryStatus.NeedsReview,
                 "loading RAW keeps logical identity, rating, manual region numbering, species and the original JPG frame");
-            Check(model.CanRate && !model.CanEditBirdRegions && !photo.CanUseBirdGeometry && photo.Bird is null &&
+            Check(model.CanRate && model.CanEditBirdRegions && !photo.CanUseBirdGeometry && photo.Bird is null &&
                   ((RadioButton)window.FindName("RatingKeep")).IsEnabled &&
-                  !((ToggleButton)viewer.FindName("ManualRegionButton")).IsEnabled && !viewer.BeginManualRegionSelection(),
-                "a decoded RAW remains rateable while old-coordinate editing and manual region creation are blocked");
+                  ((ToggleButton)viewer.FindName("ManualRegionButton")).IsEnabled && viewer.BeginManualRegionSelection(),
+                "a decoded RAW remains rateable and editable while its source-change notice still marks old AI geometry unverified");
+            viewer.CancelManualRegionSelection();
             var overlay = (Canvas)viewer.FindName("BirdOverlay");
-            Check(overlay.Children.Count == 0 && photo.ViewZoom is { } zoom && Math.Abs(zoom - 1) < 1e-6 &&
+            Check(overlay.Children.Count == 1 && photo.ViewZoom is { } zoom && Math.Abs(zoom - 1) < 1e-6 &&
                   photo.ViewCenterX == .5 && photo.ViewCenterY == .5,
-                "unverified old JPG boxes do not appear as RAW overlays or drive its initial zoom and center");
+                "old JPG boxes remain visible on RAW while its initial view starts fitted to the image");
             viewer.RestoreBirdView();
             Settle(root);
-            Check(overlay.Children.Count == 0 && photo.ViewZoom is { } restoredZoom && Math.Abs(restoredZoom - 1) < 1e-6 &&
-                  photo.ViewCenterX == .5 && photo.ViewCenterY == .5,
-                "restoring the bird view cannot apply historical JPG coordinates to the RAW source");
+            Check(overlay.Children.Count == 1 && photo.ViewZoom is { } restoredZoom && restoredZoom > 1 &&
+                  photo.GeometryStatus == PhotoGeometryStatus.NeedsReview,
+                "an explicit restore focuses the retained JPG box on RAW without confirming its provenance");
             var notice = (TextBlock)window.FindName("GeometryNoticeText");
             Check(notice.Visibility == Visibility.Visible && notice.ActualWidth > 0 &&
-                  notice.Text.Contains("待核对", StringComparison.Ordinal) && notice.Text.Contains("鸟种结果已保留", StringComparison.Ordinal) &&
+                  notice.Text.Contains("图像来源已变化", StringComparison.Ordinal) && notice.Text.Contains("注意核对", StringComparison.Ordinal) &&
                   ((ListBox)window.FindName("SpeciesResultsList")).Items.Contains(bird),
                 "the real window visibly explains the changed coordinates and continues listing the saved species");
             ((RadioButton)window.FindName("RatingKeep")).SetCurrentValue(ToggleButton.IsCheckedProperty, true);

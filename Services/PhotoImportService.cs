@@ -166,7 +166,7 @@ public sealed class PhotoImportService
                 if (assets.GroupBy(asset => asset.Kind).Any(group => group.Count() > 1))
                 {
                     result.SkippedConflict++;
-                    result.Errors.Add($"{path}：存在多个同类候选，未自动配对：{string.Join("、", assets.Select(asset => Path.GetFileName(asset.CanonicalPath)))}。可关闭“同时读取 RAW”仅添加 JPG，或先整理冲突文件。");
+                    result.Errors.Add($"{path}：存在多个同类候选，未自动配对：{string.Join("、", assets.Select(asset => Path.GetFileName(asset.CanonicalPath)))}。请先整理同目录同名的冲突文件后重试。");
                     stage = "已跳过配对冲突";
                     continue;
                 }

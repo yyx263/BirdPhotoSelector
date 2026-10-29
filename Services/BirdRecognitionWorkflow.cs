@@ -153,7 +153,7 @@ public sealed class BirdRecognitionWorkflow : IDisposable
                     cancellationToken.ThrowIfCancellationRequested();
                     var bird = birds[birdIndex];
                     progress?.Report(new(index, jobs.Length,
-                        $"正在识别鸟种 {label} · 选区 {birdIndex + 1} / {birds.Length}（鸟 {bird.Number}）"));
+                        $"正在识别鸟种 {label} · 选区 {birdIndex + 1} / {birds.Length}（鸟 {birdIndex + 1}）"));
                     SpeciesRecognitionResult recognition;
                     try
                     {
@@ -171,7 +171,7 @@ public sealed class BirdRecognitionWorkflow : IDisposable
                     bird.RecognitionStatus = recognition.Status +
                         (recognition.Match is not { IsValid: true } && bird.Species is not null ? "；保留上次结果" : "");
                     if (recognition.Error is not null)
-                        result.Errors.Add($"{job.Path} · 鸟 {bird.Number}：{recognition.Error}");
+                        result.Errors.Add($"{job.Path} · 鸟 {birdIndex + 1}：{recognition.Error}");
                 }
                 // A failed species stage must not discard old evidence when a changed detector
                 // output could not be matched back to a previous automatic region.

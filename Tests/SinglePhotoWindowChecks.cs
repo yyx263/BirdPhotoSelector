@@ -147,8 +147,8 @@ internal static class SinglePhotoWindowChecks
             var oldRegions = pending.Current.Birds.ToArray();
             var otherState = State(pending.Other); var otherRegions = pending.Other.Birds.ToArray();
             Check(pending.Current.GeometryStatus == PhotoGeometryStatus.NeedsReview && !pending.Current.CanUseBirdGeometry &&
-                  button.IsEnabled && model.CanReidentifyCurrentPhoto && !model.CanEditBirdRegions,
-                "an explicitly pending old coordinate frame can use the rebuild button while ordinary region editing stays blocked");
+                  button.IsEnabled && model.CanReidentifyCurrentPhoto && model.CanEditBirdRegions,
+                "a pending coordinate frame supports both explicit rebuilding and continued manual editing");
             Complete(Invoke(() => true, () => throw new InvalidOperationException("Nonempty success must not ask to clear."), () =>
                 new SinglePhotoRecognitionService(detectorOverride: (_, _) =>
                     new(Box(.1, .15), "定位两只鸟") { Birds = new[] { Box(.1, .15), Box(.55, .3) } },

@@ -104,9 +104,7 @@ public partial class MainWindow : Window
             _vm.IsPreviewReady = true;
             QueuePhotoSelection(photo, version, scrollVersion);
             QueueBirdResultSelection(photo, version, speciesScrollVersion);
-            if (!_vm.IsBusy) _vm.Status = photo.GeometryStatus == PhotoGeometryStatus.NeedsReview
-                ? "图像来源已变化 · 鸟框位置待核对，鸟种结果已保留 · 旧框暂不参与图像处理"
-                : photo.DetectionStatus + " · 右侧滚轮缩放，拖动平移 · R 还原鸟类视图";
+            if (!_vm.IsBusy) _vm.Status = photo.DetectionStatus + " · 右侧滚轮缩放，拖动平移 · R 还原鸟类视图";
         }
         catch (OperationCanceledException) { }
         catch (Exception ex)
@@ -263,10 +261,8 @@ public partial class MainWindow : Window
         if (_vm.IsBusy) return;
         var dialog = new OpenFileDialog
         {
-            Title = _vm.IncludeRaw ? "选择 JPG / RAW 照片（同目录同名文件自动配对）" : "选择要挑选的 JPG 照片（可跨目录继续添加）",
-            Filter = _vm.IncludeRaw
-                ? "照片 (*.jpg;*.jpeg;*.cr2;*.cr3;*.nef;*.arw;*.orf;*.rw2;*.dng)|*.jpg;*.jpeg;*.crw;*.cr2;*.cr3;*.nef;*.nrw;*.arw;*.sr2;*.srf;*.orf;*.rw2;*.dng;*.raf;*.pef;*.srw;*.raw;*.rwl;*.3fr;*.fff;*.iiq;*.mos;*.mrw;*.x3f|所有文件 (*.*)|*.*"
-                : "JPG 照片 (*.jpg;*.jpeg)|*.jpg;*.jpeg|所有文件 (*.*)|*.*",
+            Title = "选择 JPG / RAW 照片（同目录同名文件自动配对）",
+            Filter = "照片 (*.jpg;*.jpeg;*.cr2;*.cr3;*.nef;*.arw;*.orf;*.rw2;*.dng)|*.jpg;*.jpeg;*.crw;*.cr2;*.cr3;*.nef;*.nrw;*.arw;*.sr2;*.srf;*.orf;*.rw2;*.dng;*.raf;*.pef;*.srw;*.raw;*.rwl;*.3fr;*.fff;*.iiq;*.mos;*.mrw;*.x3f|JPG 照片 (*.jpg;*.jpeg)|*.jpg;*.jpeg|所有文件 (*.*)|*.*",
             Multiselect = true, CheckFileExists = true
         };
         if (dialog.ShowDialog(this) == true) await Import(dialog.FileNames);
@@ -275,7 +271,7 @@ public partial class MainWindow : Window
     {
         _vm.Status = "正在读取照片和 EXIF 信息…";
         var photos = _vm.AllPhotos.ToList();
-        var result = await _import.ImportAsync(files, photos, _vm.IncludeRaw, ct, FileProgress());
+        var result = await _import.ImportAsync(files, photos, includeRaw: true, ct, FileProgress());
         ct.ThrowIfCancellationRequested();
         foreach (var update in result.Updates) update.ApplyTo(photos.Single(photo => photo.Id == update.PhotoId));
         var groups = _vm.Groups.Select(g => g.Model).ToList();
@@ -382,7 +378,7 @@ public partial class MainWindow : Window
             if (result.IsEmpty)
             {
                 bool clear = confirmEmpty?.Invoke() ?? MessageBox.Show(this,
-                    "未检测到鸟，是否仍清空本张旧框和识别结果？\n\n这会移除全部自动框和手动选区，照片、评级和分组保留。",
+                    EmptyDetectionConfirmationText,
                     "未检测到鸟", MessageBoxButton.OKCancel, MessageBoxImage.Question) == MessageBoxResult.OK;
                 if (!clear) { _vm.Status = "已保留原选区与鸟种结果"; return; }
             }
@@ -395,15 +391,14 @@ public partial class MainWindow : Window
         });
     }
 
+    internal const string EmptyDetectionConfirmationText = "未检测到鸟，是否仍清空本张旧框和识别结果？\n\n这会移除全部自动框和手动选区。\n\n照片、评级和分组保留。";
+
     private void SpeciesResults_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
         if (!_vm.CanRate || _vm.CurrentPhoto is not { } photo || SpeciesResultsList.SelectedItem is not DetectedBird bird) return;
         int index = photo.Birds.IndexOf(bird);
         if (index >= 0 && index != photo.SelectedBirdIndex)
-        {
-            if (photo.GeometryStatus == PhotoGeometryStatus.NeedsReview) photo.SelectedBirdIndex = index;
-            else Viewer.SelectBird(index);
-        }
+            Viewer.SelectBird(index);
     }
 
     private async void Viewer_ManualRegionSelected(object? sender, ManualRegionEventArgs e)
@@ -416,7 +411,7 @@ public partial class MainWindow : Window
             _vm.Dirty = true;
             Viewer.SelectBird(photo.SelectedBirdIndex);
             QueueBirdResultSelection(photo, _previewVersion, _speciesListScrollVersion);
-            _vm.Status = $"正在识别手动选区 {bird.Number} · 中国鸟种候选…";
+            _vm.Status = $"正在识别手动选区 {bird.DisplayNumber} · 中国鸟种候选…";
             using var recognition = new BirdSpeciesRecognitionService();
             var result = await Task.Run(() => recognition.Recognize(image, bird.Box, chinaOnly: true, ct), ct);
             ct.ThrowIfCancellationRequested();
@@ -427,8 +422,8 @@ public partial class MainWindow : Window
             Viewer.RefreshBirdOverlays();
             _vm.Progress = 100;
             _vm.Status = result.Match is { IsValid: true }
-                ? $"手动选区 {bird.Number} · {bird.SpeciesName} · 置信度 {bird.ConfidenceText}"
-                : $"手动选区 {bird.Number} 已保留 · {result.Status}，可稍后点击“识别鸟种”重试";
+                ? $"手动选区 {bird.DisplayNumber} · {bird.SpeciesName} · 置信度 {bird.ConfidenceText}"
+                : $"手动选区 {bird.DisplayNumber} 已保留 · {result.Status}，可稍后点击“识别鸟种”重试";
         });
     }
 
@@ -436,6 +431,7 @@ public partial class MainWindow : Window
     {
         if (!_vm.CanEditBirdRegions || !ReferenceEquals(_vm.CurrentPhoto, photo) || !photo.Birds.Contains(bird)) return false;
         bool wasSelected = ReferenceEquals(photo.SelectedBird, bird);
+        int removedDisplayNumber = bird.DisplayNumber;
         Viewer.CancelManualRegionSelection();
         if (!photo.RemoveBird(bird)) return false;
         _vm.Dirty = true;
@@ -450,7 +446,7 @@ public partial class MainWindow : Window
         }
         else Viewer.RefreshBirdOverlays();
         QueueBirdResultSelection(photo, _previewVersion, _speciesListScrollVersion);
-        _vm.Status = $"已删除选区 {bird.Number} · 原照片与评级保留";
+        _vm.Status = $"已删除选区 {removedDisplayNumber} · 原照片与评级保留";
         return true;
     }
 
@@ -696,7 +692,7 @@ public partial class MainWindow : Window
         return proceed;
     }
     private void Cancel_Click(object sender, RoutedEventArgs e) => _operation?.Cancel();
-    private void Help_Click(object sender, RoutedEventArgs e) => ShowMessage("1. 添加照片：默认同时读取 RAW；同目录同名 JPG / RAW 合为一张，优先显示 JPG，只有 RAW 时解码 RAW 像素。关闭“同时读取 RAW”后沿用原 JPG 规则。配对冲突会提示。“清空列表”仅移除当前列表，不删除原文件。\n2. 自动分组：只按当前列表顺序合并连续相似背景，保留已有鸟框、鸟种、当前选区与缩放视图。新版默认 50% 相当于旧版 95%，阈值越高分组越严格。\n3. 识别鸟种：逐张定位鸟并识别所有自动框及手动选区，无需先分组，默认中国鸟种候选。下方每行对应左图同序号虚线框，可点击编号或结果切换主体。置信度根据全部候选的分数差距计算，并非实际准确率；鼠标悬停可查看原始相似度与相近候选。旧工程需重新识别后才有新置信度。“重新识别本张”只处理当前图，成功后替换全部自动框和手动选区；失败或取消保留，未检出鸟时再次确认才清空。\n4. 左侧全图固定；右侧滚轮缩放、拖动平移，白框指示当前区域，拖动和缩放均不会超出照片边界。缩放范围为适应画面至 200%；极小图片最高显示 200%。R 还原鸟类约占框 70% 的视图，也可点击适应画面。右上“手动选区”开启后拖框，松开即识别并追加编号，Esc 取消；在编号框或结果行右键可删除选区，剩余编号保持不变。重新分组保留全部已有鸟框与识别结果。\n5. 两栏缩略图滚轮只滚动列表。方向键 / WASD 切换组内照片；Page Up / Page Down 切换照片组。在组内首尾继续切图，会衔接上一组最后一张或下一组第一张。\n6. 1 未标记，2 舍弃，3 保留，4 精选。评级保持选中状态；缩略图右键可快速评级，照片组右键仅用于独立照片。Ctrl / Shift 支持列表多选。\n7. 导出到自行选择的现有目录，不会自动创建子目录；同名目标跳过。文件范围可选全部、仅 JPG、仅 RAW；同张全部所选文件复制校验成功后才移除原件，只删除实际成功的成员，仍有原件就保留照片记录。导出或删除舍弃前若有未标记照片，可返回定位继续挑选；处理时显示当前照片序号和文件名。\n8. JSON 工程记录原始路径、分组、视图和评级，不打包照片。工程仅使用 .json 格式。\n9. 前后各预加载两张照片，缓存上限 512 MB（不含当前显示和解码缓冲）。每 5 分钟自动保存修改；未命名工程或原路径不可写时保存本机恢复文件，可点击“恢复自动保存”打开。\n\nCtrl+O 添加照片 · Ctrl+S 保存工程\n所有分析均在本机进行。", "羽选 · 使用帮助", MessageBoxImage.Information);
+    private void Help_Click(object sender, RoutedEventArgs e) => ShowMessage("1. 添加照片：自动关联同目录同名 JPG / RAW，优先显示 JPG，只有 RAW 时解码 RAW 像素；只选择 JPG 也会关联旁边同名 RAW。左侧标注 JPG、RAW 或 J+R。配对冲突会提示。“清空列表”仅移除当前列表，不删除原文件。\n2. 自动分组：只按当前列表顺序合并连续相似背景，保留已有鸟框、鸟种、当前选区与缩放视图。新版默认 50% 相当于旧版 95%，阈值越高分组越严格。\n3. 识别鸟种：逐张定位鸟并识别所有自动框及手动选区，无需先分组，默认中国鸟种候选。下方每行对应左图同序号虚线框，可点击编号或结果切换主体。置信度根据全部候选的分数差距计算，并非实际准确率；鼠标悬停可查看原始相似度与相近候选。旧工程需重新识别后才有新置信度。“重新识别本张”只处理当前图，成功后替换全部自动框和手动选区；失败或取消保留，未检出鸟时再次确认才清空。\n4. 左侧全图固定；右侧滚轮缩放、拖动平移，白框指示当前区域，拖动和缩放均不会超出照片边界。缩放范围为适应画面至 200%；极小图片最高显示 200%。R 还原鸟类约占框 70% 的视图，也可点击适应画面。右上“手动选区”开启后拖框，松开即识别并追加编号，Esc 取消；在编号框或结果行右键可删除选区，显示编号按当前顺序从 1 连续排列。重新分组保留全部已有鸟框与识别结果。\n5. 两栏缩略图滚轮只滚动列表。方向键 / WASD 切换组内照片；Page Up / Page Down 切换照片组。在组内首尾继续切图，会衔接上一组最后一张或下一组第一张。\n6. 1 未标记，2 舍弃，3 保留，4 精选。评级保持选中状态；缩略图右键可快速评级，照片组右键仅用于独立照片。Ctrl / Shift 支持列表多选。\n7. 导出到自行选择的现有目录，不会自动创建子目录；同名目标跳过。文件范围可选全部、仅 JPG、仅 RAW；同张全部所选文件复制校验成功后才移除原件，只删除实际成功的成员，仍有原件就保留照片记录。导出或删除舍弃前若有未标记照片，可返回定位继续挑选；处理时显示当前照片序号和文件名。\n8. JSON 工程记录原始路径、分组、视图和评级，不打包照片。工程仅使用 .json 格式。\n9. 前后各预加载两张照片，缓存上限 512 MB（不含当前显示和解码缓冲）。每 5 分钟自动保存修改；未命名工程或原路径不可写时保存本机恢复文件，可点击“恢复自动保存”打开。\n\nCtrl+O 添加照片 · Ctrl+S 保存工程\n所有分析均在本机进行。", "羽选 · 使用帮助", MessageBoxImage.Information);
 
     private async void Window_PreviewKeyDown(object sender, KeyEventArgs e)
     {

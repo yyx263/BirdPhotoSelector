@@ -16,6 +16,9 @@
           </Border.ContextMenu>
           <Grid>
             <Image Source="{Binding Thumbnail}" Stretch="Uniform"/>
+            <Border Background="#E91C252D" CornerRadius="3" Padding="5,2" HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="4">
+              <TextBlock x:Name="PhotoFormatBadge" Text="{Binding CompactFormatLabel}" FontSize="10" Foreground="#B8D6C9"/>
+            </Border>
             <Border Background="#E91C252D" CornerRadius="10" Width="23" Height="23" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="4">
               <TextBlock Text="{Binding Rating,Converter={StaticResource RatingGlyph}}" Foreground="{Binding Rating,Converter={StaticResource RatingColor}}" FontSize="17" FontWeight="Bold" TextAlignment="Center"/>
             </Border>
@@ -29,10 +32,10 @@
     <Grid.RowDefinitions><RowDefinition Height="76"/><RowDefinition Height="62"/><RowDefinition Height="*"/><RowDefinition Height="43"/></Grid.RowDefinitions>
     <Border Background="#181F27" BorderBrush="#2B3540" BorderThickness="0,0,0,1" Padding="22,0"><DockPanel LastChildFill="True">
       <StackPanel Orientation="Horizontal" VerticalAlignment="Center" DockPanel.Dock="Left"><Border Background="#9DDFC4" CornerRadius="11" Width="38" Height="38" Margin="0,0,12,0"><TextBlock Text="羽" Foreground="#163D30" FontSize="22" FontWeight="Bold" VerticalAlignment="Center" HorizontalAlignment="Center"/></Border><StackPanel><TextBlock Text="羽选" FontSize="21" FontWeight="SemiBold"/><TextBlock Text="BIRD PHOTO SELECTOR" FontSize="9" Foreground="#8C9BA9" Margin="0,3,0,0"/></StackPanel></StackPanel>
-      <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center" IsEnabled="{Binding CanEdit}"><Button Content="添加照片" Style="{StaticResource PrimaryButton}" Click="AddPhotos_Click" ToolTip="选择 JPG / RAW 照片 · Ctrl+O；可关闭“同时读取 RAW”" Margin="0,0,10,0"/><Button x:Name="ClearListButton" Content="清空列表" Click="ClearList_Click" IsEnabled="{Binding HasPhotos}" ToolTip="从当前工程列表移除全部照片，保留磁盘原文件" Margin="0,0,10,0"/><Button Content="打开工程" Click="OpenProject_Click" Margin="0,0,8,0"/><Button Content="保存工程" Click="SaveProject_Click" Margin="0,0,20,0"/><Button Content="恢复自动保存" Click="RecoverAutoSave_Click" Margin="0,0,10,0" ToolTip="打开未命名工程或原路径不可写时生成的自动保存恢复文件"/><Button Content="导出 / 清理" Click="Export_Click" Background="#344940"/><Button Content="?" Click="Help_Click" Style="{StaticResource QuietButton}" Margin="10,0,0,0"/></StackPanel>
+      <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center" IsEnabled="{Binding CanEdit}"><Button Content="添加照片" Style="{StaticResource PrimaryButton}" Click="AddPhotos_Click" ToolTip="选择 JPG / RAW 照片 · Ctrl+O；自动关联同目录同名原件，优先显示 JPG" Margin="0,0,10,0"/><Button x:Name="ClearListButton" Content="清空列表" Click="ClearList_Click" IsEnabled="{Binding HasPhotos}" ToolTip="从当前工程列表移除全部照片，保留磁盘原文件" Margin="0,0,10,0"/><Button Content="打开工程" Click="OpenProject_Click" Margin="0,0,8,0"/><Button Content="保存工程" Click="SaveProject_Click" Margin="0,0,20,0"/><Button Content="恢复自动保存" Click="RecoverAutoSave_Click" Margin="0,0,10,0" ToolTip="打开未命名工程或原路径不可写时生成的自动保存恢复文件"/><Button Content="导出 / 清理" Click="Export_Click" Background="#344940"/><Button Content="?" Click="Help_Click" Style="{StaticResource QuietButton}" Margin="10,0,0,0"/></StackPanel>
     </DockPanel></Border>
     <Grid Grid.Row="1" Margin="20,0"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-      <StackPanel Orientation="Horizontal" VerticalAlignment="Center"><TextBlock Text="本次挑选" FontSize="15" FontWeight="SemiBold"/><TextBlock Text="{Binding LibrarySummary}" Foreground="#8C9BA9" Margin="16,0,0,0" VerticalAlignment="Center"/><CheckBox x:Name="IncludeRawCheckBox" Content="同时读取 RAW" IsChecked="{Binding IncludeRaw}" IsEnabled="{Binding CanEdit}" Margin="18,0,0,0" VerticalAlignment="Center" ToolTip="默认读取 JPG 和 RAW；同目录同名文件合为一张，优先显示 JPG。关闭后仅按原规则导入 JPG。"/></StackPanel>
+      <StackPanel Orientation="Horizontal" VerticalAlignment="Center"><TextBlock Text="本次挑选" FontSize="15" FontWeight="SemiBold"/><TextBlock Text="{Binding LibrarySummary}" Foreground="#8C9BA9" Margin="16,0,0,0" VerticalAlignment="Center"/></StackPanel>
       <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" IsEnabled="{Binding CanEdit}">
         <TextBlock Text="背景相似阈值" Foreground="#AAB7C3" VerticalAlignment="Center"/>
         <Slider x:Name="GroupingThresholdSlider" Width="100" Minimum="0" Maximum="1" SmallChange="0.01" LargeChange="0.1" Value="{Binding Threshold}" Margin="12,0,8,0" VerticalAlignment="Center" ToolTip="越高越严格；新版 50% 相当于旧版 95%，只合并导入顺序中连续且背景相似的照片"/>
@@ -55,6 +58,9 @@
               </ContextMenu>
             </Border.ContextMenu>
             <Grid><Image Source="{Binding Cover.Thumbnail}" Stretch="Uniform"/>
+              <Border Background="#E91C252D" CornerRadius="3" Padding="5,2" HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="4">
+                <TextBlock x:Name="GroupCoverFormatBadge" Text="{Binding Cover.CompactFormatLabel}" FontSize="10" Foreground="#B8D6C9"/>
+              </Border>
               <Border Background="#E91C252D" CornerRadius="10" Width="23" Height="23" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="4">
                 <TextBlock Text="{Binding Rating,Converter={StaticResource RatingGlyph}}" Foreground="{Binding Rating,Converter={StaticResource RatingColor}}" FontSize="17" FontWeight="Bold" TextAlignment="Center"/>
               </Border>
@@ -117,7 +123,7 @@
                       <MenuItem Header="删除选区" Click="DeleteBirdRegionMenu_Click"/>
                     </ContextMenu></Grid.ContextMenu>
                     <Grid.ColumnDefinitions><ColumnDefinition Width="30"/><ColumnDefinition Width="*"/><ColumnDefinition Width="1.2*"/><ColumnDefinition Width="66"/></Grid.ColumnDefinitions>
-                    <TextBlock Text="{Binding Number,StringFormat={}{0:00}}" Foreground="#9DDFC4" FontSize="11" VerticalAlignment="Center"/>
+                    <TextBlock Text="{Binding DisplayNumber,StringFormat={}{0:00}}" Foreground="#9DDFC4" FontSize="11" VerticalAlignment="Center"/>
                     <TextBlock Grid.Column="1" Text="{Binding SpeciesName}" ToolTip="{Binding SpeciesName}" TextTrimming="CharacterEllipsis" Margin="0,0,10,0"/>
                     <TextBlock Grid.Column="2" Text="{Binding ScientificName}" ToolTip="{Binding ScientificName}" FontSize="11" Foreground="#879DA7" FontStyle="Italic" TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/>
                     <TextBlock Grid.Column="3" Text="{Binding ConfidenceText}" ToolTip="{Binding EvidenceTooltip}" HorizontalAlignment="Right" Foreground="#B8D6C9"/>

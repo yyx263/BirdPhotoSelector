@@ -26,6 +26,16 @@ internal static class Program
             foreach (var operation in startupOperations) operation.Abort();
             app.InitializeComponent();
             app.ShutdownMode = System.Windows.ShutdownMode.OnExplicitShutdown;
+            if (args.Contains("--review-changes-only", StringComparer.Ordinal))
+            {
+                _assertions += SourceReviewEditingChecks.Run();
+                _assertions += ContinuousBirdNumberChecks.RunAsync().GetAwaiter().GetResult();
+                _assertions += AlwaysRawImportChecks.RunAsync().GetAwaiter().GetResult();
+                _assertions += ReviewChangesUiChecks.Run();
+                _assertions += SinglePhotoWindowChecks.Run();
+                Console.WriteLine($"PASS: {_assertions} targeted review-workflow assertions.");
+                return 0;
+            }
             if (args.Contains("--file-operations-only", StringComparer.Ordinal))
             {
                 _assertions += BatchProgressChecks.RunAsync().GetAwaiter().GetResult();
@@ -50,6 +60,10 @@ internal static class Program
             _assertions += RawPreviewChecks.RunAsync().GetAwaiter().GetResult();
             _assertions += RawNativeChecks.RunAsync().GetAwaiter().GetResult();
             _assertions += RawWindowChecks.Run();
+            _assertions += SourceReviewEditingChecks.Run();
+            _assertions += ContinuousBirdNumberChecks.RunAsync().GetAwaiter().GetResult();
+            _assertions += AlwaysRawImportChecks.RunAsync().GetAwaiter().GetResult();
+            _assertions += ReviewChangesUiChecks.Run();
             _assertions += ExportScopeUiChecks.Run();
             _assertions += SinglePhotoWindowChecks.Run();
             _assertions += ViewerUiChecks.Run();

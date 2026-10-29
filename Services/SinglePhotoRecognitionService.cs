@@ -137,7 +137,7 @@ public sealed class SinglePhotoRecognitionService : IDisposable
             {
                 token.ThrowIfCancellationRequested();
                 progress?.Report(new(index, Math.Max(1, boxes.Length),
-                    $"正在重新识别本张鸟种 · {path} · 选区 {index + 1} / {boxes.Length}（鸟 {next}）"));
+                    $"正在重新识别本张鸟种 · {path} · 选区 {index + 1} / {boxes.Length}（鸟 {index + 1}）"));
                 var box = boxes[index].Copy();
                 var recognition = _recognizeOverride is not null ? _recognizeOverride(image, box, chinaOnly, token) :
                     _recognizer.Recognize(image, box, chinaOnly, token);

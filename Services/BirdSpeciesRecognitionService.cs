@@ -85,7 +85,7 @@ public sealed class BirdSpeciesRecognitionService : IDisposable
         ArgumentNullException.ThrowIfNull(photos);
         lock (_sync) ObjectDisposedException.ThrowIf(_disposed, this);
         var jobs = photos.Select(photo => new PhotoJob(photo.Id, photo.ActivePreviewAsset?.CanonicalPath ?? photo.FilePath,
-            photo.Birds.Select((bird, index) => new BirdJob(index, bird.Number, bird.Box.Copy())).ToArray(),
+            photo.Birds.Select((bird, index) => new BirdJob(index, index + 1, bird.Box.Copy())).ToArray(),
             photo.GeometryStatus == PhotoGeometryStatus.NeedsReview || photo.Birds.Count > 0 && !photo.CanUseBirdGeometry)).ToArray();
         await _batchGate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
@@ -138,11 +138,11 @@ public sealed class BirdSpeciesRecognitionService : IDisposable
                 foreach (var bird in job.Birds)
                 {
                     cancellationToken.ThrowIfCancellationRequested();
-                    progress?.Report(new(completed, total, $"正在识别 {Path.GetFileName(job.Path)} · 鸟 {bird.Number}"));
+                    progress?.Report(new(completed, total, $"正在识别 {Path.GetFileName(job.Path)} · 鸟 {bird.DisplayNumber}"));
                     var outcome = Recognize(image, bird.Box, chinaOnly, cancellationToken);
                     result.MissingModel |= outcome.MissingModel;
                     result.Outcomes.Add(new(job.Id, bird.Index, outcome.Match, outcome.Status, outcome.Error));
-                    if (outcome.Error is not null) result.Errors.Add($"{Path.GetFileName(job.Path)} · 鸟 {bird.Number}：{outcome.Error}");
+                    if (outcome.Error is not null) result.Errors.Add($"{Path.GetFileName(job.Path)} · 鸟 {bird.DisplayNumber}：{outcome.Error}");
                     completed++;
                     progress?.Report(new(completed, total, $"已识别 {completed} / {total} 只鸟"));
                 }
@@ -238,6 +238,6 @@ public sealed class BirdSpeciesRecognitionService : IDisposable
         }
         // A canceled async batch can still be releasing its semaphore; do not dispose it here.
     }
-    private sealed record BirdJob(int Index, int Number, BirdBox Box);
+    private sealed record BirdJob(int Index, int DisplayNumber, BirdBox Box);
     private sealed record PhotoJob(string Id, string Path, BirdJob[] Birds, bool NeedsGeometryReview);
 }

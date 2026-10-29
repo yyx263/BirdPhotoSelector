@@ -135,11 +135,11 @@ internal static class PhotoAssetChecks
             Check(deferredGeometry.GeometryStatus == PhotoGeometryStatus.NeedsReview && deferredGeometry.Bird is null &&
                   ReferenceEquals(deferredGeometry.GeometryReference, geometry),
                 "adding birds after an unspecified foreign frame still requires explicit geometry review");
-            bool blocked = false;
-            try { photo.AddManualRegion(new() { X = .1, Y = .1, Width = .2, Height = .2, Confidence = 1 }); }
-            catch (InvalidOperationException) { blocked = true; }
-            Check(blocked && photo.Birds.Count == 1 && ReferenceEquals(photo.SelectedBird, bird),
-                "new-frame manual coordinates cannot be mixed into an unreviewed old-frame collection");
+            var reviewManual = photo.AddManualRegion(new() { X = .1, Y = .1, Width = .2, Height = .2, Confidence = 1 });
+            Check(photo.Birds.Count == 2 && reviewManual.IsManual && photo.Birds.Contains(bird) &&
+                  photo.GeometryStatus == PhotoGeometryStatus.NeedsReview && !photo.CanUseBirdGeometry,
+                "a reviewed source can add a manual region while preserving old results and its source-change notice");
+            photo.RemoveBird(reviewManual);
             photo.SetActivePreviewAsset(primaryId);
             photo.SetGeometryReference(geometry, PhotoGeometryStatus.Current);
             Check(photo.CanUseBirdGeometry && ReferenceEquals(photo.Bird, bird.Box),

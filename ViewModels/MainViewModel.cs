@@ -17,7 +17,6 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private double _threshold = GroupingThreshold.Default;
     private double _progress;
     private bool _isPreviewReady;
-    private bool _includeRaw = true;
     private bool _updatingSelection;
     private readonly HashSet<PhotoItem> _observedPhotos = new();
     private string _autoSaveSummary = "自动保存 · 5分钟";
@@ -50,15 +49,14 @@ public sealed class MainViewModel : INotifyPropertyChanged
     public bool IsPreviewReady { get => _isPreviewReady; set { _isPreviewReady = value; Notify(); Notify(nameof(HasPhoto)); Notify(nameof(CanRate)); Notify(nameof(CanEditBirdRegions)); Notify(nameof(CanReidentifyCurrentPhoto)); } }
     public bool CanRate => CanEdit && HasPhoto;
     public bool CanReidentifyCurrentPhoto => CanRate;
-    public bool CanEditBirdRegions => CanRate && CurrentPhoto?.GeometryStatus != PhotoGeometryStatus.NeedsReview;
-    public bool IncludeRaw { get => _includeRaw; set { if (_includeRaw == value) return; _includeRaw = value; Notify(); } }
+    public bool CanEditBirdRegions => CanRate;
     public string CurrentFormatLabel => CurrentPhoto is not { } photo ? "—" : photo.FormatLabel +
         (photo.Assets.FirstOrDefault(asset => asset.Kind == PhotoAssetKind.Raw) is { } raw
             ? $" ({System.IO.Path.GetExtension(raw.FilePath).ToUpperInvariant()})" : "");
     public string PreviewSourceLabel => CurrentPhoto?.ActivePreviewAsset is { } asset
         ? "预览：" + (asset.Kind == PhotoAssetKind.Jpg ? "JPG" : "RAW") : "本地照片";
     public string GeometryNotice => CurrentPhoto?.GeometryStatus == PhotoGeometryStatus.NeedsReview
-        ? "图像来源已变化，鸟框位置待核对；鸟种结果已保留" : "";
+        ? "图像来源已变化，请注意核对" : "";
     public PhotoRating CurrentRating
     {
         get => CurrentPhoto?.Rating ?? PhotoRating.Unmarked;
@@ -215,9 +213,6 @@ public sealed class MainViewModel : INotifyPropertyChanged
         {
             Dirty = true;
             Refresh();
-            if (e.PropertyName == nameof(PhotoItem.GeometryStatus) &&
-                sender is PhotoItem { GeometryStatus: PhotoGeometryStatus.NeedsReview } && ReferenceEquals(sender, _currentPhoto))
-                PhotoChanged?.Invoke(_currentPhoto);
             return;
         }
         if (e.PropertyName == nameof(PhotoItem.FilePath))
