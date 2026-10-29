@@ -96,6 +96,21 @@ internal static class MainWindowUiChecks
             string recognitionTip = recognizeButton.ToolTip?.ToString() ?? "";
             Check(recognitionTip.Contains("无需先分组", StringComparison.Ordinal) && recognitionTip.Contains("定位", StringComparison.Ordinal),
                 "the recognition action explains that bird localization runs without prior grouping");
+            var includeRaw = (CheckBox)window.FindName("IncludeRawCheckBox");
+            Check(includeRaw.IsChecked == true && model.IncludeRaw,
+                "RAW companion import is enabled by default in the production window");
+            includeRaw.IsChecked = false;
+            Check(!model.IncludeRaw, "the visible RAW checkbox controls the next import mode");
+            includeRaw.IsChecked = true;
+            var companion = new PhotoAsset(Path.ChangeExtension(first.FilePath, ".NEF"), PhotoAssetKind.Raw);
+            first.AddAsset(companion);
+            SettleBindings(root);
+            Check(((TextBlock)window.FindName("MetadataFormat")).Text.Contains("JPG + RAW", StringComparison.Ordinal) &&
+                  ((TextBlock)window.FindName("MetadataFormat")).Text.Contains(".NEF", StringComparison.Ordinal) &&
+                  ((TextBlock)window.FindName("PreviewSourceText")).Text == "预览：JPG" && model.PhotoCount == 3,
+                "the parameter bar shows paired format and RAW extension while one logical photo still previews JPG");
+            first.RemoveAsset(companion.Id);
+            model.Dirty = false;
             Check(((TextBlock)viewer.FindName("DetectionText")).Text.Contains("91%", StringComparison.Ordinal),
                 "bird confidence reaches the real detail-pane label");
             foreach (string field in new[] { "CapturedAt", "Camera", "FocalLength", "Aperture", "Shutter", "Iso", "ExposureBias" })
@@ -1080,7 +1095,7 @@ internal static class MainWindowUiChecks
 
     private static void CheckImportantButtons(FrameworkElement root, double width, double height, Action<bool, string> check)
     {
-        string[] required = { "添加照片", "清空列表", "打开工程", "保存工程", "恢复自动保存", "导出 / 清理", "自动分组", "识别鸟种", "拆分整组", "从列表中移除",
+        string[] required = { "添加照片", "清空列表", "打开工程", "保存工程", "恢复自动保存", "导出 / 清理", "自动分组", "识别鸟种", "重新识别本张", "拆分整组", "从列表中移除",
             "将当前图独立", "从列表中移除", "适应画面", "还原鸟类视图", "手动选区" };
         var buttons = Descendants(root).OfType<ContentControl>().Where(control =>
             control is ButtonBase && required.Contains(control.Content?.ToString()) ||

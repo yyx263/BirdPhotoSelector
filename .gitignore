@@ -2,7 +2,9 @@
 bin/
 obj/
 publish/
-Tests/
+# Preserve verification source while keeping generated/test-support output ignored.
+Tests/*
+!Tests/*Checks.cs
 artifacts/
 # Local release archives belong in GitHub Releases.
 /*.zip

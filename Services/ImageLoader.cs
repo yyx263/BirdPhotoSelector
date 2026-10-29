@@ -4,11 +4,14 @@ using System.Windows.Media.Imaging;
 
 namespace BirdPhotoSelector;
 
-/// <summary>Loads a JPEG without retaining a file lock and honors all EXIF orientations.</summary>
+/// <summary>Loads oriented JPG or true RAW pixels without retaining a file lock.</summary>
 public static class ImageLoader
 {
-    public static BitmapSource Load(string path, int maxWidth = 0)
+    public static BitmapSource Load(string path, int maxWidth = 0, CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (PhotoAsset.TryGetKind(path, out var kind) && kind == PhotoAssetKind.Raw)
+            return RawImageDecoder.Decode(path, maxWidth, cancellationToken);
         using var stream = File.OpenRead(path);
         var decoder = new JpegBitmapDecoder(stream, BitmapCreateOptions.DelayCreation, BitmapCacheOption.None);
         int orientation = GetOrientation(decoder.Frames[0].Metadata as BitmapMetadata);
@@ -22,6 +25,7 @@ public static class ImageLoader
         bitmap.EndInit();
         BitmapSource result = ApplyOrientation(bitmap, orientation);
         result.Freeze();
+        cancellationToken.ThrowIfCancellationRequested();
         return result;
     }
 

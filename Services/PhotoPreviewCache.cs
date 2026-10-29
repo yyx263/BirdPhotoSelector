@@ -13,7 +13,7 @@ public sealed class PhotoPreviewCache : IDisposable
 {
     public const long DefaultBudgetBytes = 256L * 1024 * 1024;
     private readonly object _gate = new();
-    private readonly Func<string, BitmapSource> _loader;
+    private readonly Func<string, CancellationToken, BitmapSource> _loader;
     private readonly Dictionary<FileKey, CacheEntry> _cache = new();
     private readonly LinkedList<FileKey> _lru = new();
     private readonly Dictionary<FileKey, Request> _requests = new();
@@ -28,11 +28,16 @@ public sealed class PhotoPreviewCache : IDisposable
     private int _inFlight;
     private bool _disposed;
 
-    public PhotoPreviewCache(long budgetBytes = DefaultBudgetBytes, Func<string, BitmapSource>? loader = null)
+    public PhotoPreviewCache(long budgetBytes = DefaultBudgetBytes, Func<string, BitmapSource>? loader = null,
+        Func<string, CancellationToken, BitmapSource>? cancellableLoader = null)
     {
         if (budgetBytes <= 0) throw new ArgumentOutOfRangeException(nameof(budgetBytes));
         BudgetBytes = budgetBytes;
-        _loader = loader ?? (path => ImageLoader.Load(path));
+        if (loader is not null && cancellableLoader is not null)
+            throw new ArgumentException("只能指定一种预览解码器。");
+        if (cancellableLoader is not null) _loader = cancellableLoader;
+        else if (loader is not null) _loader = (path, _) => loader(path);
+        else _loader = (path, token) => ImageLoader.Load(path, cancellationToken: token);
         _worker = Task.Run(WorkerAsync);
     }
 
@@ -47,7 +52,7 @@ public sealed class PhotoPreviewCache : IDisposable
         ArgumentNullException.ThrowIfNull(photo);
         if (cancellationToken.IsCancellationRequested) return Task.FromCanceled<BitmapSource>(cancellationToken);
         FileKey key;
-        try { key = ReadKey(photo.FilePath); }
+        try { key = ReadKey(SourcePath(photo)); }
         catch (Exception ex) { return Task.FromException<BitmapSource>(ex); }
         Task<BitmapSource> result;
         lock (_gate)
@@ -67,6 +72,7 @@ public sealed class PhotoPreviewCache : IDisposable
             }
             var waiter = new Waiter(cancellationToken);
             request.Waiters.Add(waiter);
+            waiter.ArmCancellation(() => CancelAbandonedRaw(request));
             result = waiter.Completion.Task;
             if (!request.ForegroundQueued && !request.InFlight)
             {
@@ -87,16 +93,22 @@ public sealed class PhotoPreviewCache : IDisposable
         for (int i = 0; i < photos.Count; i++)
             if (ReferenceEquals(photos[i], current) || photos[i].Id == current.Id) { index = i; break; }
         var candidates = new List<(FileKey Key, long Bytes)>();
+        FileKey? selectedKey = null;
+        try { selectedKey = ReadKey(SourcePath(current)); }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException) { }
         if (index >= 0)
             foreach (int offset in new[] { 0, 1, -1, 2, -2 })
             {
                 int candidate = index + offset;
                 if (candidate < 0 || candidate >= photos.Count) continue;
                 var photo = photos[candidate];
+                // RAW decoding is deliberately foreground-only, even when dimensions are
+                // already known. Merely browsing a neighbour must not unpack another RAW.
+                if (photo.ActivePreviewAsset?.Kind == PhotoAssetKind.Raw) continue;
                 long bytes = EstimatedBytes(photo.PixelWidth, photo.PixelHeight);
                 // Unknown dimensions must first be read by an explicit foreground request.
                 if (bytes <= 0 || bytes > BudgetBytes) continue;
-                try { candidates.Add((ReadKey(photo.FilePath), bytes)); }
+                try { candidates.Add((ReadKey(SourcePath(photo)), bytes)); }
                 catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException) { }
             }
         lock (_gate)
@@ -105,12 +117,12 @@ public sealed class PhotoPreviewCache : IDisposable
             _generation++;
             _prefetch.Clear();
             _neighborhoodRanks.Clear();
-            _currentKey = null;
+            _currentKey = selectedKey;
             for (int rank = 0; rank < candidates.Count; rank++)
             {
                 var candidate = candidates[rank];
                 if (!_neighborhoodRanks.TryAdd(candidate.Key, rank)) continue;
-                if (rank == 0 && index >= 0 && candidate.Key.Path == CanonicalPath(current.FilePath)) _currentKey = candidate.Key;
+                if (rank == 0 && index >= 0 && candidate.Key.Path == CanonicalPath(SourcePath(current))) _currentKey = candidate.Key;
                 RemoveOldVersions(candidate.Key);
                 if (_cache.ContainsKey(candidate.Key)) continue;
                 if (!_requests.TryGetValue(candidate.Key, out var request) || request.Invalidated)
@@ -140,8 +152,9 @@ public sealed class PhotoPreviewCache : IDisposable
             foreach (var request in _requests.Values.Where(request => !allowed.Contains(request.Key.Path)).ToArray())
             {
                 request.Invalidated = true;
+                request.CancelDecode();
                 canceled.AddRange(request.Waiters);
-                if (!request.InFlight) { request.Completed = true; _requests.Remove(request.Key); }
+                if (!request.InFlight) { request.Completed = true; _requests.Remove(request.Key); request.Dispose(); }
             }
         }
         foreach (var waiter in canceled) { waiter.Cancel(); waiter.Dispose(); }
@@ -159,7 +172,12 @@ public sealed class PhotoPreviewCache : IDisposable
             _cache.Clear(); _lru.Clear(); _cachedBytes = 0;
             _foreground.Clear(); _prefetch.Clear();
             canceled = _requests.Values.SelectMany(request => request.Waiters).ToList();
-            foreach (var request in _requests.Values) { request.Invalidated = true; if (!request.InFlight) request.Completed = true; }
+            foreach (var request in _requests.Values)
+            {
+                request.Invalidated = true;
+                request.CancelDecode();
+                if (!request.InFlight) { request.Completed = true; request.Dispose(); }
+            }
             foreach (var key in _requests.Where(pair => !pair.Value.InFlight).Select(pair => pair.Key).ToArray()) _requests.Remove(key);
         }
         foreach (var waiter in canceled) { waiter.Cancel(); waiter.Dispose(); }
@@ -213,7 +231,8 @@ public sealed class PhotoPreviewCache : IDisposable
         try
         {
             if (ReadKey(request.Key.Path) != request.Key) throw new IOException("照片在等待预览时已被修改，请重新选择。");
-            image = _loader(request.Key.Path);
+            request.DecodeCancellation.Token.ThrowIfCancellationRequested();
+            image = _loader(request.Key.Path, request.DecodeCancellation.Token);
             if (image is null) throw new InvalidDataException("预览解码器没有返回图像。");
             if (!image.IsFrozen) image.Freeze();
             if (ReadKey(request.Key.Path) != request.Key) throw new IOException("照片在载入预览时已被修改，请重新选择。");
@@ -252,6 +271,7 @@ public sealed class PhotoPreviewCache : IDisposable
             else waiter.Completion.TrySetResult(image!);
             waiter.Dispose();
         }
+        request.Dispose();
     }
 
     // A background candidate may replace stale/farther frames, never a useful nearer neighbor.
@@ -286,6 +306,7 @@ public sealed class PhotoPreviewCache : IDisposable
         _requests.Remove(request.Key);
         foreach (var waiter in request.Waiters) waiter.Dispose();
         request.Waiters.Clear();
+        request.Dispose();
     }
     private void RemoveObsoleteQueuedRequests()
     {
@@ -293,6 +314,25 @@ public sealed class PhotoPreviewCache : IDisposable
             request.PrefetchGeneration != _generation).ToArray()) FinishUnused(request);
     }
     private void Wake() { try { _wake.Release(); } catch (SemaphoreFullException) { } catch (ObjectDisposedException) { } }
+    private static string SourcePath(PhotoItem photo) => photo.ActivePreviewAsset?.CanonicalPath ?? photo.FilePath;
+    private void CancelAbandonedRaw(Request request)
+    {
+        if (!PhotoAsset.TryGetKind(request.Key.Path, out var kind) || kind != PhotoAssetKind.Raw) return;
+        lock (_gate)
+        {
+            // One canceled observer must not cancel a shared decode still awaited by another.
+            if (request.Completed || request.HasWaiters) return;
+            request.Invalidated = true;
+            request.CancelDecode();
+            if (!request.InFlight)
+            {
+                if (_requests.TryGetValue(request.Key, out var registered) && ReferenceEquals(registered, request))
+                    _requests.Remove(request.Key);
+                request.Completed = true;
+                request.Dispose();
+            }
+        }
+    }
     private static string CanonicalPath(string path) => Path.GetFullPath(path).ToUpperInvariant();
     private static FileKey ReadKey(string path)
     {
@@ -322,7 +362,12 @@ public sealed class PhotoPreviewCache : IDisposable
             if (_disposed) return;
             _disposed = true;
             waiters = _requests.Values.SelectMany(request => request.Waiters).ToList();
-            foreach (var request in _requests.Values) request.Invalidated = true;
+            foreach (var request in _requests.Values)
+            {
+                request.Invalidated = true;
+                request.CancelDecode();
+                if (!request.InFlight) request.Dispose();
+            }
             _requests.Clear(); _foreground.Clear(); _prefetch.Clear();
             _cache.Clear(); _lru.Clear(); _neighborhoodRanks.Clear(); _cachedBytes = 0;
         }
@@ -337,29 +382,38 @@ public sealed class PhotoPreviewCache : IDisposable
 
     private readonly record struct FileKey(string Path, long Length, long WriteTicks);
     private sealed record CacheEntry(BitmapSource Image, long Bytes, LinkedListNode<FileKey> Node);
-    private sealed class Request(FileKey key, long estimatedBytes)
+    private sealed class Request(FileKey key, long estimatedBytes) : IDisposable
     {
         public FileKey Key { get; } = key;
         public long EstimatedBytes { get; } = estimatedBytes;
         public List<Waiter> Waiters { get; } = new();
+        public CancellationTokenSource DecodeCancellation { get; } = new();
         public long PrefetchGeneration { get; set; } = -1;
         public bool ForegroundQueued { get; set; }
         public bool InFlight { get; set; }
         public bool Completed { get; set; }
         public bool Invalidated { get; set; }
         public bool HasWaiters => Waiters.Any(waiter => !waiter.Completion.Task.IsCompleted);
+        public void CancelDecode() { try { DecodeCancellation.Cancel(); } catch (ObjectDisposedException) { } }
+        public void Dispose() => DecodeCancellation.Dispose();
     }
     private sealed class Waiter : IDisposable
     {
-        private readonly CancellationTokenRegistration _registration;
+        private CancellationTokenRegistration _registration;
         private readonly CancellationToken _token;
         public TaskCompletionSource<BitmapSource> Completion { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public Waiter(CancellationToken token)
         {
             _token = token;
-            _registration = token.Register(() => Completion.TrySetCanceled(token));
         }
+        public void ArmCancellation(Action afterCancel) => _registration = _token.Register(() =>
+        {
+            Completion.TrySetCanceled(_token);
+            afterCancel();
+        });
         public void Cancel() => Completion.TrySetCanceled(_token.IsCancellationRequested ? _token : new CancellationToken(true));
-        public void Dispose() => _registration.Dispose();
+        // Cleanup can run under the cache gate. Unregister never waits for a callback
+        // that may itself be waiting to acquire that gate.
+        public void Dispose() => _registration.Unregister();
     }
 }

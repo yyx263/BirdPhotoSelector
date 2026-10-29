@@ -91,7 +91,7 @@ public partial class DualPhotoViewer : UserControl
         _notifyInitialView = false;
         _fitPending = false;
         EmptyTitle.Text = "等待照片";
-        EmptyMessage.Text = "从左上角导入 JPG 照片";
+        EmptyMessage.Text = "从左上角导入 JPG 或 RAW 照片";
         DetectionText.ToolTip = DetailInteractionHint;
 
         if (photo is not null)
@@ -114,7 +114,7 @@ public partial class DualPhotoViewer : UserControl
         DetailEmptyState.Visibility = hasImage ? Visibility.Collapsed : Visibility.Visible;
         RestoreButton.IsEnabled = hasImage;
         FitButton.IsEnabled = hasImage;
-        ManualRegionButton.IsEnabled = hasImage;
+        ManualRegionButton.IsEnabled = hasImage && photo?.GeometryStatus != PhotoGeometryStatus.NeedsReview;
         DetailViewport.Cursor = hasImage ? Cursors.Hand : Cursors.Arrow;
         ViewportRectangle.Visibility = hasImage ? Visibility.Visible : Visibility.Collapsed;
         ViewportOutline.Visibility = hasImage ? Visibility.Visible : Visibility.Collapsed;
@@ -133,7 +133,8 @@ public partial class DualPhotoViewer : UserControl
 
         ImageSizeText.Text = $"{_bitmap!.PixelWidth:N0} × {_bitmap.PixelHeight:N0}  ·  白框为当前视野";
         RefreshBirdOverlays();
-        if (photo!.ViewZoom is double savedZoom && double.IsFinite(savedZoom) && savedZoom > 0)
+        if (photo!.GeometryStatus != PhotoGeometryStatus.NeedsReview &&
+            photo.ViewZoom is double savedZoom && double.IsFinite(savedZoom) && savedZoom > 0)
         {
             _zoom = savedZoom;
             _centerX = ValidCenter(photo.ViewCenterX);
@@ -206,7 +207,7 @@ public partial class DualPhotoViewer : UserControl
         if (_interactionBlocked || _bitmap is null || _photo is null || index < 0 || index >= _photo.Birds.Count) return;
         bool changed = _photo.SelectedBirdIndex != index;
         _photo.SelectedBirdIndex = index;
-        RestoreBirdView();
+        if (_photo.GeometryStatus != PhotoGeometryStatus.NeedsReview) RestoreBirdView();
         RefreshBirdOverlays();
         if (changed) BirdSelectionChanged?.Invoke(this, EventArgs.Empty);
     }
@@ -219,7 +220,7 @@ public partial class DualPhotoViewer : UserControl
         CloseBirdContextMenus();
         BirdOverlay.Children.Clear();
         UpdateDetectionLabel();
-        if (_photo is null || !TryGetFullPhotoBounds(out Rect photoBounds))
+        if (_photo is null || !_photo.CanUseBirdGeometry || !TryGetFullPhotoBounds(out Rect photoBounds))
         {
             BirdOverlay.Clip = null;
             return;
@@ -303,14 +304,16 @@ public partial class DualPhotoViewer : UserControl
     /// <summary>Requests removal of the exact current-photo object; the parent owns persistence.</summary>
     public bool RequestDeleteRegion(DetectedBird bird)
     {
-        if (!IsEnabled || _interactionBlocked || _bitmap is null || _photo is null || !_photo.Birds.Contains(bird)) return false;
+        if (!IsEnabled || _interactionBlocked || _bitmap is null || _photo is null ||
+            _photo.GeometryStatus == PhotoGeometryStatus.NeedsReview || !_photo.Birds.Contains(bird)) return false;
         DeleteRegionRequested?.Invoke(this, new BirdRegionDeleteEventArgs(_photo, bird));
         return true;
     }
 
     public bool BeginManualRegionSelection()
     {
-        if (!IsEnabled || _interactionBlocked || _bitmap is null || _photo is null) return false;
+        if (!IsEnabled || _interactionBlocked || _bitmap is null || _photo is null ||
+            _photo.GeometryStatus == PhotoGeometryStatus.NeedsReview) return false;
         StopDragging();
         ClearManualRegionDrag();
         _manualRegionMode = true;
@@ -338,7 +341,8 @@ public partial class DualPhotoViewer : UserControl
     /// <summary>Commits detail-viewport coordinates through the current pan/zoom; no photo model is mutated.</summary>
     public bool CompleteManualRegionSelection(Point start, Point end)
     {
-        if (!IsEnabled || _interactionBlocked || !_manualRegionMode || _bitmap is null || _photo is null) return false;
+        if (!IsEnabled || _interactionBlocked || !_manualRegionMode || _bitmap is null || _photo is null ||
+            _photo.GeometryStatus == PhotoGeometryStatus.NeedsReview) return false;
         var photo = _photo;
         if (!TryMapManualRegion(start, end, out var box))
         {
@@ -430,7 +434,7 @@ public partial class DualPhotoViewer : UserControl
         _needsInitialView = false;
         _zoom = MinimumPixelScale / FitScale;
         _centerX = _centerY = 0.5;
-        var bird = _photo.Bird;
+        var bird = _photo.CanUseBirdGeometry ? _photo.Bird : null;
         if (!_fitPending && bird is not null && IsValidBird(bird.X, bird.Y, bird.Width, bird.Height))
         {
             var birdWidth = Math.Min(bird.Width, 1 - bird.X) * _bitmap.PixelWidth;
@@ -452,6 +456,11 @@ public partial class DualPhotoViewer : UserControl
 
     private void UpdateDetectionLabel()
     {
+        if (_photo?.GeometryStatus == PhotoGeometryStatus.NeedsReview)
+        {
+            DetectionText.Text = "来源已变化 · 鸟框位置待核对 · 鸟种结果已保留";
+            return;
+        }
         var bird = _photo?.Bird;
         if (bird is null || !IsValidBird(bird.X, bird.Y, bird.Width, bird.Height))
         {

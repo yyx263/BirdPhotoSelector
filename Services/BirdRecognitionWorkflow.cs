@@ -93,9 +93,10 @@ public sealed class BirdRecognitionWorkflow : IDisposable
     {
         ArgumentNullException.ThrowIfNull(photos);
         ObjectDisposedException.ThrowIf(_disposed, this);
-        var jobs = photos.Select(photo => new PhotoJob(photo.Id, photo.FilePath,
+        var jobs = photos.Select(photo => new PhotoJob(photo.Id, photo.ActivePreviewAsset?.CanonicalPath ?? photo.FilePath,
             photo.Birds.Select(CopyBird).ToArray(), photo.SelectedBird?.Number ?? 0,
-            photo.NextBirdNumber, photo.DetectionStatus, photo.PixelWidth, photo.PixelHeight)).ToArray();
+            photo.NextBirdNumber, photo.DetectionStatus, photo.PixelWidth, photo.PixelHeight,
+            photo.GeometryStatus == PhotoGeometryStatus.NeedsReview || photo.Birds.Count > 0 && !photo.CanUseBirdGeometry)).ToArray();
         await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
@@ -115,10 +116,17 @@ public sealed class BirdRecognitionWorkflow : IDisposable
             ObjectDisposedException.ThrowIf(_disposed, this);
             var job = jobs[index];
             string label = $"{index + 1} / {jobs.Length} · {Path.GetFileName(job.Path)} · {job.Path}";
+            if (job.NeedsGeometryReview)
+            {
+                result.SkippedPhotos++;
+                result.Errors.Add($"{job.Path}：来源已变化，鸟框位置待核对；保留原选区与鸟种结果。");
+                progress?.Report(new(index + 1, jobs.Length, $"已跳过待核对鸟框 {label}"));
+                continue;
+            }
             progress?.Report(new(index, jobs.Length, $"正在定位鸟类 {label}"));
             try
             {
-                var image = ImageLoader.Load(job.Path);
+                var image = ImageLoader.Load(job.Path, cancellationToken: cancellationToken);
                 BirdDetectionResult detection;
                 try
                 {
@@ -245,5 +253,5 @@ public sealed class BirdRecognitionWorkflow : IDisposable
     }
 
     private sealed record PhotoJob(string Id, string Path, DetectedBird[] Birds, int SelectedBirdNumber,
-        int NextBirdNumber, string DetectionStatus, int Width, int Height);
+        int NextBirdNumber, string DetectionStatus, int Width, int Height, bool NeedsGeometryReview);
 }

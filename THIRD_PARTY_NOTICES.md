@@ -2,6 +2,19 @@
 
 本应用的第三方代码、运行库与模型各自受其原始许可证约束。保留发布目录中的许可和第三方说明文件。
 
+## LibRaw 0.22.3 RAW 解码器
+
+- 上游：[LibRaw](https://www.libraw.org/)，[许可说明](https://www.libraw.org/about#license)。上游允许选择 LGPL 2.1 或 CDDL 1.0；本项目使用 **CDDL 1.0** 选项，未修改 LibRaw 源码或 DLL。
+- 固定 Win64 SDK（包含原始源码及二进制）：[LibRaw-0.22.3-Win64.zip](https://www.libraw.org/data/LibRaw-0.22.3-Win64.zip)。相同版本的对应源码可从此固定地址取得。
+- SDK SHA-256：`4e2213a0b10e32199a30b9114a61376cdb40f94df861262b4a6dca659701276b`，是从官方 HTTPS 下载记录的指纹，不是上游签名。
+- 运行文件 `libraw.dll` SHA-256：`2c4df36d9011267fd3ffd5c23e80d69d5f42c3d503f03ac02448f5c8a7fe0fa2`。
+- 原始版权与许可副本：`licenses/LibRaw-COPYRIGHT.txt`、`licenses/LibRaw-CDDL-1.0.txt`、`licenses/LibRaw-LGPL-2.1.txt`。保留 LibRaw 所包含的 dcraw、DCB/FBDD、X3F、Adobe DNG 相关署名；DCB/X3F 的 BSD 条款原文另保存在 `licenses/LibRaw-ComponentNotices.txt`。
+- 本项目的 ABI 桥接源码位于 `native/raw-decoder.cpp`，构建脚本为 `scripts/Build-RawDecoder.ps1`。桥接只调用官方库，不复制或改变库内部算法。
+
+显示流程使用传感器 RAW 解码、适用的解拜耳、相机白平衡及 sRGB 输出；不将内嵌 JPEG 作为 RAW 解码结果。格式扩展名能被识别不代表所有机型或压缩模式都受支持。
+
+原生 DLL 所需的 Microsoft C++ 运行库为 `msvcp140.dll`、`vcruntime140.dll`、`vcruntime140_1.dll`。构建时从已安装 Visual Studio 的 x64 CRT 可再分发目录复制到程序目录，不从系统目录任意收集 DLL；它们仍受 Microsoft 原始条款约束。分发规则与应用目录部署方式见 [Microsoft C++ 运行库分发文档](https://learn.microsoft.com/en-us/cpp/windows/redistributing-visual-cpp-files)。这三个运行库不按本项目或 LibRaw 的开源许可重新授权。
+
 ## YOLOv10n ONNX 模型
 
 - 模型文件：`models/yolov10n.onnx`
@@ -71,7 +84,7 @@ SOFTWARE.
 
 - [.NET Runtime 源码和许可](https://github.com/dotnet/runtime)
 - [WPF 源码和许可](https://github.com/dotnet/wpf)
-- 本次 Windows x64 发布运行库版本为 8.0.32，随附以下 NuGet 运行库包的原始声明：
+- 本次 Windows x64 发布运行库版本为 8.0.33，随附以下 NuGet 运行库包的原始声明：
   - `licenses/DotNetRuntime-LICENSE.txt`：`Microsoft.NETCore.App.Runtime.win-x64` 的 MIT 许可。
   - `licenses/DotNetRuntime-ThirdPartyNotices.txt`：同包完整第三方声明。
   - `licenses/WindowsDesktopRuntime-LICENSE.txt`：`Microsoft.WindowsDesktop.App.Runtime.win-x64` 的 MIT 许可。该版本的 WindowsDesktop 运行库包未另外提供第三方声明文件。

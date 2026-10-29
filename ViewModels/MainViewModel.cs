@@ -17,6 +17,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private double _threshold = GroupingThreshold.Default;
     private double _progress;
     private bool _isPreviewReady;
+    private bool _includeRaw = true;
     private bool _updatingSelection;
     private readonly HashSet<PhotoItem> _observedPhotos = new();
     private string _autoSaveSummary = "自动保存 · 5分钟";
@@ -43,11 +44,21 @@ public sealed class MainViewModel : INotifyPropertyChanged
             SelectPhoto(_currentGroup, value);
         }
     }
-    public bool IsBusy { get => _isBusy; set { _isBusy = value; Notify(); Notify(nameof(CanEdit)); Notify(nameof(CanRate)); } }
+    public bool IsBusy { get => _isBusy; set { _isBusy = value; Notify(); Notify(nameof(CanEdit)); Notify(nameof(CanRate)); Notify(nameof(CanEditBirdRegions)); Notify(nameof(CanReidentifyCurrentPhoto)); } }
     public bool CanEdit => !IsBusy;
     public bool HasPhoto => CurrentPhoto != null && IsPreviewReady;
-    public bool IsPreviewReady { get => _isPreviewReady; set { _isPreviewReady = value; Notify(); Notify(nameof(HasPhoto)); Notify(nameof(CanRate)); } }
+    public bool IsPreviewReady { get => _isPreviewReady; set { _isPreviewReady = value; Notify(); Notify(nameof(HasPhoto)); Notify(nameof(CanRate)); Notify(nameof(CanEditBirdRegions)); Notify(nameof(CanReidentifyCurrentPhoto)); } }
     public bool CanRate => CanEdit && HasPhoto;
+    public bool CanReidentifyCurrentPhoto => CanRate;
+    public bool CanEditBirdRegions => CanRate && CurrentPhoto?.GeometryStatus != PhotoGeometryStatus.NeedsReview;
+    public bool IncludeRaw { get => _includeRaw; set { if (_includeRaw == value) return; _includeRaw = value; Notify(); } }
+    public string CurrentFormatLabel => CurrentPhoto is not { } photo ? "—" : photo.FormatLabel +
+        (photo.Assets.FirstOrDefault(asset => asset.Kind == PhotoAssetKind.Raw) is { } raw
+            ? $" ({System.IO.Path.GetExtension(raw.FilePath).ToUpperInvariant()})" : "");
+    public string PreviewSourceLabel => CurrentPhoto?.ActivePreviewAsset is { } asset
+        ? "预览：" + (asset.Kind == PhotoAssetKind.Jpg ? "JPG" : "RAW") : "本地照片";
+    public string GeometryNotice => CurrentPhoto?.GeometryStatus == PhotoGeometryStatus.NeedsReview
+        ? "图像来源已变化，鸟框位置待核对；鸟种结果已保留" : "";
     public PhotoRating CurrentRating
     {
         get => CurrentPhoto?.Rating ?? PhotoRating.Unmarked;
@@ -115,6 +126,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
             if (groupChanged) { Notify(nameof(CurrentGroup)); Notify(nameof(GroupPosition)); }
             if (photoChanged || forceReload) Notify(nameof(CurrentPhoto));
             Notify(nameof(PhotoPosition)); Notify(nameof(HasPhoto)); Notify(nameof(CanRate)); Notify(nameof(CurrentRating));
+            NotifySourceState();
         }
         finally { _updatingSelection = false; }
         if (photoChanged || forceReload) PhotoChanged?.Invoke(photo);
@@ -125,6 +137,13 @@ public sealed class MainViewModel : INotifyPropertyChanged
         for (int i = 0; i < Groups.Count; i++) { Groups[i].Number = i + 1; Groups[i].Refresh(); }
         Notify(nameof(PhotoCount)); Notify(nameof(HasPhotos)); Notify(nameof(LibrarySummary)); Notify(nameof(RatingSummary)); Notify(nameof(UnmarkedCount)); Notify(nameof(CurrentRating));
         Notify(nameof(GroupPosition)); Notify(nameof(PhotoPosition)); Notify(nameof(WindowTitle));
+        NotifySourceState();
+    }
+
+    private void NotifySourceState()
+    {
+        Notify(nameof(CanEditBirdRegions)); Notify(nameof(CanReidentifyCurrentPhoto)); Notify(nameof(CurrentFormatLabel));
+        Notify(nameof(PreviewSourceLabel)); Notify(nameof(GeometryNotice));
     }
     public void NavigateGroup(int delta)
     {
@@ -190,6 +209,24 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
     private void OnPhotoChanged(object? sender, PropertyChangedEventArgs e)
     {
+        if (e.PropertyName is nameof(PhotoItem.Assets) or nameof(PhotoItem.PreferredPreviewAssetId)
+            or nameof(PhotoItem.ActivePreviewAssetId) or nameof(PhotoItem.GeometryReference)
+            or nameof(PhotoItem.GeometryStatus))
+        {
+            Dirty = true;
+            Refresh();
+            if (e.PropertyName == nameof(PhotoItem.GeometryStatus) &&
+                sender is PhotoItem { GeometryStatus: PhotoGeometryStatus.NeedsReview } && ReferenceEquals(sender, _currentPhoto))
+                PhotoChanged?.Invoke(_currentPhoto);
+            return;
+        }
+        if (e.PropertyName == nameof(PhotoItem.FilePath))
+        {
+            Dirty = true;
+            Refresh();
+            if (ReferenceEquals(sender, _currentPhoto)) PhotoChanged?.Invoke(_currentPhoto);
+            return;
+        }
         if (e.PropertyName == nameof(PhotoItem.SelectedBirdIndex)) { Dirty = true; return; }
         if (e.PropertyName != nameof(PhotoItem.Rating)) return;
         Dirty = true;

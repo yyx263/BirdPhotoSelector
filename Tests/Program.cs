@@ -10,7 +10,7 @@ internal static class Program
     private static int _assertions;
 
     [STAThread]
-    private static int Main()
+    private static int Main(string[] args)
     {
         try
         {
@@ -26,12 +26,32 @@ internal static class Program
             foreach (var operation in startupOperations) operation.Abort();
             app.InitializeComponent();
             app.ShutdownMode = System.Windows.ShutdownMode.OnExplicitShutdown;
+            if (args.Contains("--file-operations-only", StringComparer.Ordinal))
+            {
+                _assertions += BatchProgressChecks.RunAsync().GetAwaiter().GetResult();
+                _assertions += AssetTransitionGuardChecks.RunAsync().GetAwaiter().GetResult();
+                _assertions += RawFileOperationChecks.RunAsync().GetAwaiter().GetResult();
+                _assertions += ExportScopeUiChecks.Run();
+                Console.WriteLine($"PASS: {_assertions} targeted file-operation assertions.");
+                return 0;
+            }
             _assertions += AutoSaveChecks.RunAsync().GetAwaiter().GetResult();
             _assertions += PhotoPreviewCacheChecks.RunAsync().GetAwaiter().GetResult();
             _assertions += SpeciesRecognitionChecks.RunAsync().GetAwaiter().GetResult();
             _assertions += GroupingThresholdChecks.RunAsync().GetAwaiter().GetResult();
             _assertions += RecognitionWorkflowChecks.RunAsync().GetAwaiter().GetResult();
             _assertions += BatchProgressChecks.RunAsync().GetAwaiter().GetResult();
+            _assertions += PhotoAssetChecks.RunAsync().GetAwaiter().GetResult();
+            _assertions += PhotoProjectV2Checks.RunAsync().GetAwaiter().GetResult();
+            _assertions += AssetTransitionGuardChecks.RunAsync().GetAwaiter().GetResult();
+            _assertions += RawFileOperationChecks.RunAsync().GetAwaiter().GetResult();
+            _assertions += SinglePhotoRecognitionChecks.RunAsync().GetAwaiter().GetResult();
+            _assertions += RawImportChecks.RunAsync().GetAwaiter().GetResult();
+            _assertions += RawPreviewChecks.RunAsync().GetAwaiter().GetResult();
+            _assertions += RawNativeChecks.RunAsync().GetAwaiter().GetResult();
+            _assertions += RawWindowChecks.Run();
+            _assertions += ExportScopeUiChecks.Run();
+            _assertions += SinglePhotoWindowChecks.Run();
             _assertions += ViewerUiChecks.Run();
             _assertions += MainWindowUiChecks.Run();
             RunAsync().GetAwaiter().GetResult();
