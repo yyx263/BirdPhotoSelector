@@ -2,6 +2,7 @@ using System.ComponentModel;
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.IO;
+using System.Globalization;
 using System.Runtime.CompilerServices;
 using System.Windows.Media.Imaging;
 
@@ -124,6 +125,8 @@ public sealed class PhotoItem : INotifyPropertyChanged
     private int _selectedBirdIndex;
     private DetectedBird? _selectedBirdReference;
     private readonly HashSet<DetectedBird> _observedBirds = new();
+    private bool _updatingBirds, _sortingBirds;
+    private static readonly StringComparer ManualNameComparer = StringComparer.Create(CultureInfo.GetCultureInfo("zh-CN"), ignoreCase: true);
     public int NextBirdNumber { get; private set; } = 1;
     private string _detectionStatus = "尚未分析";
     private double? _viewZoom, _viewCenterX, _viewCenterY;
@@ -134,6 +137,7 @@ public sealed class PhotoItem : INotifyPropertyChanged
     public PhotoItem()
     {
         Assets = new(_assets);
+        Birds = new OrderedBirdCollection(this);
         Birds.CollectionChanged += OnBirdCollectionChanged;
     }
 
@@ -314,8 +318,12 @@ public sealed class PhotoItem : INotifyPropertyChanged
         OnPropertyChanged(nameof(CanUseBirdGeometry)); OnPropertyChanged(nameof(Bird));
     }
     public PhotoRating Rating { get => _rating; set => Set(ref _rating, value); }
-    public bool HasManualSpeciesEdits { get => _hasManualSpeciesEdits; set => Set(ref _hasManualSpeciesEdits, value); }
-    public ObservableCollection<DetectedBird> Birds { get; } = new();
+    public bool HasManualSpeciesEdits
+    {
+        get => Birds.Count > 0 && _hasManualSpeciesEdits;
+        set => Set(ref _hasManualSpeciesEdits, value && Birds.Count > 0);
+    }
+    public ObservableCollection<DetectedBird> Birds { get; }
     public DetectedBird? SelectedBird => _selectedBirdIndex >= 0 && _selectedBirdIndex < Birds.Count ? Birds[_selectedBirdIndex] : null;
     public int SelectedBirdIndex
     {
@@ -357,10 +365,17 @@ public sealed class PhotoItem : INotifyPropertyChanged
                 next++;
             }
         }
-        Birds.Clear();
-        foreach (var bird in snapshot) Birds.Add(bird);
+        var selected = snapshot.Length == 0 ? null : snapshot[Math.Clamp(selectedIndex, 0, snapshot.Length - 1)];
+        snapshot = OrderedResults(snapshot);
+        _updatingBirds = true;
+        try
+        {
+            Birds.Clear();
+            foreach (var bird in snapshot) Birds.Add(bird);
+        }
+        finally { _updatingBirds = false; }
         NextBirdNumber = Math.Max(next, used.Count == 0 ? 1 : used.Max() + 1);
-        _selectedBirdIndex = Birds.Count == 0 ? 0 : Math.Clamp(selectedIndex, 0, Birds.Count - 1);
+        _selectedBirdIndex = selected is null ? 0 : Math.Max(0, Birds.IndexOf(selected));
         NotifyBirds();
     }
     public DetectedBird AddManualRegion(BirdBox box)
@@ -372,7 +387,7 @@ public sealed class PhotoItem : INotifyPropertyChanged
         var bird = new DetectedBird { Number = number, Box = box.Copy(), IsManual = true };
         Birds.Add(bird); NextBirdNumber++;
         HasManualSpeciesEdits = true;
-        _selectedBirdIndex = Birds.Count - 1;
+        _selectedBirdIndex = Birds.IndexOf(bird);
         NotifyBirds();
         return bird;
     }
@@ -401,6 +416,8 @@ public sealed class PhotoItem : INotifyPropertyChanged
     private void NotifyBirds()
     {
         _selectedBirdReference = SelectedBird;
+        NormalizeResultOrder();
+        if (Birds.Count == 0) ResetEmptyRecognition();
         RefreshDisplayNumbers();
         if (!Birds.Any(bird => bird.HasRegion) && _geometryStatus != PhotoGeometryStatus.NeedsReview)
             SetGeometryReference(null, PhotoGeometryStatus.Unspecified);
@@ -423,6 +440,7 @@ public sealed class PhotoItem : INotifyPropertyChanged
         { bird.PropertyChanged -= OnBirdPropertyChanged; _observedBirds.Remove(bird); }
         foreach (var bird in Birds)
             if (_observedBirds.Add(bird)) bird.PropertyChanged += OnBirdPropertyChanged;
+        if (_updatingBirds) return;
         // Reordering display rows must not silently select a different bird.
         var selected = _selectedBirdReference;
         int retained = selected is null ? -1 : Birds.IndexOf(selected);
@@ -443,6 +461,56 @@ public sealed class PhotoItem : INotifyPropertyChanged
         HasManualSpeciesEdits = true;
         NotifyBirds();
     }
+    private static DetectedBird[] OrderedResults(IEnumerable<DetectedBird> birds) => birds
+        .OrderBy(bird => bird.HasRegion ? 0 : 1)
+        .ThenBy(bird => bird.HasRegion ? "" : bird.EffectiveSpecies?.DisplayName ?? bird.SpeciesName, ManualNameComparer)
+        .ThenBy(bird => bird.HasRegion ? "" : bird.ScientificName, StringComparer.OrdinalIgnoreCase).ToArray();
+
+    private void NormalizeResultOrder()
+    {
+        if (_updatingBirds || _sortingBirds) return;
+        var selected = _selectedBirdReference ?? SelectedBird;
+        var ordered = OrderedResults(Birds);
+        _sortingBirds = true;
+        try
+        {
+            // Move runs after the outer collection event has finished; WPF and other
+            // subscribers can retain the exact selected object without Reset/replacement.
+            for (int index = 0; index < ordered.Length; index++)
+                if (!ReferenceEquals(Birds[index], ordered[index])) Birds.Move(Birds.IndexOf(ordered[index]), index);
+        }
+        finally { _sortingBirds = false; }
+        if (selected is not null && Birds.Contains(selected))
+        {
+            _selectedBirdIndex = Birds.IndexOf(selected);
+            _selectedBirdReference = selected;
+        }
+        if (Birds.Count == 0) ResetEmptyRecognition();
+    }
+
+    private void ResetEmptyRecognition()
+    {
+        HasManualSpeciesEdits = false;
+        DetectionStatus = "待识别";
+        if (_geometryReference is not null || _geometryStatus != PhotoGeometryStatus.Unspecified)
+            SetGeometryReference(null, PhotoGeometryStatus.Unspecified);
+        ViewZoom = ViewCenterX = ViewCenterY = null;
+    }
+
+    private sealed class OrderedBirdCollection(PhotoItem owner) : ObservableCollection<DetectedBird>
+    {
+        protected override void InsertItem(int index, DetectedBird item)
+        { ArgumentNullException.ThrowIfNull(item); base.InsertItem(index, item); owner.NormalizeResultOrder(); }
+        protected override void SetItem(int index, DetectedBird item)
+        { ArgumentNullException.ThrowIfNull(item); base.SetItem(index, item); owner.NormalizeResultOrder(); }
+        protected override void RemoveItem(int index)
+        { base.RemoveItem(index); owner.NormalizeResultOrder(); }
+        protected override void ClearItems()
+        { base.ClearItems(); owner.NormalizeResultOrder(); }
+        protected override void MoveItem(int oldIndex, int newIndex)
+        { base.MoveItem(oldIndex, newIndex); owner.NormalizeResultOrder(); }
+    }
+
     public string DetectionStatus { get => _detectionStatus; set => Set(ref _detectionStatus, value); }
     public double? ViewZoom { get => _viewZoom; set => Set(ref _viewZoom, value); }
     public double? ViewCenterX { get => _viewCenterX; set => Set(ref _viewCenterX, value); }

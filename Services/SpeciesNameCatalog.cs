@@ -8,7 +8,12 @@ namespace BirdPhotoSelector;
 public sealed class SpeciesNameCatalog
 {
     private readonly SpeciesIdentity[] _records;
-    private SpeciesNameCatalog(SpeciesIdentity[] records) => _records = records;
+    private readonly SpeciesSearchIndex _search;
+    private SpeciesNameCatalog(SpeciesIdentity[] records)
+    {
+        _records = records;
+        _search = new(records);
+    }
     public IReadOnlyList<SpeciesIdentity> Records => Array.AsReadOnly(_records);
     public IReadOnlyList<SpeciesIdentity> Species => Records;
 
@@ -44,16 +49,7 @@ public sealed class SpeciesNameCatalog
         }
     }
 
-    public IReadOnlyList<SpeciesIdentity> Search(string? query)
-    {
-        string text = query?.Trim() ?? "";
-        if (text.Length == 0) return Records;
-        return _records.Where(item => item.ChineseName.Contains(text, StringComparison.OrdinalIgnoreCase) ||
-                item.ScientificName.Contains(text, StringComparison.OrdinalIgnoreCase))
-            .OrderBy(item => string.Equals(item.ChineseName, text, StringComparison.OrdinalIgnoreCase) ||
-                string.Equals(item.ScientificName, text, StringComparison.OrdinalIgnoreCase) ? 0 : 1)
-            .ThenBy(item => item.ScientificName, StringComparer.OrdinalIgnoreCase).ToArray();
-    }
+    public IReadOnlyList<SpeciesIdentity> Search(string? query) => _search.Search(query);
 
     internal static SpeciesIdentity Normalize(SpeciesIdentity identity)
     {

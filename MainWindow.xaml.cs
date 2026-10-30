@@ -365,14 +365,25 @@ public partial class MainWindow : Window
 
     private async void ReidentifyCurrentPhoto_Click(object sender, RoutedEventArgs e) => await ReidentifyCurrentPhoto();
 
-    private async Task ReidentifyCurrentPhoto(Func<bool>? confirmReplace = null, Func<bool>? confirmEmpty = null,
-        Func<SinglePhotoRecognitionService>? createRecognition = null)
+    private void ClearRecognitionResults_Click(object sender, RoutedEventArgs e) => ClearRecognitionResults();
+
+    private bool ClearRecognitionResults()
+    {
+        if (!_vm.CanEditBirdRegions || _vm.CurrentPhoto is not { } photo) return false;
+        Viewer.CancelManualRegionSelection();
+        if (!_speciesEdits.Clear(photo)) return false;
+        _vm.Dirty = true;
+        Viewer.ShowPhoto(photo, Viewer.CurrentImage as BitmapSource);
+        QueueBirdResultSelection(photo, _previewVersion, _speciesListScrollVersion);
+        UpdateSpeciesUndoButton();
+        _vm.Status = "已清空本张识别结果 · 下次“识别鸟种”将重新识别 · Ctrl+Z 撤销";
+        return true;
+    }
+
+    private async Task ReidentifyCurrentPhoto(Func<SinglePhotoRecognitionService>? createRecognition = null,
+        Action<IReadOnlyList<string>>? reportErrors = null)
     {
         if (!_vm.CanReidentifyCurrentPhoto || _vm.CurrentPhoto is not { } photo) return;
-        bool confirmed = confirmReplace?.Invoke() ?? MessageBox.Show(this,
-            $"重新识别当前照片 {photo.FileName}？\n\n成功后将替换本张全部自动框、手动选区、手动鸟种和原识别结果。\n之前删除的选区可能重新检出，人工编辑标记将清除。\n失败或取消时保留原有选区、鸟种和视图。\n照片评级和分组保持不变。",
-            "重新识别本张", MessageBoxButton.OKCancel, MessageBoxImage.Question) == MessageBoxResult.OK;
-        if (!confirmed) return;
         await RunOperation(async ct =>
         {
             _vm.Status = "正在重新识别本张 · " + photo.FilePath;
@@ -384,15 +395,12 @@ public partial class MainWindow : Window
             if (!result.Success)
             {
                 _vm.Status = "本张重新识别未完成 · 原选区与鸟种结果已保留";
-                if (result.Errors.Count > 0) ShowDetails("重新识别本张未完成", result.Errors);
+                if (result.Errors.Count > 0)
+                {
+                    if (reportErrors is null) ShowDetails("重新识别本张未完成", result.Errors);
+                    else reportErrors(result.Errors);
+                }
                 return;
-            }
-            if (result.IsEmpty)
-            {
-                bool clear = confirmEmpty?.Invoke() ?? MessageBox.Show(this,
-                    EmptyDetectionConfirmationText,
-                    "未检测到鸟", MessageBoxButton.OKCancel, MessageBoxImage.Question) == MessageBoxResult.OK;
-                if (!clear) { _vm.Status = "已保留原选区与鸟种结果"; return; }
             }
             ct.ThrowIfCancellationRequested();
             var checkpoint = _speciesEdits.Capture(photo, "重新识别本张");
@@ -401,12 +409,10 @@ public partial class MainWindow : Window
             UpdateSpeciesUndoButton();
             _vm.Dirty = true; _vm.Progress = 100;
             LoadPreview(photo);
-            _vm.Status = result.IsEmpty ? "本张未检出鸟 · 已按确认清空旧选区和识别结果"
-                : $"本张重新识别完成 · {result.Birds.Count} 只鸟 · 已替换全部旧自动框和手动选区";
+            _vm.Status = result.IsEmpty ? "本张未检出鸟 · 已清空旧结果 · Ctrl+Z 撤销"
+                : $"本张重新识别完成 · {result.Birds.Count} 只鸟 · Ctrl+Z 撤销";
         });
     }
-
-    internal const string EmptyDetectionConfirmationText = "未检测到鸟，是否仍清空本张旧框和识别结果？\n\n这会移除全部自动框、手动选区和手动鸟种。\n\n照片、评级和分组保留。";
 
     private void SpeciesResults_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
@@ -748,6 +754,8 @@ public partial class MainWindow : Window
         var photos = _vm.AllPhotos.Where(dialog.Includes).ToList();
         if (photos.Count == 0) { ShowMessage("没有符合所选评级的照片。", "没有待处理照片"); return; }
         var plan = ExportService.CreatePlan(photos, dialog.Scope, dialog.GroupBySpecies);
+        var protectedSources = _vm.AllPhotos.SelectMany(photo => photo.Assets).Select(asset => asset.CanonicalPath)
+            .Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
         if (plan.FileCount == 0) { ShowMessage("所选评级中没有对应文件格式的原件。", "没有待处理文件"); return; }
         if (dialog.GroupBySpecies && !ConfirmSpeciesBeforeExport(photos, dialog.Scope)) return;
         if (dialog.DeleteOnly || dialog.RemoveOriginal)
@@ -762,7 +770,8 @@ public partial class MainWindow : Window
             _vm.Status = dialog.DeleteOnly ? "正在移除舍弃的原文件…" : "正在复制照片并校验…";
             var result = dialog.DeleteOnly
                 ? await _export.DeleteAsync(plan, ct, FileProgress())
-                : await _export.ExportAsync(plan, dialog.Destination, dialog.RemoveOriginal, ct, FileProgress());
+                : await _export.ExportAsync(plan, dialog.Destination, dialog.RemoveOriginal, ct, FileProgress(),
+                    (conflict, token) => ResolveExportConflict(conflict, token), protectedSources);
             // Cancellation can follow a successful recycle. Always apply the actual
             // per-member outcomes before returning from the operation.
             var emptyPhotos = result.ApplyRemovedAssets(photos).ToList();
@@ -774,11 +783,27 @@ public partial class MainWindow : Window
                 _vm.Dirty = true;
             }
             int verified = result.VerifiedCopyCount;
-            _vm.Status = $"{(ct.IsCancellationRequested ? "操作已取消" : "操作完成")} · 已校验 {verified} 份副本 · 已移除 {result.RemovedFileCount} 个原件 · 跳过 {result.SkippedFileCount} 个 · 失败 {result.FailedFileCount} 个"; _vm.Progress = 100;
+            _vm.Status = $"{(ct.IsCancellationRequested || result.CanceledFileCount > 0 ? "操作已取消" : "操作完成")} · 已校验 {verified} 份副本 · 已移除 {result.RemovedFileCount} 个原件 · 跳过 {result.SkippedFileCount} 个 · 失败 {result.FailedFileCount} 个"; _vm.Progress = 100;
             ShowMessage($"范围：{dialog.ScopeLabel}{(dialog.GroupBySpecies ? " · 按鸟种分类" : "")}\n处理：{plan.PhotoCount} 张照片 / {plan.FileCount} 个原件\n完成所选范围：{result.Succeeded.Count} 张照片\n成功复制校验：{verified} 份副本\n已移除原文件：{result.RemovedFileCount} 个\n已无剩余原件：{emptyPhotos.Count} 张照片\n跳过：{result.SkippedFileCount} 个原件\n失败：{result.FailedFileCount} 个原件\n取消：{result.CanceledFileCount} 个原件" +
                 (result.Skipped.Count + result.Errors.Count > 0 ? "\n\n" + string.Join("\n", result.Skipped.Concat(result.Errors).Take(12)) : ""), "处理完成", result.Errors.Count > 0 ? MessageBoxImage.Warning : MessageBoxImage.Information);
         });
     }
+
+    private Task<ExportConflictDecision> ResolveExportConflict(ExportConflict conflict, CancellationToken token,
+        Func<ExportConflictDialog, bool?>? showDialog = null) => Dispatcher.InvokeAsync(() =>
+    {
+        if (_isClosed || token.IsCancellationRequested) return new ExportConflictDecision(ExportConflictAction.Cancel);
+        var dialog = new ExportConflictDialog(conflict);
+        using var cancellation = token.Register(() => Dispatcher.BeginInvoke(new Action(() =>
+        {
+            if (dialog.IsVisible) dialog.Close();
+        })));
+        bool? accepted;
+        if (showDialog is null) { dialog.Owner = this; accepted = dialog.ShowDialog(); }
+        else accepted = showDialog(dialog);
+        return accepted == true && !token.IsCancellationRequested ? dialog.Decision
+            : new ExportConflictDecision(ExportConflictAction.Cancel);
+    }, DispatcherPriority.Normal).Task;
 
     private bool ConfirmSpeciesBeforeExport(IReadOnlyList<PhotoItem> photos, PhotoFileScope scope,
         Func<SpeciesExportReminderDialog, bool?>? showReminder = null)
@@ -819,17 +844,17 @@ public partial class MainWindow : Window
         return proceed;
     }
     private void Cancel_Click(object sender, RoutedEventArgs e) => _operation?.Cancel();
-    private void Help_Click(object sender, RoutedEventArgs e) => ShowMessage(UsageHelpText, "羽选 · 使用帮助", MessageBoxImage.Information);
+    private void Help_Click(object sender, RoutedEventArgs e) => new HelpDialog(UsageHelpText) { Owner = this }.ShowDialog();
 
     private const string UsageHelpText = """
 1. 添加照片：自动关联同目录同名 JPG / RAW，优先显示 JPG；只有 RAW 时解码原始像素。同名配对冲突会提示。清空列表仅移除记录，保留原片。
 2. 自动分组：按连续相似背景分组，保留鸟种、选区和评级。默认 50% 相当于旧版 95%，阈值越高越严格。
-3. 识别鸟种：默认中国候选，无需先分组。人工增删改过鸟种或选区的整张照片自动跳过；评级和缩放不影响此规则。重新识别本张经确认后可重建全部结果，包括重新检出已删框，成功后清除人工编辑保护，失败或取消则保留。
-4. 鸟种结果：右键删除鸟种同时删除对应框；更换鸟种在确认后变为无框手动项。框上删除选区与结果行删除鸟种相同。有框结果连续编号，无框项显示“手动”。下方“手动添加鸟种”每次选择一种，可重复添加多种；空搜索显示本工程最近 10 种，支持中文和学名搜索。
+3. 识别鸟种：默认中国候选，无需先分组。仍有结果的人工编辑照片自动跳过；评级和缩放不影响此规则。删光全部结果，或点击“清空识别结果”后，下次批量识别会重新识别该张。清空支持撤销。“重新识别本张”点击即运行，不再弹出确认；成功后直接替换结果，正常零检出直接清空，均可 Ctrl+Z 撤销。已删框可能重新检出，成功后清除人工编辑保护，失败或取消保留原结果。
+4. 鸟种结果：右键删除鸟种同时删除对应框；更换鸟种在确认后变为无框手动项。框上删除选区与结果行删除鸟种相同。有框结果在前并连续编号，无框人工项在后按名称排序。下方“手动添加鸟种”每次选择一种，可重复添加多种；空搜索显示本工程最近 10 种，支持中文、学名、全拼、首字母及简繁混输。
 5. 撤销：Ctrl+Z 或结果区的撤销按钮，恢复鸟种、选区和选择。保留本次工程会话最近 50 步，不撤销原片导出或删除。人工指定没有 AI 分数；AI 置信度是候选区分程度，不代表实际准确率。
 6. 预览：左侧固定全图，右侧滚轮缩放、拖动移动；范围为适应画面至 200%。R 还原鸟类视图。手动选区拖框后立即识别新框，Esc 取消。
 7. 导航与评级：方向键 / WASD 连续切换照片，Page Up / Down 切组；两栏缩略图滚轮仅滚动列表。1 未标记、2 舍弃、3 保留、4 精选，缩略图支持右键评级。
-8. 导出：评级和 JPG / RAW 范围独立。默认直接复制到现有目录，同名目标跳过。勾选“按鸟种创建子文件夹”后，一张多种会在各鸟种目录复制一份；同种多只去重，没有鸟种进入“未分类”。自动提醒未分类、识别失败选区及 AI 低于 80% 的结果，可继续或返回核对；位置待核对不影响分类。所有目标副本校验成功后才开始移除该张所选原件。
+8. 导出：评级和 JPG / RAW 范围独立。直接复制到现有目录；同名且内容相同自动跳过，内容不同逐个询问覆盖或重命名（追加 _1、_2 等后缀），可勾选后续重名沿用本次操作。已有 _n 后缀则继续累加。勾选“按鸟种创建子文件夹”后，一张多种会在各鸟种目录复制一份；同种多只去重，没有鸟种进入“未分类”。自动提醒未分类、识别失败选区及 AI 低于 80% 的结果，可继续或返回核对；位置待核对不影响分类。所有目标副本校验成功后才开始移除该张所选原件；跳过的同名文件保留原件。
 9. 工程：JSON v3 保存路径、分组、评级、人工结果、编辑保护及最近 10 种，兼容读取 v1 / v2。工程不打包照片；旧版本无法读取 v3。每 5 分钟自动保存修改，未命名时生成本机恢复文件。
 10. JPG 前后各预加载两张，解码缓存上限 512 MiB；RAW 只解码当前照片。所有识别均在本机进行。
 

@@ -9,6 +9,7 @@ namespace BirdPhotoSelector;
 public partial class SpeciesPickerDialog : Window
 {
     private readonly SpeciesIdentity[] _allSpecies;
+    private readonly SpeciesSearchIndex _search;
     private readonly SpeciesIdentity[] _recentSpecies;
     private readonly SpeciesIdentity? _initial;
     private bool _confirmed;
@@ -21,6 +22,7 @@ public partial class SpeciesPickerDialog : Window
         ArgumentNullException.ThrowIfNull(allSpecies);
         ArgumentNullException.ThrowIfNull(recentSpecies);
         _allSpecies = UniqueValid(allSpecies).ToArray();
+        _search = new(_allSpecies);
         var catalog = _allSpecies.ToDictionary(species => species.Key, StringComparer.OrdinalIgnoreCase);
         _recentSpecies = UniqueValid(recentSpecies)
             .Select(species => catalog.GetValueOrDefault(species.Key) ?? species).Take(10).ToArray();
@@ -51,16 +53,14 @@ public partial class SpeciesPickerDialog : Window
     {
         string query = SearchBox.Text.Trim();
         bool recent = query.Length == 0;
-        var matches = recent ? _recentSpecies : _allSpecies.Where(species =>
-            species.DisplayName.Contains(query, StringComparison.OrdinalIgnoreCase) ||
-            species.ScientificName.Contains(query, StringComparison.OrdinalIgnoreCase)).ToArray();
+        var matches = recent ? _recentSpecies : _search.Search(query).ToArray();
         SpeciesList.ItemsSource = matches;
         SpeciesList.SelectedItem = _initial is not null
             ? matches.FirstOrDefault(species => StringComparer.OrdinalIgnoreCase.Equals(species.Key, _initial.Key)) : null;
         if (!recent && SpeciesList.SelectedIndex < 0 && matches.Length > 0) SpeciesList.SelectedIndex = 0;
         ResultHeadingText.Text = recent ? "最近选择" : "搜索结果";
         ResultCountText.Text = $"{matches.Length} 种";
-        EmptyMessageText.Text = recent ? "还没有最近选择，输入中文名或学名搜索。" : "没有匹配的鸟种，请调整关键词。";
+        EmptyMessageText.Text = recent ? "还没有最近选择，输入中文名、学名、拼音或首字母搜索。" : "没有匹配的鸟种，请调整关键词。";
         EmptyMessageText.Visibility = matches.Length == 0 ? Visibility.Visible : Visibility.Collapsed;
         ConfirmButton.IsEnabled = SpeciesList.SelectedItem is SpeciesIdentity;
     }

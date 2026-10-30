@@ -52,23 +52,23 @@ internal static class ManualLabelViewerChecks
                 ((TextBlock)target.Children.OfType<Border>().Single().Child).Text).SequenceEqual(new[] { "01", "02" }) &&
               firstLabel.DisplayNumberText == "手动" && middleLabel.DisplayNumberText == "手动",
             "visible region labels remain contiguous and manual rows do not consume a region number");
-        Check(footer.Text == "人工指定 · 红嘴蓝鹊" && photo.SelectedBirdIndex == 2 && viewEvents == 0,
+        Check(footer.Text == "人工指定 · 红嘴蓝鹊" && photo.SelectedBirdIndex == photo.Birds.IndexOf(middleLabel) && ReferenceEquals(photo.SelectedBird, middleLabel) && viewEvents == 0,
             "an unframed selected result displays its manual species without reporting a framing edit");
         Click((Grid)overlay.Children[1]);
-        Check(photo.SelectedBirdIndex == 3 && ReferenceEquals(photo.SelectedBird, region) && selectionEvents == 1,
-            "clicking a region selects its original result index past interleaved manual rows");
+        Check(photo.SelectedBirdIndex == 1 && ReferenceEquals(photo.SelectedBird, region) && selectionEvents == 1,
+            "clicking a region selects its sorted region row without consuming manual-label positions");
 
         var framedView = View(photo, detail);
         int beforeManualSelection = viewEvents;
-        viewer.SelectBird(0);
+        viewer.SelectBird(photo.Birds.IndexOf(firstLabel));
         Check(ReferenceEquals(photo.SelectedBird, firstLabel) && selectionEvents == 2 &&
               SameView(framedView, View(photo, detail)) && viewEvents == beforeManualSelection && footer.Text == "人工指定 · 白鹭",
             "selecting an unframed manual row preserves zoom, pan and image placement");
         photo.Birds.Insert(0, Label(30, "绿背山雀", "Parus monticolus"));
         viewer.RefreshBirdOverlays();
         Click((Grid)overlay.Children[0]);
-        Check(photo.SelectedBirdIndex == 2 && ReferenceEquals(photo.SelectedBird, ai) && selectionEvents == 3,
-            "adding a manual row before existing regions does not shift overlay selection to the wrong result");
+        Check(photo.SelectedBirdIndex == 0 && ReferenceEquals(photo.SelectedBird, ai) && selectionEvents == 3,
+            "inserting a manual row before existing regions sorts it behind them without shifting overlay identity");
         BirdRegionDeleteEventArgs? deletion = null;
         viewer.DeleteRegionRequested += (_, request) => deletion = request;
         var menu = ((Grid)overlay.Children[0]).ContextMenu!;

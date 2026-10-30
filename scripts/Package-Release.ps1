@@ -33,7 +33,9 @@ $Required = @('BirdPhotoSelector.exe', 'BirdPhotoSelector.dll', 'BirdPhotoSelect
     'msvcp140.dll', 'vcruntime140.dll', 'vcruntime140_1.dll', 'coreclr.dll', 'hostfxr.dll', 'PresentationFramework.dll',
     'models/yolov10n.onnx', 'models/bioclip2/vision.onnx', 'models/bioclip2/asset-hashes.json',
     'licenses/LibRaw-CDDL-1.0.txt', 'licenses/LibRaw-COPYRIGHT.txt', 'licenses/LibRaw-ComponentNotices.txt',
-    'licenses/DotNetRuntime-ThirdPartyNotices.txt', 'THIRD_PARTY_NOTICES.md', '使用说明.md', 'RELEASE_NOTES.md',
+    'licenses/DotNetRuntime-ThirdPartyNotices.txt', 'licenses/Pypinyin-MIT.txt',
+    'licenses/Pypinyin-Data-MIT.txt', 'licenses/Pypinyin-Phrase-Data-MIT.txt',
+    'THIRD_PARTY_NOTICES.md', '使用说明.md', 'RELEASE_NOTES.md',
     '远程兼容启动.cmd')
 foreach ($Name in $Required) {
     if (-not (Test-Path -LiteralPath (Join-Path $Source $Name) -PathType Leaf)) { throw "Required package member missing: $Name" }

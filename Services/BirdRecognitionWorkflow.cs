@@ -19,7 +19,7 @@ public sealed class PhotoRecognitionOutcome
     {
         ArgumentNullException.ThrowIfNull(photo);
         if (photo.Id != PhotoId) throw new ArgumentException("识别结果与照片不匹配。", nameof(photo));
-        if (photo.HasManualSpeciesEdits) throw new InvalidOperationException("照片已有人工编辑，未应用批量识别结果。");
+        if (photo.Birds.Count > 0 && (photo.HasManualSpeciesEdits || photo.Birds.Any(bird => bird.ManualSpecies is not null))) throw new InvalidOperationException("照片已有人工编辑，未应用批量识别结果。");
         bool hadLocatedBirds = photo.Birds.Any(bird => bird.HasRegion);
         var original = photo.Birds.ToDictionary(bird => bird.Number);
         var applied = Birds.Select(bird =>
@@ -47,7 +47,11 @@ public sealed class PhotoRecognitionOutcome
         // first localization. Let ShowPhoto initialize the bird detail view next time.
         // Existing automatic/manual regions keep the user's saved zoom and pan.
         if (!hadLocatedBirds && photo.Birds.Any(bird => bird.HasRegion))
+        {
+            if (photo.ActivePreviewAsset is { } active)
+                photo.SetGeometryReference(PhotoGeometryReference.Capture(active, photo.PixelWidth, photo.PixelHeight), PhotoGeometryStatus.Current);
             photo.ViewZoom = photo.ViewCenterX = photo.ViewCenterY = null;
+        }
     }
 
     private static bool SameBox(BirdBox first, BirdBox second) =>
@@ -98,8 +102,8 @@ public sealed class BirdRecognitionWorkflow : IDisposable
         var jobs = photos.Select(photo => new PhotoJob(photo.Id, photo.ActivePreviewAsset?.CanonicalPath ?? photo.FilePath,
             photo.Birds.Select(CopyBird).ToArray(), photo.SelectedBird?.Number ?? 0,
             photo.NextBirdNumber, photo.DetectionStatus, photo.PixelWidth, photo.PixelHeight,
-            photo.GeometryStatus == PhotoGeometryStatus.NeedsReview || photo.Birds.Any(bird => bird.HasRegion) && !photo.CanUseBirdGeometry,
-            photo.HasManualSpeciesEdits || photo.Birds.Any(bird => bird.ManualSpecies is not null))).ToArray();
+            photo.Birds.Any(bird => bird.HasRegion) && (photo.GeometryStatus == PhotoGeometryStatus.NeedsReview || !photo.CanUseBirdGeometry),
+            photo.Birds.Count > 0 && (photo.HasManualSpeciesEdits || photo.Birds.Any(bird => bird.ManualSpecies is not null)))).ToArray();
         await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {

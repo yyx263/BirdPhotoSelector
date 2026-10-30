@@ -27,9 +27,9 @@ internal static class SpeciesEditingChecks
             var auto = Auto(7); var last = Auto(11);
             var photo = new PhotoItem { FilePath = path, PixelWidth = 64, PixelHeight = 48 };
             photo.SetBirds(new[] { auto, manual, last }, selectedIndex: 1, nextBirdNumber: 40);
-            Check(photo.Birds.Count == 3 && photo.Birds.Select(b => b.DisplayNumber).SequenceEqual(new[] { 1, 0, 2 }) &&
+            Check(photo.Birds.Count == 3 && photo.Birds.Select(b => b.DisplayNumber).SequenceEqual(new[] { 1, 2, 0 }) &&
                 manual.DisplayNumberText == "手动" && auto.DisplayNumberText == "01" && last.DisplayNumberText == "02",
-                "mixed result rows keep collection positions while only real regions receive compact overlay numbers");
+                "mixed result rows put real regions first and preserve their order while only regions receive overlay numbers");
             Check(photo.Bird is null && !manual.HasRegion && manual.Box is { IsValid: false } && manual.EffectiveSpecies == sparrow &&
                 manual.SimilarityText == "—" && manual.ConfidenceText == "—" && manual.EvidenceTooltip.Contains("人工"),
                 "a manual species has no drawable/model box or invented AI score and the compatibility Bird facade is null");

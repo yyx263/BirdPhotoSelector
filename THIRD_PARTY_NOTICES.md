@@ -48,6 +48,16 @@ BioCLIP 2 文本向量和分类标签来自 [Imageomics / TreeOfLife-200M](https
 
 候选整理优先使用学名精确匹配；仅在精确匹配缺失时使用经目、科和其他已接受名冲突检查的同义词。逐项来源、未匹配名称和排除原因随 `candidates.json`、`china-unmatched.json` 及相关审计文件保存。候选表只限定比对范围，不保证照片中一定有该物种，也不代表完整覆盖中国现行鸟种名录。
 
+## 离线拼音检索索引的构建依赖
+
+`Assets/SpeciesSearchData.json` 由 `scripts/Generate-SpeciesSearchIndex.py` 从现有鸟种名称生成，嵌入程序集供离线检索；运行时不加载 Python、pypinyin 或 AI 模型，也不修改原名称或模型候选文件。
+
+- 拼音工具：[pypinyin 0.55.0](https://pypi.org/project/pypinyin/0.55.0/)，使用 MIT License，本地原文为 `licenses/Pypinyin-MIT.txt`。固定官方 wheel SHA-256：`d53b1e8ad2cdb815fb2cb604ed3123372f5a28c6f447571244aca36fc62a286f`。该工具仅在生成索引时放入项目内 `.tools/search-python`，不作为程序运行依赖。
+- 拼音数据：[pinyin-data](https://github.com/mozillazg/pinyin-data) v0.15.0 与 [phrase-pinyin-data](https://github.com/mozillazg/phrase-pinyin-data) v0.19.0，均使用 MIT License；原始许可分别为 `licenses/Pypinyin-Data-MIT.txt` 和 `licenses/Pypinyin-Phrase-Data-MIT.txt`。
+- 简繁折叠使用 Windows 自带的语言转换接口及少量显式罕见字变体，不使用 OpenCC。该转换仅作用于搜索比较键。
+
+索引中鸟种名称仍来自上述中国候选资料，相关署名及 CC BY-NC 4.0 条件继续适用，不能因拼音工具采用 MIT 而将名称资料重新标为 MIT。索引重建不应修改 `models/bioclip2` 中的模型、候选表或原哈希清单。
+
 ## Microsoft.ML.OnnxRuntime 1.20.1
 
 来源：[microsoft/onnxruntime](https://github.com/microsoft/onnxruntime/tree/v1.20.1)

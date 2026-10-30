@@ -134,8 +134,13 @@ internal static class SourceReviewEditingChecks
             "after loading, historical regions can still be edited and the last visible region is numbered one");
         viewer.CancelManualRegionSelection();
         Check(viewer.RequestDeleteRegion(added!) && photo.Birds.Count == 0 && overlay.Children.Count == 0 &&
-              photo.GeometryStatus == PhotoGeometryStatus.NeedsReview && ReferenceEquals(photo.GeometryReference, historicalFrame),
-            "deleting all boxes does not silently clear the source-change notice or its historical reference");
+              photo.SelectedBird is null && !photo.HasManualSpeciesEdits && photo.DetectionStatus == "待识别" &&
+              photo.GeometryStatus == PhotoGeometryStatus.Unspecified && photo.GeometryReference is null &&
+              photo.ViewZoom is null && photo.ViewCenterX is null && photo.ViewCenterY is null,
+            "deleting the final result clears stale geometry and manual protection so the current source can be recognized again");
+        Check(photo.Id == photoId && photo.Rating == PhotoRating.Favorite && photo.NextBirdNumber == 51 &&
+              photo.Assets.Count == 1 && photo.ActivePreviewAssetId == raw.Id && photo.Assets.Single().Id == raw.Id,
+            "deleting all results preserves logical identity, rating, the current RAW member and the numbering high-water mark");
         viewer.ShowPhoto(null);
         return count;
     }

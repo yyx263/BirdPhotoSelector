@@ -26,8 +26,32 @@ internal static class Program
             foreach (var operation in startupOperations) operation.Abort();
             app.InitializeComponent();
             app.ShutdownMode = System.Windows.ShutdownMode.OnExplicitShutdown;
+            if (args.Contains("--workflow-updates-only", StringComparer.Ordinal))
+            {
+                _assertions += RecognitionResetChecks.RunAsync().GetAwaiter().GetResult();
+                _assertions += ExportConflictChecks.RunAsync().GetAwaiter().GetResult();
+                _assertions += MainWorkflowUpdateChecks.Run();
+                _assertions += SpeciesEditingChecks.RunAsync().GetAwaiter().GetResult();
+                _assertions += SpeciesProjectChecks.RunAsync().GetAwaiter().GetResult();
+                _assertions += SpeciesWindowChecks.Run();
+                _assertions += ManualLabelViewerChecks.Run();
+                _assertions += SpeciesPickerUiChecks.Run();
+                _assertions += SpeciesExportUiChecks.Run();
+                _assertions += MainWindowUiChecks.Run();
+                Console.WriteLine($"PASS: {_assertions} workflow update assertions.");
+                return 0;
+            }
+            if (args.Contains("--species-search-only", StringComparer.Ordinal))
+            {
+                _assertions += SpeciesSearchChecks.Run();
+                _assertions += SpeciesPickerUiChecks.Run();
+                _assertions += MainWindowUiChecks.Run();
+                Console.WriteLine($"PASS: {_assertions} search and layout assertions.");
+                return 0;
+            }
             if (args.Contains("--species-version-only", StringComparer.Ordinal))
             {
+                _assertions += SpeciesSearchChecks.Run();
                 _assertions += SpeciesEditingChecks.RunAsync().GetAwaiter().GetResult();
                 _assertions += SpeciesProjectChecks.RunAsync().GetAwaiter().GetResult();
                 _assertions += SpeciesExportChecks.RunAsync().GetAwaiter().GetResult();
@@ -63,6 +87,10 @@ internal static class Program
                 Console.WriteLine($"PASS: {_assertions} targeted file-operation assertions.");
                 return 0;
             }
+            _assertions += RecognitionResetChecks.RunAsync().GetAwaiter().GetResult();
+            _assertions += ExportConflictChecks.RunAsync().GetAwaiter().GetResult();
+            _assertions += MainWorkflowUpdateChecks.Run();
+            _assertions += SpeciesSearchChecks.Run();
             _assertions += SpeciesEditingChecks.RunAsync().GetAwaiter().GetResult();
             _assertions += SpeciesProjectChecks.RunAsync().GetAwaiter().GetResult();
             _assertions += SpeciesExportChecks.RunAsync().GetAwaiter().GetResult();

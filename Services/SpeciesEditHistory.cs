@@ -42,6 +42,19 @@ public sealed class SpeciesEditHistory : INotifyPropertyChanged
         checkpoint.State.Restore(checkpoint.Photo); Notify(); return checkpoint.Photo;
     }
     public void Clear() { _entries.Clear(); Notify(); }
+    /// <summary>One undoable reset of recognition results; never changes files, ratings or recent choices.</summary>
+    public bool Clear(PhotoItem photo)
+    {
+        ArgumentNullException.ThrowIfNull(photo);
+        var checkpoint = Capture(photo, "清空本张识别结果");
+        photo.SetBirds(Array.Empty<DetectedBird>(), nextBirdNumber: photo.NextBirdNumber);
+        photo.HasManualSpeciesEdits = false;
+        photo.DetectionStatus = "待识别";
+        photo.SetGeometryReference(null, PhotoGeometryStatus.Unspecified);
+        photo.ViewZoom = photo.ViewCenterX = photo.ViewCenterY = null;
+        return Commit(checkpoint);
+    }
+
     public DetectedBird Add(PhotoItem photo, SpeciesIdentity identity)
     {
         var species = SpeciesNameCatalog.Normalize(identity);
@@ -68,7 +81,7 @@ public sealed class SpeciesEditHistory : INotifyPropertyChanged
     {
         if (!photo.Birds.Contains(bird)) return false;
         var checkpoint = Capture(photo, "删除鸟种");
-        photo.RemoveBird(bird); photo.HasManualSpeciesEdits = true;
+        photo.RemoveBird(bird); photo.HasManualSpeciesEdits = photo.Birds.Count > 0;
         return Commit(checkpoint);
     }
     private void Notify()

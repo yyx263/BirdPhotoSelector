@@ -45,15 +45,15 @@ internal static class SpeciesProjectChecks
             var records = document["Groups"]![0]!["Photos"]!.AsArray();
             Check(document["Version"]!.GetValue<int>() == 3 && document["RecentSpecies"]!.AsArray().Count == 10,
                 "new JSON v3 stores a bounded project-wide recent selection list");
-            Check(records[0]!["Birds"]![1]!["Box"] is null && records[0]!["Birds"]![1]!["Species"] is null &&
-                  records[0]!["Birds"]![1]!["ManualSpecies"]!["SourceTaxonId"]!.GetValue<string>() == "saved-taxon-id",
+            Check(records[0]!["Birds"]![2]!["Box"] is null && records[0]!["Birds"]![2]!["Species"] is null &&
+                  records[0]!["Birds"]![2]!["ManualSpecies"]!["SourceTaxonId"]!.GetValue<string>() == "saved-taxon-id",
                 "manual species persists its identity without a fabricated box or inference score");
             var loaded = await projects.LoadAsync(path);
             var restored = loaded.Groups.Single().Photos[0];
-            Check(restored.Birds.Count == 3 && restored.SelectedBirdIndex == 1 && restored.NextBirdNumber == 40 &&
-                  restored.Birds[1].ManualSpecies == identity && !restored.Birds[1].HasRegion && restored.Birds[1].Species is null &&
-                  restored.Birds[0].DisplayNumber == 1 && restored.Birds[2].DisplayNumber == 2,
-                "mixed automatic, unknown and manual entries retain order, selection, region numbering and high-water identity");
+            Check(restored.Birds.Count == 3 && restored.SelectedBirdIndex == 2 && restored.NextBirdNumber == 40 &&
+                  restored.Birds[2].ManualSpecies == identity && !restored.Birds[2].HasRegion && restored.Birds[2].Species is null &&
+                  restored.Birds[0].DisplayNumber == 1 && restored.Birds[1].DisplayNumber == 2,
+                "mixed entries restore regions before manual labels with their selected identity, region numbering and high-water identity");
             Check(restored.HasManualSpeciesEdits && restored.Rating == PhotoRating.Favorite &&
                   restored.Birds[0].Species?.Confidence == .95,
                 "manual protection, rating and remaining inference evidence survive reopening");
@@ -68,10 +68,10 @@ internal static class SpeciesProjectChecks
             var recovered = await projects.LoadAsync(recovery.Path);
             Check(recovered.RecentSpecies.SequenceEqual(loaded.RecentSpecies) &&
                   recovered.Groups.Single().Photos[0].HasManualSpeciesEdits &&
-                  recovered.Groups.Single().Photos[0].Birds[1].ManualSpecies == identity,
+                  recovered.Groups.Single().Photos[0].Birds[2].ManualSpecies == identity,
                 "five-minute recovery uses the same v3 manual-result and recent-selection state");
             var invalid = document.DeepClone();
-            invalid["Groups"]![0]!["Photos"]![0]!["Birds"]![1]!["ManualSpecies"]!["ScientificName"] = " ";
+            invalid["Groups"]![0]!["Photos"]![0]!["Birds"]![2]!["ManualSpecies"]!["ScientificName"] = " ";
             string invalidPath = Path.Combine(root, "invalid-manual.json");
             await File.WriteAllTextAsync(invalidPath, invalid.ToJsonString());
             var filtered = await projects.LoadAsync(invalidPath);
@@ -96,8 +96,8 @@ internal static class SpeciesProjectChecks
             restored.SetBirds(Array.Empty<DetectedBird>(), nextBirdNumber: restored.NextBirdNumber);
             await projects.SaveAsync(path, loaded.Groups, .5, recentSpecies: loaded.RecentSpecies);
             var empty = (await projects.LoadAsync(path)).Groups.Single().Photos[0];
-            Check(empty.Birds.Count == 0 && empty.HasManualSpeciesEdits && empty.NextBirdNumber == 40,
-                "deleting every result keeps the manual-edit barrier and identity history through save and reload");
+            Check(empty.Birds.Count == 0 && !empty.HasManualSpeciesEdits && empty.NextBirdNumber == 40,
+                "deleting every result releases the manual-edit barrier but keeps identity history through save and reload");
             string emptyPath = Path.Combine(root, "empty-library.json");
             await projects.SaveAsync(emptyPath, Array.Empty<PhotoGroup>(), .5, recentSpecies: recent.Items);
             var emptyLibrary = await projects.LoadAsync(emptyPath);

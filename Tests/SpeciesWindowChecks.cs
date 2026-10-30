@@ -93,11 +93,11 @@ internal static class SpeciesWindowChecks
             Check(Apply(first, replacement, first.Birds[0]), "the production replacement helper accepts a real selected-photo row");
             CheckOverlayMatches("immediately after replacing an automatic result with a manual label");
             Settle(root);
-            var manual = first.Birds[0];
+            var manual = first.Birds.Single(bird => bird.ManualSpecies == replacement);
             Check(manual.ManualSpecies == replacement && !manual.HasRegion && manual.Species is null && manual.ConfidenceText == "—" &&
                   manual.SimilarityText == "—" && manual.DisplayNumberText == "手动" && ReferenceEquals(list.SelectedItem, manual) &&
-                  first.Birds[1].DisplayNumber == 1 && OverlayCount() == 1 && first.HasManualSpeciesEdits,
-                "replacement retains its row, selects a score-free manual tag, removes its old box and compacts the remaining overlay number");
+                  first.Birds[0].HasRegion && first.Birds[0].DisplayNumber == 1 && first.Birds.IndexOf(manual) == 1 && OverlayCount() == 1 && first.HasManualSpeciesEdits,
+                "replacement selects the score-free manual tag after the surviving region, removes its box and compacts the remaining overlay number");
             var container = list.ItemContainerGenerator.ContainerFromItem(manual) as FrameworkElement;
             var rowText = container is null ? Array.Empty<string>() : Descendants(container).OfType<TextBlock>().Select(text => text.Text).ToArray();
             var rowMenu = container is null ? null : Descendants(container).OfType<FrameworkElement>().Select(item => item.ContextMenu).FirstOrDefault(menu => menu is not null);

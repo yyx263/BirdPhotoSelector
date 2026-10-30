@@ -11,7 +11,7 @@ using System.Windows.Threading;
 using BirdPhotoSelector;
 using BirdPhotoSelector.Controls;
 
-/// <summary>Exercises both confirmations and explicit one-photo replacement through the production window.</summary>
+/// <summary>Exercises immediate one-photo rebuilding, failure preservation and undo through the production window.</summary>
 internal static class SinglePhotoWindowChecks
 {
     public static int Run()
@@ -51,14 +51,19 @@ internal static class SinglePhotoWindowChecks
             window.Closed += OnClosed;
             SynchronizationContext.SetSynchronizationContext(new DispatcherSynchronizationContext(window.Dispatcher));
             model = (MainViewModel)window.DataContext;
+            ((DispatcherTimer)Field(window, "_autoSaveTimer")).Stop();
+            var history = (SpeciesEditHistory)Field(window, "_speciesEdits");
+            int UndoCount() => ((System.Collections.ICollection)Field(history, "_entries")).Count;
+            bool Undo() => (bool)(typeof(MainWindow).GetMethod("UndoSpeciesEdit", BindingFlags.Instance | BindingFlags.NonPublic)!
+                .Invoke(window, null) ?? false);
             model.ProjectName = "单张重新识别界面验证";
             var root = (Grid)window.Content; root.Background = window.Background;
             var viewer = (DualPhotoViewer)window.FindName("Viewer");
             var button = (Button)window.FindName("ReidentifyCurrentPhotoButton");
             var method = typeof(MainWindow).GetMethod("ReidentifyCurrentPhoto", BindingFlags.Instance | BindingFlags.NonPublic)
                 ?? throw new InvalidOperationException("The production one-photo method is required.");
-            Task Invoke(Func<bool> replace, Func<bool> empty, Func<SinglePhotoRecognitionService> create) =>
-                (Task)(method.Invoke(window, new object?[] { replace, empty, create })
+            Task Invoke(Func<SinglePhotoRecognitionService> create, Action<IReadOnlyList<string>>? reportErrors = null) =>
+                (Task)(method.Invoke(window, new object?[] { create, reportErrors })
                     ?? throw new InvalidOperationException("The production one-photo method must return a Task."));
             void Complete(Task task)
             {
@@ -72,6 +77,7 @@ internal static class SinglePhotoWindowChecks
             }
             (PhotoItem Current, PhotoItem Other, PhotoGroup Group) Prepare(bool needsReview)
             {
+                history.Clear();
                 var current = Photo(firstPath, "current-logical-photo");
                 var other = Photo(secondPath, "other-logical-photo"); other.Rating = PhotoRating.Keep;
                 if (needsReview)
@@ -84,6 +90,8 @@ internal static class SinglePhotoWindowChecks
                     throw new TimeoutException("The generated JPEG preview did not become ready.");
                 if (dispatcherError is not null) throw dispatcherError;
                 viewer.ShowPhoto(current, image); model.IsPreviewReady = true;
+                current.ViewZoom = 1.7; current.ViewCenterX = .6; current.ViewCenterY = .4;
+                viewer.ShowPhoto(current, image);
                 Settle(root); model.Dirty = false;
                 return (current, other, group);
             }
@@ -103,54 +111,104 @@ internal static class SinglePhotoWindowChecks
             }
             Layout(root, 1560, 860); Settle(root);
             var original = State(initial.Current); var originalBirds = initial.Current.Birds.ToArray();
-            int factories = 0, emptyConfirmations = 0;
-            Complete(Invoke(() => false, () => { emptyConfirmations++; return true; }, () =>
-            { factories++; return new SinglePhotoRecognitionService(); }));
-            Check(factories == 0 && emptyConfirmations == 0 && !model.IsBusy && !model.Dirty &&
-                  Unchanged(initial.Current, original, originalBirds),
-                "rejecting the initial replacement confirmation never starts inference or changes old selections and species");
-
-            int recognitions = 0;
-            Complete(Invoke(() => true, () => { emptyConfirmations++; return false; }, () =>
-                new SinglePhotoRecognitionService(detectorOverride: (_, _) => new(null, "正常完成，未检测到鸟"),
-                    recognizerOverride: (_, _, _, _) => { recognitions++; return new(replacementSpecies, "unexpected"); })));
-            Check(emptyConfirmations == 1 && recognitions == 0 && !model.IsBusy && !model.Dirty &&
-                  Unchanged(initial.Current, original, originalBirds) && model.Status.Contains("已保留", StringComparison.Ordinal),
-                "rejecting the second zero-detection confirmation keeps every old automatic/manual result and saved view");
-
+            var initialOther = State(initial.Other); var initialOtherBirds = initial.Other.Birds.ToArray();
+            Check(initial.Current.HasManualSpeciesEdits && originalBirds.Any(bird => bird.ManualSpecies is not null) && !history.CanUndo,
+                "the original photo contains automatic, manual-region and manual-species results with protection and no prior undo entry");
+            int factories = 0, recognitions = 0;
             using (var started = new ManualResetEventSlim())
             using (var release = new ManualResetEventSlim())
             {
-                var clearTask = Invoke(() => true, () => true, () => new SinglePhotoRecognitionService(
-                    detectorOverride: (_, token) => { started.Set(); release.Wait(token); return new(null, "正常空结果"); }));
+                var clearTask = Invoke(() =>
+                {
+                    factories++;
+                    return new SinglePhotoRecognitionService(
+                        detectorOverride: (_, token) => { started.Set(); release.Wait(token); return new(null, "正常空结果"); },
+                        recognizerOverride: (_, _, _, _) => { recognitions++; return new(replacementSpecies, "unexpected"); });
+                });
                 bool disabledWhileWorking = false;
                 try
                 {
                     bool working = PumpUntil(() => started.IsSet || dispatcherError is not null, TimeSpan.FromSeconds(5));
                     Settle(root);
                     disabledWhileWorking = working && model.IsBusy && !button.IsEnabled && !model.CanReidentifyCurrentPhoto;
+                    Check(factories == 1 && started.IsSet && UndoCount() == 0 && Unchanged(initial.Current, original, originalBirds),
+                        "one click starts detection immediately without a confirmation callback or a premature undo checkpoint");
                 }
                 finally { release.Set(); }
                 Complete(clearTask);
                 Check(disabledWhileWorking,
                     "the real operation disables the rebuild button while the current-photo detector is still running");
             }
-            Check(initial.Current.Birds.Count == 0 && initial.Current.NextBirdNumber == 37 && model.Dirty &&
+            Check(initial.Current.Birds.Count == 0 && recognitions == 0 && initial.Current.NextBirdNumber == 37 && model.Dirty &&
+                  !initial.Current.HasManualSpeciesEdits && initial.Current.SelectedBird is null &&
                   initial.Current.Rating == PhotoRating.Favorite && initial.Current.Id == "current-logical-photo" &&
-                  initial.Group.Photos.Count == 2 && initial.Group.Photos[0] == initial.Current &&
-                  initial.Current.GeometryStatus == PhotoGeometryStatus.Current && initial.Current.CanUseBirdGeometry,
-                "approved empty detection clears all old regions through the window while keeping photo, rating, group and numbering history");
-            Check(button.IsEnabled && model.CanReidentifyCurrentPhoto && !model.IsBusy,
-                "the action becomes available again after an approved empty replacement");
+                  initial.Group.Photos.SequenceEqual(new[] { initial.Current, initial.Other }) &&
+                  Unchanged(initial.Other, initialOther, initialOtherBirds) &&
+                  initial.Current.GeometryStatus == PhotoGeometryStatus.Current && initial.Current.CanUseBirdGeometry &&
+                  ((ListBox)window.FindName("SpeciesResultsList")).Items.Count == 0 &&
+                  ((Canvas)viewer.FindName("BirdOverlay")).Children.OfType<FrameworkElement>().All(element => element.Tag is not DetectedBird),
+                "a successful zero-detection run immediately clears all old results without confirmation and preserves the photo, rating, group and other photo");
+            Check(button.IsEnabled && model.CanReidentifyCurrentPhoto && !model.IsBusy && UndoCount() == 1 &&
+                  ((Button)window.FindName("UndoSpeciesButton")).IsEnabled && history.Description == "重新识别本张",
+                "an immediate empty replacement creates exactly one available undo checkpoint after inference completes");
+            Check(Undo(), "the real production undo action accepts the immediate zero-detection replacement");
+            Settle(root);
+            Check(State(initial.Current) == original && initial.Current.HasManualSpeciesEdits && !history.CanUndo &&
+                  initial.Current.Birds.Count == originalBirds.Length && initial.Current.SelectedBird?.Number == 8 &&
+                  ((ListBox)window.FindName("SpeciesResultsList")).Items.Count == originalBirds.Length &&
+                  ((Canvas)viewer.FindName("BirdOverlay")).Children.OfType<FrameworkElement>().Count(element => element.Tag is DetectedBird) == 2 &&
+                  initial.Group.Photos.SequenceEqual(new[] { initial.Current, initial.Other }) && model.Dirty,
+                "undo of empty detection restores every result, manual protection, selected bird, saved view, rating and group");
+
+            var failed = Prepare(needsReview: false);
+            string beforeSeed = State(failed.Current, includeHighWater: false);
+            history.Add(failed.Current, new("白鹭", "Egretta garzetta"));
+            viewer.ShowPhoto(failed.Current, image); Settle(root); model.Dirty = false;
+            string failedState = State(failed.Current), priorDescription = history.Description;
+            var failedBirds = failed.Current.Birds.ToArray();
+            int priorEntries = UndoCount(), errorReports = 0;
+            IReadOnlyList<string>? reportedErrors = null;
+            Complete(Invoke(() => new SinglePhotoRecognitionService(detectorOverride: (_, _) =>
+                throw new IOException("generated single-photo window failure")), errors =>
+                { errorReports++; reportedErrors = errors; }));
+            Check(errorReports == 1 && reportedErrors is { Count: > 0 } &&
+                  reportedErrors.Any(error => error.Contains("generated single-photo window failure", StringComparison.Ordinal)) &&
+                  model.Status.Contains("已保留", StringComparison.Ordinal) && Unchanged(failed.Current, failedState, failedBirds) &&
+                  !model.Dirty && !model.IsBusy && UndoCount() == priorEntries && history.Description == priorDescription,
+                "a failed real-window run reports its error once and preserves original result objects, view and the existing undo history");
+            using (var started = new ManualResetEventSlim())
+            using (var release = new ManualResetEventSlim())
+            {
+                var cancelTask = Invoke(() => new SinglePhotoRecognitionService(detectorOverride: (_, token) =>
+                    { started.Set(); release.Wait(token); return new(null, "must be canceled"); }), _ => errorReports++);
+                try
+                {
+                    Check(PumpUntil(() => started.IsSet || dispatcherError is not null, TimeSpan.FromSeconds(5)) &&
+                          started.IsSet && model.IsBusy && !button.IsEnabled,
+                        "the cancellation fixture reaches actual inference with the production action disabled");
+                    typeof(MainWindow).GetMethod("Cancel_Click", BindingFlags.Instance | BindingFlags.NonPublic)!
+                        .Invoke(window, new object[] { window, new RoutedEventArgs(Button.ClickEvent) });
+                    Complete(cancelTask);
+                }
+                finally { release.Set(); }
+            }
+            Check(errorReports == 1 && model.Status.Contains("取消", StringComparison.Ordinal) &&
+                  Unchanged(failed.Current, failedState, failedBirds) && !model.Dirty && !model.IsBusy &&
+                  UndoCount() == priorEntries && history.Description == priorDescription && button.IsEnabled,
+                "canceling actual inference keeps every old object and view and adds no error report or invalid undo checkpoint");
+            Check(Undo(), "the prior edit remains undoable after both a failed run and a canceled run");
+            Settle(root);
+            Check(State(failed.Current, includeHighWater: false) == beforeSeed && failed.Current.NextBirdNumber == 38 && !history.CanUndo,
+                "undo after failure and cancellation restores the earlier manual edit while preserving its allocated numbering high-water mark");
 
             var pending = Prepare(needsReview: true);
             var oldRegions = pending.Current.Birds.ToArray();
+            string pendingState = State(pending.Current, includeHighWater: false);
             var otherState = State(pending.Other); var otherRegions = pending.Other.Birds.ToArray();
             Check(pending.Current.GeometryStatus == PhotoGeometryStatus.NeedsReview && !pending.Current.CanUseBirdGeometry &&
                   button.IsEnabled && model.CanReidentifyCurrentPhoto && model.CanEditBirdRegions,
                 "a pending coordinate frame supports both explicit rebuilding and continued manual editing");
-            Complete(Invoke(() => true, () => throw new InvalidOperationException("Nonempty success must not ask to clear."), () =>
-                new SinglePhotoRecognitionService(detectorOverride: (_, _) =>
+            Complete(Invoke(() => new SinglePhotoRecognitionService(detectorOverride: (_, _) =>
                     new(Box(.1, .15), "定位两只鸟") { Birds = new[] { Box(.1, .15), Box(.55, .3) } },
                     recognizerOverride: (_, _, _, _) => new(replacementSpecies, "本张重新识别成功"))));
             Check(pending.Current.Birds.Count == 2 && pending.Current.Birds.All(bird => !bird.IsManual && bird.Species == replacementSpecies) &&
@@ -168,7 +226,18 @@ internal static class SinglePhotoWindowChecks
                   ((Canvas)viewer.FindName("BirdOverlay")).Children.Count > 0 &&
                   ((ListBox)window.FindName("SpeciesResultsList")).Items.Count == 2,
                 "completed rebuild removes the review notice and restores overlays, region editing and current species bindings");
+            Check(UndoCount() == 1 && history.Description == "重新识别本张" && !pending.Current.HasManualSpeciesEdits,
+                "successful nonempty rebuilding records exactly one undo entry and clears prior manual protection");
             SaveScreenshot(root);
+            Check(Undo(), "the real undo action accepts a successful nonempty rebuild");
+            Settle(root);
+            Check(State(pending.Current, includeHighWater: false) == pendingState && pending.Current.NextBirdNumber == 39 &&
+                  pending.Current.HasManualSpeciesEdits && pending.Current.SelectedBird?.Number == 8 && !history.CanUndo &&
+                  pending.Current.GeometryStatus == PhotoGeometryStatus.NeedsReview && !pending.Current.CanUseBirdGeometry &&
+                  ((TextBlock)window.FindName("GeometryNoticeText")).Text.Contains("来源已变化", StringComparison.Ordinal) &&
+                  pending.Group.Photos.SequenceEqual(new[] { pending.Current, pending.Other }) &&
+                  Unchanged(pending.Other, otherState, otherRegions),
+                "undo of successful rebuilding restores historical geometry, all manual results, selection and view while retaining the new numbering high-water mark");
             Check(!window.IsVisible && File.ReadAllBytes(firstPath).SequenceEqual(firstBytes) && File.ReadAllBytes(secondPath).SequenceEqual(secondBytes),
                 "hidden single-photo UI verification never opens a visible desktop window or rewrites its generated photo bytes");
             return count;
@@ -209,8 +278,10 @@ internal static class SinglePhotoWindowChecks
         photo.SetBirds(new[]
         {
             new DetectedBird { Number = 3, Box = Box(.1, .15), Species = new("旧自动结果", "Parus major", .4), RecognitionStatus = "old auto" },
-            new DetectedBird { Number = 8, IsManual = true, Box = Box(.55, .2), Species = new("旧手动结果", "Passer montanus", .5), RecognitionStatus = "old manual" }
+            new DetectedBird { Number = 8, IsManual = true, Box = Box(.55, .2), Species = new("旧手动结果", "Passer montanus", .5), RecognitionStatus = "old manual" },
+            new DetectedBird { Number = 12, ManualSpecies = new("鸳鸯", "Aix galericulata"), RecognitionStatus = "人工指定" }
         }, selectedIndex: 1, nextBirdNumber: 37);
+        photo.HasManualSpeciesEdits = true;
         photo.ViewZoom = 1.7; photo.ViewCenterX = .6; photo.ViewCenterY = .4;
         return photo;
     }
@@ -227,14 +298,17 @@ internal static class SinglePhotoWindowChecks
         }
         var image = BitmapSource.Create(width, height, 96, 96, PixelFormats.Rgb24, null, pixels, width * 3); image.Freeze(); return image;
     }
-    private static string State(PhotoItem photo) => JsonSerializer.Serialize(new
+    private static string State(PhotoItem photo, bool includeHighWater = true) => JsonSerializer.Serialize(new
     {
-        photo.Id, photo.FilePath, photo.Rating, photo.NextBirdNumber, photo.SelectedBirdIndex,
-        Birds = photo.Birds.Select(bird => new { bird.Number, bird.IsManual, bird.Box, bird.Species, bird.RecognitionStatus }).ToArray(),
+        photo.Id, photo.FilePath, photo.Rating, NextBirdNumber = includeHighWater ? photo.NextBirdNumber : 0, photo.SelectedBirdIndex,
+        photo.HasManualSpeciesEdits,
+        Birds = photo.Birds.Select(bird => new { bird.Number, bird.IsManual, bird.ManualSpecies, bird.Box, bird.Species, bird.RecognitionStatus }).ToArray(),
         photo.GeometryStatus, photo.GeometryReference, photo.DetectionStatus, photo.ViewZoom, photo.ViewCenterX, photo.ViewCenterY
     });
     private static bool Unchanged(PhotoItem photo, string state, DetectedBird[] objects) => State(photo) == state &&
         photo.Birds.Count == objects.Length && photo.Birds.Zip(objects).All(pair => ReferenceEquals(pair.First, pair.Second));
+    private static object Field(object owner, string name) => owner.GetType().GetField(name, BindingFlags.Instance | BindingFlags.NonPublic)!
+        .GetValue(owner) ?? throw new InvalidOperationException("Missing production field " + name);
     private static bool PumpUntil(Func<bool> condition, TimeSpan timeout)
     {
         if (condition()) return true;

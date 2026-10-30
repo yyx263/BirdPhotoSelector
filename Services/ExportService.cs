@@ -1,5 +1,6 @@
 using System.IO;
 using System.Security.Cryptography;
+using System.Text.RegularExpressions;
 using Microsoft.VisualBasic.FileIO;
 
 namespace BirdPhotoSelector;
@@ -152,17 +153,22 @@ public sealed class ExportService
     }
 
     public Task<FileOperationResult> ExportAsync(IEnumerable<PhotoItem> photos, string existingDestination, bool removeOriginal,
-        CancellationToken cancellationToken = default, IProgress<PhotoOperationProgress>? progress = null) =>
-        ExportAsync(CreatePlan(photos), existingDestination, removeOriginal, cancellationToken, progress);
+        CancellationToken cancellationToken = default, IProgress<PhotoOperationProgress>? progress = null,
+        Func<ExportConflict, CancellationToken, Task<ExportConflictDecision>>? conflictResolver = null,
+        IReadOnlyCollection<string>? protectedSourcePaths = null) =>
+        ExportAsync(CreatePlan(photos), existingDestination, removeOriginal, cancellationToken, progress, conflictResolver, protectedSourcePaths);
 
-    public Task<FileOperationResult> ExportAsync(PhotoFileOperationPlan plan, string existingDestination, bool removeOriginal,
-        CancellationToken cancellationToken = default, IProgress<PhotoOperationProgress>? progress = null)
+    public async Task<FileOperationResult> ExportAsync(PhotoFileOperationPlan plan, string existingDestination, bool removeOriginal,
+        CancellationToken cancellationToken = default, IProgress<PhotoOperationProgress>? progress = null,
+        Func<ExportConflict, CancellationToken, Task<ExportConflictDecision>>? conflictResolver = null,
+        IReadOnlyCollection<string>? protectedSourcePaths = null)
     {
         ArgumentNullException.ThrowIfNull(plan);
         string destination = Path.GetFullPath(existingDestination);
         if (!Directory.Exists(destination)) throw new DirectoryNotFoundException("请选择已经存在的导出目录，程序不会自动新建文件夹。");
-        return plan.GroupBySpecies ? ExecuteGrouped(plan, destination, removeOriginal, cancellationToken, progress)
-            : Execute(plan, export: true, destination, removeOriginal, cancellationToken, progress);
+        using var session = new ConflictSession(plan, conflictResolver, cancellationToken, protectedSourcePaths);
+        return plan.GroupBySpecies ? await ExecuteGrouped(plan, destination, removeOriginal, session.Token, progress, session)
+            : await Execute(plan, export: true, destination, removeOriginal, session.Token, progress, session);
     }
 
     public Task<FileOperationResult> DeleteAsync(IEnumerable<PhotoItem> photos, CancellationToken cancellationToken = default,
@@ -175,7 +181,8 @@ public sealed class ExportService
     }
 
     private Task<FileOperationResult> Execute(PhotoFileOperationPlan plan, bool export, string? destination,
-        bool removeOriginal, CancellationToken token, IProgress<PhotoOperationProgress>? progress) => Task.Run(async () =>
+        bool removeOriginal, CancellationToken token, IProgress<PhotoOperationProgress>? progress,
+        ConflictSession? session = null) => Task.Run(async () =>
     {
         var result = new FileOperationResult();
         foreach (var photo in plan.Photos) foreach (var member in photo.Assets) result.Files.Add(new(photo.PhotoId, member));
@@ -195,7 +202,7 @@ public sealed class ExportService
                 if (token.IsCancellationRequested)
                 { file.Status = AssetFileOperationStatus.Canceled; file.Message = export ? "已取消导出" : "已取消删除"; break; }
                 if (export)
-                    await CopyAndVerify(asset, file, destination!, result, () => Report(index, "正在校验"), token);
+                    await CopyAndVerify(asset, file, destination!, result, () => Report(index, "正在校验"), token, session!);
                 else
                 {
                     try
@@ -310,7 +317,8 @@ public sealed class ExportService
     }, CancellationToken.None);
 
     private Task<FileOperationResult> ExecuteGrouped(PhotoFileOperationPlan plan, string destination,
-        bool removeOriginal, CancellationToken token, IProgress<PhotoOperationProgress>? progress) => Task.Run(async () =>
+        bool removeOriginal, CancellationToken token, IProgress<PhotoOperationProgress>? progress,
+        ConflictSession session) => Task.Run(async () =>
     {
         var result = new FileOperationResult();
         foreach (var photo in plan.Photos)
@@ -337,7 +345,7 @@ public sealed class ExportService
                 try
                 {
                     string folder = SpeciesExportFolders.EnsureDestination(destination, copy.TargetFolder);
-                    await CopyAndVerify(copy.PlannedAsset, copy, folder, result, () => Report(index, "正在校验"), token);
+                    await CopyAndVerify(copy.PlannedAsset, copy, folder, result, () => Report(index, "正在校验"), token, session);
                 }
                 catch (OperationCanceledException) when (token.IsCancellationRequested)
                 { copy.Status = AssetFileOperationStatus.Canceled; copy.Message = "已取消导出"; }
@@ -459,37 +467,123 @@ public sealed class ExportService
     }
 
     private async Task CopyAndVerify(PlannedPhotoAsset asset, AssetFileOperationResult file, string destination,
-        FileOperationResult result, Action reportVerification, CancellationToken token)
+        FileOperationResult result, Action reportVerification, CancellationToken token, ConflictSession session)
     {
-        bool ownsTarget = false;
+        string? temporary = null;
         try
         {
+            token.ThrowIfCancellationRequested();
+            session.InitializeProtectedSources();
             file.TargetPath = Path.Combine(destination, Path.GetFileName(asset.FilePath));
             if (StringComparer.OrdinalIgnoreCase.Equals(asset.FilePath, file.TargetPath))
             { Skip(file, result, "源文件和目标文件相同。", "已跳过相同源文件和目标"); return; }
-            if (File.Exists(file.TargetPath))
-            { Skip(file, result, "目标目录已存在同名文件。", "已跳过目标同名文件"); return; }
             EnsureUnchanged(asset);
+            byte[]? expectedSourceHash = null;
+            TargetChoice? choice = new(file.TargetPath, null, false);
+
+            async Task<TargetChoice?> ResolveConflict(string target)
+            {
+                token.ThrowIfCancellationRequested();
+                EnsureUnchanged(asset);
+                var existing = await TargetSnapshot.Read(target, token);
+                expectedSourceHash ??= (await TargetSnapshot.Read(asset.FilePath, token)).Hash;
+                if (CryptographicOperations.FixedTimeEquals(existing.Hash, expectedSourceHash))
+                { Skip(file, result, "目标文件内容与原件的 SHA256 一致；跳过且保留原件。", "内容相同，已跳过"); return null; }
+                bool canOverwrite = session.CanOverwrite(target, existing.Identity) &&
+                    (File.GetAttributes(target) & FileAttributes.ReparsePoint) == 0;
+                string? explanation = canOverwrite ? null : "该目标属于原件、链接或本次导出的已校验副本，只能重命名或取消。";
+                var decision = await session.Resolve(new(asset.FilePath, target, asset.Length!.Value,
+                    existing.Length, canOverwrite, explanation));
+                if (decision is null)
+                { Skip(file, result, "目标同名但内容不同，未提供冲突处理选择。", "已跳过目标同名文件"); return null; }
+                if (decision.Action == ExportConflictAction.Cancel)
+                { session.Cancel(); token.ThrowIfCancellationRequested(); }
+                if (decision.Action is not (ExportConflictAction.Overwrite or ExportConflictAction.Rename))
+                    throw new InvalidDataException("不支持的导出冲突选择。");
+                if (decision.Action == ExportConflictAction.Overwrite && !canOverwrite)
+                { Skip(file, result, "目标属于受保护的原件或副本，不能覆盖。", "已保留受保护目标"); return null; }
+                EnsureUnchanged(asset);
+                await existing.EnsureStillMatches(target, token);
+                return decision.Action == ExportConflictAction.Rename ? new(target, null, true) : new(target, existing, false);
+            }
+
+            if (Directory.Exists(file.TargetPath))
+            { Skip(file, result, "目标同名项是目录，不能作为照片覆盖。", "已跳过同名目录"); return; }
+            if (File.Exists(file.TargetPath))
+            {
+                choice = await ResolveConflict(file.TargetPath);
+                if (choice is null) return;
+            }
+
+            // The final target is never opened for writing. Interrupted copies and
+            // failed verification affect only a uniquely owned same-directory file.
+            temporary = Path.Combine(destination, ".BirdPhotoSelector-" + Guid.NewGuid().ToString("N") + ".tmp");
+            ExportFileIdentity? stagedIdentity;
             await using (var source = new FileStream(asset.FilePath, FileMode.Open, FileAccess.Read, FileShare.Read,
                 131072, FileOptions.Asynchronous | FileOptions.SequentialScan))
-            await using (var output = new FileStream(file.TargetPath, FileMode.CreateNew, FileAccess.ReadWrite, FileShare.None,
+            await using (var output = new FileStream(temporary, FileMode.CreateNew, FileAccess.ReadWrite, FileShare.None,
                 131072, FileOptions.Asynchronous | FileOptions.SequentialScan))
             {
-                ownsTarget = true;
                 await _copy(source, output, token);
                 await output.FlushAsync(token); output.Flush(flushToDisk: true);
-                file.Copied = true;
-                reportVerification();
-                token.ThrowIfCancellationRequested();
+                reportVerification(); token.ThrowIfCancellationRequested();
                 if (source.Length != output.Length) throw new IOException("复制后的文件大小校验失败，源文件已保留。");
                 source.Position = output.Position = 0;
                 var sourceHash = await SHA256.HashDataAsync(source, token);
                 var targetHash = await SHA256.HashDataAsync(output, token);
                 if (!CryptographicOperations.FixedTimeEquals(sourceHash, targetHash))
                     throw new IOException("复制后的文件内容校验失败，源文件已保留。");
+                if (expectedSourceHash is not null && !CryptographicOperations.FixedTimeEquals(sourceHash, expectedSourceHash))
+                    throw new IOException("原件内容在冲突确认期间变化，已保留原件和原目标。请重新导出。");
+                expectedSourceHash = sourceHash;
                 EnsureUnchanged(asset);
-                file.VerifiedHash = sourceHash; file.Verified = true;
-                file.Status = AssetFileOperationStatus.Verified; file.Message = "已导出并校验";
+                stagedIdentity = ExportFileIdentity.TryRead(output);
+            }
+
+            string stagedPath = temporary;
+            while (choice is not null)
+            {
+                token.ThrowIfCancellationRequested();
+                EnsureUnchanged(asset);
+                string target = choice.Rename ? NextAvailableName(choice.Path, token) : choice.Path;
+                file.TargetPath = target;
+                if (choice.Existing is not null)
+                {
+                    await choice.Existing.EnsureStillMatches(target, token);
+                    if (!session.CanOverwrite(target, choice.Existing.Identity) ||
+                        (File.GetAttributes(target) & FileAttributes.ReparsePoint) != 0)
+                        throw new IOException("目标已变成受保护的文件，已保留原件和原目标。");
+                    token.ThrowIfCancellationRequested();
+                    // ReplaceFile is an atomic same-volume directory-entry swap;
+                    // keep a recovery copy until the swap has actually succeeded.
+                    string backup = stagedPath + ".previous";
+                    try { File.Replace(stagedPath, target, backup); }
+                    catch
+                    {
+                        if (File.Exists(backup))
+                            result.Errors.Add($"{target}：原目标的恢复副本保留在 {backup}；请核对后再重试。");
+                        throw;
+                    }
+                    temporary = null;
+                    MarkPublished(file, expectedSourceHash!, session, target, stagedIdentity, overwritten: true);
+                    try { File.Delete(backup); }
+                    catch (Exception ex) { result.Errors.Add($"{backup}：覆盖已完成，旧目标恢复副本未能清理：{ex.Message}"); }
+                    break;
+                }
+                try
+                {
+                    File.Move(stagedPath, target, overwrite: false);
+                    temporary = null;
+                    MarkPublished(file, expectedSourceHash!, session, target, stagedIdentity, overwritten: false);
+                    break;
+                }
+                catch (IOException) when (File.Exists(target))
+                {
+                    // Another process may create a target while the temporary
+                    // copy is being verified. Never turn CreateNew into overwrite.
+                    if (choice.Rename) continue;
+                    choice = await ResolveConflict(target);
+                }
             }
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested)
@@ -497,12 +591,131 @@ public sealed class ExportService
         catch (Exception ex) { Fail(file, result, ex.Message, "导出失败"); }
         finally
         {
-            if (ownsTarget && !file.Verified && file.TargetPath is not null)
+            if (temporary is not null)
             {
-                try { File.Delete(file.TargetPath); file.Copied = false; }
-                catch (Exception ex) { result.Errors.Add($"{file.TargetPath}：未完成的目标文件无法清理：{ex.Message}"); }
+                try { File.Delete(temporary); }
+                catch (Exception ex) { result.Errors.Add($"{temporary}：未完成的临时文件无法清理：{ex.Message}"); }
             }
         }
+    }
+
+    private static void MarkPublished(AssetFileOperationResult file, byte[] hash, ConflictSession session,
+        string target, ExportFileIdentity? identity, bool overwritten)
+    {
+        session.RegisterPublished(target, identity);
+        file.Copied = file.Verified = true; file.VerifiedHash = hash;
+        file.Status = AssetFileOperationStatus.Verified;
+        file.Message = overwritten ? "已覆盖并校验" : "已导出并校验";
+    }
+
+    private static string NextAvailableName(string original, CancellationToken token)
+    {
+        string directory = Path.GetDirectoryName(original)!;
+        string stem = Path.GetFileNameWithoutExtension(original), extension = Path.GetExtension(original);
+        var match = Regex.Match(stem, @"^(.*)_([0-9]+)$", RegexOptions.CultureInvariant);
+        long number = 0;
+        if (match.Success && long.TryParse(match.Groups[2].Value, out number)) stem = match.Groups[1].Value;
+        else number = 0;
+        while (true)
+        {
+            token.ThrowIfCancellationRequested();
+            string candidate = Path.Combine(directory, stem + "_" + checked(++number) + extension);
+            if (!File.Exists(candidate) && !Directory.Exists(candidate)) return candidate;
+        }
+    }
+
+    private sealed record TargetChoice(string Path, TargetSnapshot? Existing, bool Rename);
+
+    private sealed record TargetSnapshot(ExportFileIdentity? Identity, long Length, long WriteTicks, byte[] Hash)
+    {
+        internal static async Task<TargetSnapshot> Read(string path, CancellationToken token)
+        {
+            await using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read,
+                131072, FileOptions.Asynchronous | FileOptions.SequentialScan);
+            var identity = ExportFileIdentity.TryRead(stream);
+            long length = stream.Length, ticks = File.GetLastWriteTimeUtc(path).Ticks;
+            return new(identity, length, ticks, await SHA256.HashDataAsync(stream, token));
+        }
+
+        internal async Task EnsureStillMatches(string path, CancellationToken token)
+        {
+            var current = await Read(path, token);
+            if (current.Identity != Identity || current.Length != Length || current.WriteTicks != WriteTicks ||
+                !CryptographicOperations.FixedTimeEquals(current.Hash, Hash))
+                throw new IOException("目标文件在冲突确认或复制期间变化，已保留原件和当前目标。请重新导出。");
+        }
+    }
+
+    private sealed class ConflictSession : IDisposable
+    {
+        private readonly CancellationTokenSource _cancellation;
+        private readonly Func<ExportConflict, CancellationToken, Task<ExportConflictDecision>>? _resolver;
+        private readonly HashSet<string> _originalPaths;
+        private readonly HashSet<ExportFileIdentity> _originalIdentities = new();
+        private readonly HashSet<string> _publishedPaths = new(StringComparer.OrdinalIgnoreCase);
+        private readonly HashSet<ExportFileIdentity> _publishedIdentities = new();
+        private ExportConflictDecision? _remembered;
+        private bool _initialized, _unidentifiedOriginal;
+
+        internal ConflictSession(PhotoFileOperationPlan plan,
+            Func<ExportConflict, CancellationToken, Task<ExportConflictDecision>>? resolver,
+            CancellationToken token, IReadOnlyCollection<string>? protectedSourcePaths)
+        {
+            _resolver = resolver; _cancellation = CancellationTokenSource.CreateLinkedTokenSource(token);
+            _originalPaths = new(plan.Photos.SelectMany(photo => photo.AllAssets).Select(asset => asset.FilePath)
+                .Concat(protectedSourcePaths ?? Array.Empty<string>()).Select(Path.GetFullPath), StringComparer.OrdinalIgnoreCase);
+        }
+
+        internal CancellationToken Token => _cancellation.Token;
+        internal void Cancel() => _cancellation.Cancel();
+
+        internal void InitializeProtectedSources(bool refresh = false)
+        {
+            if (_initialized && !refresh) return;
+            foreach (string path in _originalPaths)
+            {
+                Token.ThrowIfCancellationRequested();
+                if (!File.Exists(path)) continue;
+                try
+                {
+                    using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+                    if (ExportFileIdentity.TryRead(stream) is { } identity) _originalIdentities.Add(identity);
+                    else _unidentifiedOriginal = true;
+                }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+                { _unidentifiedOriginal = true; }
+            }
+            _initialized = true;
+        }
+
+        internal bool CanOverwrite(string target, ExportFileIdentity? identity)
+        {
+            // Re-read identity after a prompt: another application may have
+            // replaced an original while preserving its path and timestamps.
+            InitializeProtectedSources(refresh: true);
+            return identity is { } id && !_unidentifiedOriginal &&
+                !_originalPaths.Contains(Path.GetFullPath(target)) && !_originalIdentities.Contains(id) &&
+                !_publishedPaths.Contains(Path.GetFullPath(target)) && !_publishedIdentities.Contains(id);
+        }
+
+        internal void RegisterPublished(string target, ExportFileIdentity? identity)
+        { _publishedPaths.Add(Path.GetFullPath(target)); if (identity is { } id) _publishedIdentities.Add(id); }
+
+        internal async Task<ExportConflictDecision?> Resolve(ExportConflict conflict)
+        {
+            if (_remembered is not null && (_remembered.Action != ExportConflictAction.Overwrite || conflict.CanOverwrite))
+                return _remembered;
+            if (_resolver is null) return null;
+            ExportConflictDecision decision;
+            try { decision = await _resolver(conflict, Token).WaitAsync(Token); }
+            catch (OperationCanceledException) { Cancel(); throw; }
+            Token.ThrowIfCancellationRequested();
+            if (decision.ApplyToRemaining && decision.Action is ExportConflictAction.Overwrite or ExportConflictAction.Rename)
+                _remembered = decision;
+            return decision;
+        }
+
+        public void Dispose() => _cancellation.Dispose();
     }
 
     private void RemoveMember(AssetFileOperationResult file, FileOperationResult result, string message)

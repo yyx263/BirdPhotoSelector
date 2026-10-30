@@ -15,9 +15,9 @@
                  TextTrimming="CharacterEllipsis" Visibility="Collapsed"/>
     </StackPanel>
     <StackPanel Grid.Row="1" Margin="0,18,0,12">
-      <TextBlock Text="中文名或学名" Foreground="#AABAC6" FontSize="12" Margin="0,0,0,6"/>
-      <TextBox x:Name="SearchBox" Height="42" FontSize="14" VerticalContentAlignment="Center"
-               TextChanged="SearchBox_TextChanged" ToolTip="输入中文名或学名搜索，清空后显示最近选择"/>
+      <TextBlock Text="中文 / 学名 / 拼音 / 首字母（支持简繁体）" Foreground="#AABAC6" FontSize="12" Margin="0,0,0,6"/>
+      <TextBox x:Name="SearchBox" Height="42" FontSize="14" Padding="12,6" VerticalContentAlignment="Center"
+               TextChanged="SearchBox_TextChanged" ToolTip="支持简繁体、拼音及首字母，如白鹭 / 白鷺 / bailu / bl；清空后显示最近选择"/>
     </StackPanel>
     <DockPanel Grid.Row="2" Margin="1,0,1,9">
       <TextBlock x:Name="ResultCountText" DockPanel.Dock="Right" Foreground="#7F9690" FontSize="11"/>

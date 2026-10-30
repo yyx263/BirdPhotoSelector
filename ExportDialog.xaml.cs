@@ -32,8 +32,8 @@ public partial class ExportDialog : Window
         DestinationPanel.Visibility = DeleteOnly ? Visibility.Collapsed : Visibility.Visible;
         DeleteWarning.Visibility = DeleteOnly ? Visibility.Visible : Visibility.Collapsed;
         FolderHint.Text = GroupBySpecies
-            ? "按鸟种创建子目录；同名目标跳过，无有效鸟种归入“未分类”。"
-            : "直接复制到所选现有目录；不创建子目录，同名目标跳过。";
+            ? "按鸟种创建子目录；同名且内容相同跳过，否则询问覆盖或重命名；无鸟种归入“未分类”。"
+            : "直接复制到所选现有目录；不创建子目录。同名且内容相同跳过，否则询问覆盖或重命名。";
         RemoveOriginalBox.Content = GroupBySpecies ? "全部目标副本校验成功后，移除对应原件" : "所选文件复制并校验成功后，移除对应原件";
         ConfirmButton.Content = DeleteOnly ? "删除舍弃" : "开始导出";
         ConfirmButton.IsEnabled = SelectedFileCount > 0 && (DeleteOnly || Directory.Exists(Destination));

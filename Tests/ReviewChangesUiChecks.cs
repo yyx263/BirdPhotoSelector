@@ -142,12 +142,12 @@ internal static class ReviewChangesUiChecks
             }
             finally { model.PhotoChanged -= CountReload; }
 
-            var emptyTextField = typeof(MainWindow).GetField("EmptyDetectionConfirmationText", BindingFlags.Static | BindingFlags.NonPublic)
-                ?? throw new InvalidOperationException("Empty-detection confirmation text missing.");
-            string emptyText = (string)emptyTextField.GetRawConstantValue()!;
-            var lines = emptyText.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
-            Check(lines.Contains("这会移除全部自动框、手动选区和手动鸟种。") && lines.Contains("照片、评级和分组保留。"),
-                "the clear-regions warning and the preserved-photo/rating/group statement occupy separate confirmation lines");
+            var rebuild = typeof(MainWindow).GetMethod("ReidentifyCurrentPhoto", BindingFlags.Instance | BindingFlags.NonPublic)
+                ?? throw new InvalidOperationException("Production one-photo recognition action missing.");
+            Check(rebuild.GetParameters().All(parameter => parameter.ParameterType != typeof(Func<bool>) &&
+                      !parameter.Name!.Contains("confirm", StringComparison.OrdinalIgnoreCase)) &&
+                  typeof(MainWindow).GetField("EmptyDetectionConfirmationText", BindingFlags.Static | BindingFlags.NonPublic) is null,
+                "the production one-photo action has no replacement or empty-result confirmation callbacks or obsolete confirmation text");
             Layout(root, 1560, 860); Settle(root);
             CheckBadges(root, Check);
             SaveScreenshot(root, "review-changes.png", 1560, 860);
