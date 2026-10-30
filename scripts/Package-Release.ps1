@@ -1,4 +1,4 @@
-[CmdletBinding()]
+﻿[CmdletBinding()]
 param([string]$ReportPath = 'artifacts/release-package-validation.json')
 
 Set-StrictMode -Version Latest
@@ -7,6 +7,13 @@ $ProjectRoot = Split-Path -Parent $PSScriptRoot
 $Source = Join-Path $ProjectRoot 'publish/BirdPhotoSelector'
 [xml]$Project = Get-Content -LiteralPath (Join-Path $ProjectRoot 'BirdPhotoSelector.csproj') -Raw
 $Version = [string]$Project.Project.PropertyGroup.Version
+[xml]$ApplicationManifest = Get-Content -LiteralPath (Join-Path $ProjectRoot 'app.manifest') -Raw
+$Identity = $ApplicationManifest.SelectSingleNode("/*[local-name()='assembly']/*[local-name()='assemblyIdentity']")
+$VersionParts = [Version]$Version
+$ExpectedIdentityVersion = ([Version]::new($VersionParts.Major, $VersionParts.Minor, $VersionParts.Build, 0)).ToString()
+if ($null -eq $Identity -or $Identity.GetAttribute('version') -ne $ExpectedIdentityVersion) {
+    throw "Application manifest version must match project version: $ExpectedIdentityVersion"
+}
 $Archive = Join-Path $ProjectRoot "publish/BirdPhotoSelector-$Version-win-x64.zip"
 if (Test-Path -LiteralPath $Archive) { throw "Release archive already exists: $Archive" }
 if (-not [IO.Path]::IsPathRooted($ReportPath)) { $ReportPath = Join-Path $ProjectRoot $ReportPath }
@@ -27,7 +34,7 @@ $Required = @('BirdPhotoSelector.exe', 'BirdPhotoSelector.dll', 'BirdPhotoSelect
     'models/yolov10n.onnx', 'models/bioclip2/vision.onnx', 'models/bioclip2/asset-hashes.json',
     'licenses/LibRaw-CDDL-1.0.txt', 'licenses/LibRaw-COPYRIGHT.txt', 'licenses/LibRaw-ComponentNotices.txt',
     'licenses/DotNetRuntime-ThirdPartyNotices.txt', 'THIRD_PARTY_NOTICES.md', '使用说明.md', 'RELEASE_NOTES.md',
-    '远程兼容启动.cmd', 'docs/RAW第四至六步实现记录.md')
+    '远程兼容启动.cmd')
 foreach ($Name in $Required) {
     if (-not (Test-Path -LiteralPath (Join-Path $Source $Name) -PathType Leaf)) { throw "Required package member missing: $Name" }
 }
@@ -35,7 +42,11 @@ $Product = [Diagnostics.FileVersionInfo]::GetVersionInfo((Join-Path $Source 'Bir
 if (-not $Product.StartsWith($Version + '+') -and $Product -ne $Version) { throw "Published version does not match $Version : $Product" }
 
 $Prefix = [IO.Path]::GetFullPath($Source).TrimEnd('\') + '\'
-$Files = @(Get-ChildItem -LiteralPath $Source -File -Recurse | Where-Object Name -ne 'release-manifest.json' |
+# Exclude temporary notes even when an older publish left a docs directory behind.
+$Files = @(Get-ChildItem -LiteralPath $Source -File -Recurse | Where-Object {
+        $RelativePath = $_.FullName.Substring($Prefix.Length).Replace('\', '/')
+        $_.Name -ne 'release-manifest.json' -and -not $RelativePath.StartsWith('docs/', [StringComparison]::OrdinalIgnoreCase)
+    } |
     Sort-Object FullName | ForEach-Object {
         [pscustomobject]@{ Path = $_.FullName.Substring($Prefix.Length).Replace('\', '/'); Bytes = $_.Length; SHA256 = Get-Sha256 $_.FullName }
     })
@@ -50,19 +61,43 @@ foreach ($Entry in $Expected.PSObject.Properties) {
     if (-not $ByPath.ContainsKey($Name) -or $ByPath[$Name].SHA256 -ne $Entry.Value) { throw "Published BioCLIP resource fingerprint mismatch: $Name" }
 }
 $Manifest = [pscustomobject]@{ Version = $Version; ProductVersion = $Product; RecordedAtUtc = [DateTimeOffset]::UtcNow.ToString('o');
-    Excludes = @('release-manifest.json'); Files = $Files }
+    Excludes = @('release-manifest.json', 'docs/**'); Files = $Files }
 Write-Json $Manifest (Join-Path $Source 'release-manifest.json')
 Add-Type -AssemblyName System.IO.Compression.FileSystem
 Add-Type -AssemblyName System.IO.Compression
-[IO.Compression.ZipFile]::CreateFromDirectory($Source, $Archive, [IO.Compression.CompressionLevel]::Fastest, $false)
+# Use the same explicit file list for the manifest and archive; CreateFromDirectory
+# would reintroduce ignored temporary docs and any other excluded members.
+$Zip = [IO.Compression.ZipFile]::Open($Archive, [IO.Compression.ZipArchiveMode]::Create)
+try {
+    foreach ($File in $Files) {
+        [IO.Compression.ZipFileExtensions]::CreateEntryFromFile($Zip, (Join-Path $Source $File.Path),
+            $File.Path, [IO.Compression.CompressionLevel]::Fastest) | Out-Null
+    }
+    [IO.Compression.ZipFileExtensions]::CreateEntryFromFile($Zip, (Join-Path $Source 'release-manifest.json'),
+        'release-manifest.json', [IO.Compression.CompressionLevel]::Fastest) | Out-Null
+}
+finally { $Zip.Dispose() }
 $Zip = [IO.Compression.ZipFile]::OpenRead($Archive)
 try {
     $EntryNames = @{}
-    foreach ($Entry in $Zip.Entries) { $EntryNames[$Entry.FullName.Replace('\', '/')] = $Entry.Length }
-    foreach ($File in $Files) {
-        if (-not $EntryNames.ContainsKey($File.Path) -or $EntryNames[$File.Path] -ne $File.Bytes) { throw "ZIP member missing or wrong size: $($File.Path)" }
+    foreach ($Entry in $Zip.Entries) {
+        $Name = $Entry.FullName.Replace('\', '/')
+        if ($EntryNames.ContainsKey($Name)) { throw "Duplicate ZIP member: $Name" }
+        $EntryNames[$Name] = $Entry
     }
-    if (-not $EntryNames.ContainsKey('release-manifest.json')) { throw 'ZIP manifest missing.' }
+    if ($EntryNames.Count -ne $Files.Count + 1 -or -not $EntryNames.ContainsKey('release-manifest.json')) {
+        throw 'ZIP members do not exactly match the manifest and its single self entry.'
+    }
+    foreach ($File in $Files) {
+        if (-not $EntryNames.ContainsKey($File.Path) -or $EntryNames[$File.Path].Length -ne $File.Bytes) {
+            throw "ZIP member missing or wrong size: $($File.Path)"
+        }
+        $Stream = $EntryNames[$File.Path].Open()
+        $Hash = [Security.Cryptography.SHA256]::Create()
+        try { $ActualHash = ([BitConverter]::ToString($Hash.ComputeHash($Stream))).Replace('-', '').ToLowerInvariant() }
+        finally { $Hash.Dispose(); $Stream.Dispose() }
+        if ($ActualHash -ne $File.SHA256) { throw "ZIP content fingerprint mismatch: $($File.Path)" }
+    }
 }
 finally { $Zip.Dispose() }
 $ArchiveHash = Get-Sha256 $Archive

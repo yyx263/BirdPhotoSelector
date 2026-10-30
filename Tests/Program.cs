@@ -26,6 +26,12 @@ internal static class Program
             foreach (var operation in startupOperations) operation.Abort();
             app.InitializeComponent();
             app.ShutdownMode = System.Windows.ShutdownMode.OnExplicitShutdown;
+            if (args.Contains("--raw-exposure-only", StringComparer.Ordinal))
+            {
+                _assertions += RawExposureBiasChecks.RunAsync().GetAwaiter().GetResult();
+                Console.WriteLine($"PASS: {_assertions} targeted RAW exposure assertions.");
+                return 0;
+            }
             if (args.Contains("--review-changes-only", StringComparer.Ordinal))
             {
                 _assertions += SourceReviewEditingChecks.Run();
@@ -59,6 +65,7 @@ internal static class Program
             _assertions += RawImportChecks.RunAsync().GetAwaiter().GetResult();
             _assertions += RawPreviewChecks.RunAsync().GetAwaiter().GetResult();
             _assertions += RawNativeChecks.RunAsync().GetAwaiter().GetResult();
+            _assertions += RawExposureBiasChecks.RunAsync().GetAwaiter().GetResult();
             _assertions += RawWindowChecks.Run();
             _assertions += SourceReviewEditingChecks.Run();
             _assertions += ContinuousBirdNumberChecks.RunAsync().GetAwaiter().GetResult();

@@ -7,6 +7,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
+#include <cstddef>
 #include <cstring>
 #include <ctime>
 #include <limits>
@@ -31,6 +32,58 @@ struct RawInfo {
     char camera[128];
     char captured_at[32];
 };
+// Keep the v1 ABI intact for older applications. Managed v2 uses the new entry point.
+struct RawInfoV2 {
+    RawInfo basic;
+    double exposure_bias;
+    int has_exposure_bias;
+};
+static_assert(sizeof(RawInfo) == 216 && offsetof(RawInfoV2, exposure_bias) == 216 &&
+              offsetof(RawInfoV2, has_exposure_bias) == 224 && sizeof(RawInfoV2) == 232,
+              "RAW metadata ABI must match the managed sequential layout.");
+struct ExposureBiasMetadata {
+    double value = 0.;
+    int priority = 0; // 0: missing, 1: TIFF IFD, 2: actual EXIF IFD.
+};
+
+void ExposureBiasTag(void* context, int tag, int type, int length, unsigned int order,
+                     void* input, INT64) noexcept {
+    // ExposureBiasValue is EXIF 0x9204, SRATIONAL[1]. Do not use LibRaw's
+    // BaselineExposure/ExposureCalibrationShift/FlashEC or processing brightness.
+    // TIFF callbacks add (ifd + 1) << 20; exclude all maker-note tag namespaces.
+    if (!context || !input || (static_cast<unsigned>(tag) & 0xfffffU) != 0x9204U ||
+        type != 10 || length != 1 || (order != 0x4949 && order != 0x4d4d)) return;
+    auto& result = *static_cast<ExposureBiasMetadata*>(context);
+    const int priority = tag == 0x9204 ? 2 : 1;
+    if (result.priority >= priority) return;
+    auto* stream = static_cast<LibRaw_abstract_datastream*>(input);
+    INT64 position = -1;
+    try {
+        position = stream->tell();
+        if (position < 0) return;
+        unsigned char bytes[8];
+        const bool read = stream->read(bytes, 1, sizeof(bytes)) == sizeof(bytes);
+        if (stream->seek(position, SEEK_SET) != 0 || !read) return;
+        position = -1;
+        auto word = [&](int offset) {
+            std::uint32_t value = 0;
+            for (int i = 0; i < 4; ++i)
+                value = (value << 8) | bytes[offset + (order == 0x4949 ? 3 - i : i)];
+            std::int32_t signed_value;
+            std::memcpy(&signed_value, &value, sizeof(value));
+            return signed_value;
+        };
+        const auto numerator = word(0), denominator = word(4);
+        if (denominator == 0) return;
+        const double value = static_cast<double>(numerator) / denominator;
+        if (std::isfinite(value)) { result.value = value; result.priority = priority; }
+    }
+    catch (...) {
+        // Optional metadata must not abort a valid RAW. Restore parser position even
+        // when a short/corrupt datastream throws during the callback.
+        if (position >= 0) { try { stream->seek(position, SEEK_SET); } catch (...) {} }
+    }
+}
 struct RawImage {
     void* handle;
     void* pixels;
@@ -76,12 +129,14 @@ API const char* __cdecl bpr_error(int code) noexcept {
 
 API void __cdecl bpr_release(void* handle) noexcept { delete static_cast<ImageOwner*>(handle); }
 
-API int __cdecl bpr_read_info(const wchar_t* path, Cancel cancel, RawInfo* info) noexcept {
+static int ReadInfoCore(const wchar_t* path, Cancel cancel, RawInfo* info,
+                        ExposureBiasMetadata* exposure) noexcept {
     if (!info) return InvalidArgument;
     *info = {};
     try {
         LibRaw raw;
         Configure(raw, &cancel);
+        if (exposure) raw.set_exifparser_handler(ExposureBiasTag, exposure);
         int status = Open(raw, path, cancel);
         if (status != LIBRAW_SUCCESS) return status;
         status = raw.adjust_sizes_info_only(); // Metadata only; no unpack or demosaic.
@@ -108,6 +163,22 @@ API int __cdecl bpr_read_info(const wchar_t* path, Cancel cancel, RawInfo* info)
     }
     catch (const std::bad_alloc&) { return LIBRAW_UNSUFFICIENT_MEMORY; }
     catch (...) { return UnexpectedFailure; }
+}
+
+API int __cdecl bpr_read_info(const wchar_t* path, Cancel cancel, RawInfo* info) noexcept {
+    return ReadInfoCore(path, cancel, info, nullptr);
+}
+
+API int __cdecl bpr_read_info_v2(const wchar_t* path, Cancel cancel, RawInfoV2* info) noexcept {
+    if (!info) return InvalidArgument;
+    *info = {};
+    ExposureBiasMetadata exposure;
+    const int status = ReadInfoCore(path, cancel, &info->basic, &exposure);
+    if (status == LIBRAW_SUCCESS && exposure.priority != 0) {
+        info->exposure_bias = exposure.value;
+        info->has_exposure_bias = 1;
+    }
+    return status;
 }
 
 API int __cdecl bpr_decode(const wchar_t* path, int max_width, Cancel cancel, RawImage* output) noexcept {

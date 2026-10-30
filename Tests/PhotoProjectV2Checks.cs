@@ -94,12 +94,15 @@ internal static class PhotoProjectV2Checks
 
             await CheckLegacyMigration(root, projects, Check);
             await CheckMissingMembers(root, projects, Check);
+            await CheckCurrentSourceViews(root, projects, Check);
             await CheckCrossDirectoryIdentity(root, projects, Check);
 
+            // Legacy files have no independent viewport-source proof; keep their unsafe-view safeguards.
             foreach (string? savedStatus in new string?[] { null, "Unspecified", "Current" })
             {
                 var document = JsonNode.Parse(baselineJson)!;
                 var record = Record(document);
+                record.AsObject().Remove("ViewReference");
                 if (savedStatus is null) record.AsObject().Remove("GeometryStatus");
                 else record["GeometryStatus"] = savedStatus;
                 record["GeometryReference"]!["AssetId"] = rawAsset.Id;
@@ -116,6 +119,7 @@ internal static class PhotoProjectV2Checks
 
             var unconfirmedDocument = JsonNode.Parse(baselineJson)!;
             Record(unconfirmedDocument)["GeometryStatus"] = "Unspecified";
+            Record(unconfirmedDocument).AsObject().Remove("ViewReference");
             string unconfirmedPath = Path.Combine(root, "unconfirmed-geometry.json");
             await File.WriteAllTextAsync(unconfirmedPath, unconfirmedDocument.ToJsonString());
             var unconfirmed = (await projects.LoadAsync(unconfirmedPath)).Groups.Single().Photos.Single(photo => photo.Id == pair.Id);
@@ -127,6 +131,7 @@ internal static class PhotoProjectV2Checks
             {
                 var document = JsonNode.Parse(baselineJson)!;
                 var record = Record(document);
+                record.AsObject().Remove("ViewReference");
                 if (fault == "unknown-status") record["GeometryStatus"] = "FutureState";
                 else if (fault == "missing-reference-id") record["GeometryReference"]!.AsObject().Remove("AssetId");
                 else record["GeometryReference"]!["DisplayWidth"] = 0;
@@ -236,6 +241,73 @@ internal static class PhotoProjectV2Checks
             string allowed = Path.GetFullPath(Path.Combine(Path.GetTempPath(), "BirdPhotoSelector.PhotoProjectV2Checks")) + Path.DirectorySeparatorChar;
             if (resolved.StartsWith(allowed, StringComparison.OrdinalIgnoreCase)) Directory.Delete(resolved, recursive: true);
         }
+    }
+
+    private static async Task CheckCurrentSourceViews(string root, ProjectService projects, Action<bool, string> check)
+    {
+        string directory = Directory.CreateDirectory(Path.Combine(root, "current-source-views")).FullName;
+        string jpg = Path.Combine(directory, "view.jpg"), raw = Path.Combine(directory, "view.NEF");
+        WriteJpeg(jpg); WriteOpaqueRaw(raw);
+        var jpgAsset = new PhotoAsset(jpg, PhotoAssetKind.Jpg, "view-jpg");
+        var rawAsset = new PhotoAsset(raw, PhotoAssetKind.Raw, "view-raw");
+        var photo = Photo(new[] { jpgAsset, rawAsset }, "source-view-photo", jpgAsset.Id, 64, 48);
+        string beforeFallback = Path.Combine(directory, "before-fallback.json");
+        await projects.SaveAsync(beforeFallback, new[] { Group(photo) }, .5);
+
+        File.Delete(jpg);
+        var fallback = (await projects.LoadAsync(beforeFallback)).Groups.Single().Photos.Single();
+        check(fallback.ActivePreviewAssetId == rawAsset.Id && fallback.GeometryStatus == PhotoGeometryStatus.NeedsReview &&
+              fallback.ViewZoom is null && fallback.ViewCenterX is null && fallback.ViewCenterY is null,
+            "the first JPG-to-RAW project fallback never restores the old JPG viewport");
+
+        // Simulate the view saved after the current RAW pixels have been displayed and manually examined.
+        fallback.PixelWidth = 1200; fallback.PixelHeight = 800;
+        fallback.ViewZoom = 3; fallback.ViewCenterX = .65; fallback.ViewCenterY = .42;
+        string currentPath = Path.Combine(directory, "current-raw-view.json");
+        await projects.SaveAsync(currentPath, new[] { Group(fallback) }, .5);
+        string currentJson = await File.ReadAllTextAsync(currentPath);
+        var record = Record(JsonNode.Parse(currentJson)!);
+        check(record["ViewReference"]!["AssetId"]!.GetValue<string>() == rawAsset.Id &&
+              record["GeometryReference"]!["AssetId"]!.GetValue<string>() == jpgAsset.Id &&
+              record["ViewReference"]!["FileLength"]!.GetValue<long>() == new FileInfo(raw).Length,
+            "a new viewport stores the current RAW source independently from the historical JPG bird reference");
+
+        static bool HasCurrentView(PhotoItem loaded) => loaded.ViewZoom == 3 && loaded.ViewCenterX == .65 && loaded.ViewCenterY == .42;
+        var reopened = (await projects.LoadAsync(currentPath)).Groups.Single().Photos.Single();
+        check(HasCurrentView(reopened) && reopened.GeometryStatus == PhotoGeometryStatus.NeedsReview &&
+              !reopened.CanUseBirdGeometry && reopened.GeometryReference?.AssetId == jpgAsset.Id && HasSavedBirdState(reopened),
+            "reopening restores the verified current-source manual view while keeping old bird geometry unverified");
+        await projects.SaveAsync(currentPath, new[] { Group(reopened) }, .5);
+        var recovery = await new AutoSaveService(Path.Combine(directory, "Recovery"))
+            .SaveAsync(new[] { Group(reopened) }, .5, null, revision: 1);
+        check(HasCurrentView((await projects.LoadAsync(currentPath)).Groups.Single().Photos.Single()) &&
+              HasCurrentView((await projects.LoadAsync(recovery.Path)).Groups.Single().Photos.Single()),
+            "repeated saves and automatic recovery preserve the new manual view without clearing the review notice");
+
+        var legacy = JsonNode.Parse(currentJson)!;
+        Record(legacy).AsObject().Remove("ViewReference");
+        string legacyPath = Path.Combine(directory, "legacy-unverified-view.json");
+        await File.WriteAllTextAsync(legacyPath, legacy.ToJsonString());
+        check((await projects.LoadAsync(legacyPath)).Groups.Single().Photos.Single().ViewZoom is null,
+            "older unverified-source projects without viewport provenance still discard ambiguous historical views");
+
+        var invalid = JsonNode.Parse(currentJson)!;
+        Record(invalid)["ViewReference"]!["DisplayWidth"] = 0;
+        string invalidPath = Path.Combine(directory, "invalid-view-reference.json");
+        await File.WriteAllTextAsync(invalidPath, invalid.ToJsonString());
+        var invalidResult = await projects.LoadAsync(invalidPath);
+        check(invalidResult.Errors.Count > 0 && invalidResult.SkippedInvalid == 0 &&
+              invalidResult.Groups.Single().Photos.Single() is { ViewZoom: null } retained && HasSavedBirdState(retained),
+            "an invalid viewport reference falls back to fit without discarding the photo or historical species");
+
+        File.AppendAllText(raw, "Changed temporary RAW fixture bytes.");
+        check((await projects.LoadAsync(currentPath)).Groups.Single().Photos.Single().ViewZoom is null,
+            "a changed current-source file length invalidates its saved viewport");
+        WriteOpaqueRaw(raw);
+        long savedTicks = record["ViewReference"]!["LastWriteTimeUtcTicks"]!.GetValue<long>();
+        File.SetLastWriteTimeUtc(raw, new DateTime(savedTicks, DateTimeKind.Utc).AddSeconds(10));
+        check((await projects.LoadAsync(currentPath)).Groups.Single().Photos.Single().ViewZoom is null,
+            "a changed current-source timestamp also invalidates a same-length saved viewport");
     }
 
     private static async Task CheckLegacyMigration(string root, ProjectService projects, Action<bool, string> check)

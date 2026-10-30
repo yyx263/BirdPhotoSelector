@@ -136,8 +136,9 @@ public partial class DualPhotoViewer : UserControl
 
         ImageSizeText.Text = $"{_bitmap!.PixelWidth:N0} × {_bitmap.PixelHeight:N0}  ·  白框为当前视野";
         RefreshBirdOverlays();
-        if (photo!.GeometryStatus != PhotoGeometryStatus.NeedsReview &&
-            photo.ViewZoom is double savedZoom && double.IsFinite(savedZoom) && savedZoom > 0)
+        // A real source transition already clears the previous view in PhotoItem.
+        // New views on the active source remain usable while old bird boxes await review.
+        if (photo!.ViewZoom is double savedZoom && double.IsFinite(savedZoom) && savedZoom > 0)
         {
             _zoom = savedZoom;
             _centerX = ValidCenter(photo.ViewCenterX);

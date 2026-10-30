@@ -7,13 +7,13 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <AssemblyName>BirdPhotoSelector</AssemblyName>
     <RootNamespace>BirdPhotoSelector</RootNamespace>
-    <Version>1.7.1</Version>
+    <Version>1.7.2</Version>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>Assets/App.ico</ApplicationIcon>
     <PlatformTarget>x64</PlatformTarget>
     <NuGetAudit>false</NuGetAudit>
     <RestorePackagesPath>$(MSBuildThisFileDirectory).tools/packages</RestorePackagesPath>
-    <DefaultItemExcludes>$(DefaultItemExcludes);.tools/**;Tests/**;publish/**;artifacts/**</DefaultItemExcludes>
+    <DefaultItemExcludes>$(DefaultItemExcludes);.tools/**;Tests/**;publish/**;artifacts/**;docs/**</DefaultItemExcludes>
   </PropertyGroup>
   <ItemGroup>
     <Resource Include="Assets/App.ico" />
@@ -23,7 +23,6 @@
     <None Update="THIRD_PARTY_NOTICES.md" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <None Update="使用说明.md" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <None Update="RELEASE_NOTES.md" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
-    <None Update="docs/RAW*.md" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <None Update="远程兼容启动.cmd" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <None Update="licenses/**" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <None Include=".tools/raw-decoder/BirdPhotoSelector.Raw.dll" Link="BirdPhotoSelector.Raw.dll" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />

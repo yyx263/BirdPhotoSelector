@@ -2,6 +2,7 @@ using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
+using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using BirdPhotoSelector;
@@ -60,6 +61,26 @@ internal static class SourceReviewEditingChecks
         Check(((ToggleButton)viewer.FindName("ManualRegionButton")).IsEnabled && viewer.BeginManualRegionSelection(),
             "manual region selection remains enabled on a changed-source preview");
         viewer.CancelManualRegionSelection();
+        int viewChanges = 0;
+        viewer.ViewChanged += (_, _) => viewChanges++;
+        viewport.RaiseEvent(new MouseWheelEventArgs(Mouse.PrimaryDevice, Environment.TickCount, 240)
+        { RoutedEvent = Mouse.PreviewMouseWheelEvent, Source = viewport });
+        var zoomed = (photo.ViewZoom, photo.ViewCenterX, photo.ViewCenterY);
+        var other = new PhotoItem { FilePath = stem + "-other.JPG" };
+        viewer.ShowPhoto(other, image);
+        viewer.ShowPhoto(photo, image);
+        Check(Math.Abs(photo.ViewZoom!.Value - zoomed.Item1!.Value) < 1e-9 &&
+              Math.Abs(photo.ViewCenterX!.Value - zoomed.Item2!.Value) < 1e-9 &&
+              Math.Abs(photo.ViewCenterY!.Value - zoomed.Item3!.Value) < 1e-9 && photo.ViewZoom > 1 && viewChanges == 1 &&
+              photo.GeometryStatus == PhotoGeometryStatus.NeedsReview && !photo.CanUseBirdGeometry,
+            "current-source wheel zoom survives navigating away and back without confirming old bird geometry or reporting a new edit");
+        photo.ViewZoom = 3; photo.ViewCenterX = .65; photo.ViewCenterY = .42;
+        viewer.ShowPhoto(photo, image);
+        viewer.ShowPhoto(other, image);
+        viewer.ShowPhoto(photo, image);
+        Check(Math.Abs(photo.ViewZoom!.Value - 3) < 1e-9 && photo.ViewCenterX == .65 && photo.ViewCenterY == .42 && viewChanges == 1 &&
+              ReferenceEquals(photo.GeometryReference, historicalFrame),
+            "a saved current-source pan and zoom restore while the historical bird reference remains unchanged");
         viewer.SelectBird(1);
         Check(ReferenceEquals(photo.SelectedBird, original[1]) && photo.ViewZoom > 1 &&
               photo.GeometryStatus == PhotoGeometryStatus.NeedsReview && !photo.CanUseBirdGeometry,

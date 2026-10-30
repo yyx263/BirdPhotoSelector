@@ -163,7 +163,7 @@ internal static class RawPreviewChecks
     private static void CheckViewer(Action<bool, string> check)
     {
         var photo = ReviewPhoto("review-scene.jpg", "review-scene.NEF");
-        photo.ViewZoom = 6; photo.ViewCenterX = .15; photo.ViewCenterY = .2;
+        bool oldViewCleared = photo.ViewZoom is null && photo.ViewCenterX is null && photo.ViewCenterY is null;
         var oldBird = photo.SelectedBird;
         var viewer = new DualPhotoViewer();
         viewer.Measure(new Size(1000, 600)); viewer.Arrange(new Rect(0, 0, 1000, 600)); viewer.UpdateLayout();
@@ -173,7 +173,7 @@ internal static class RawPreviewChecks
         var detail = (Image)viewer.FindName("DetailImage");
         var viewport = (Border)viewer.FindName("DetailViewport");
         double fit = Math.Min(viewport.ActualWidth / image.PixelWidth, viewport.ActualHeight / image.PixelHeight);
-        check(ReferenceEquals(viewer.CurrentImage, image) && overlay.Children.Count == 2 &&
+        check(oldViewCleared && ReferenceEquals(viewer.CurrentImage, image) && overlay.Children.Count == 2 &&
               Math.Abs(detail.Width / image.PixelWidth - fit) < 1e-6,
             "a changed-source preview fits the current pixels initially and preserves its old editable boxes");
         check(((ToggleButton)viewer.FindName("ManualRegionButton")).IsEnabled && viewer.BeginManualRegionSelection() &&
@@ -200,6 +200,7 @@ internal static class RawPreviewChecks
             new DetectedBird { Number = 7, IsManual = true, Box = new() { X = .6, Y = .2, Width = .15, Height = .2, Confidence = .9 },
                 Species = new("麻雀", "Passer montanus", .55) }
         }, nextBirdNumber: 12);
+        photo.ViewZoom = 6; photo.ViewCenterX = .15; photo.ViewCenterY = .2;
         // Explicitly installing a new source also works for a renamed project member;
         // no relationship to the old source's coordinate frame is assumed.
         photo.SetAssets(new[] { new PhotoAsset(rawPath, PhotoAssetKind.Raw) });

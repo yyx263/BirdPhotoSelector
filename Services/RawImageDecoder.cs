@@ -1,4 +1,5 @@
 using System.IO;
+using System.Globalization;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Windows.Media;
@@ -42,7 +43,9 @@ public static class RawImageDecoder
                 FocalLength = Positive(info.Focal) ? $"{info.Focal:0.#} mm" : "—",
                 Aperture = Positive(info.Aperture) ? $"f/{info.Aperture:0.#}" : "—",
                 Shutter = Positive(info.Shutter) ? info.Shutter < 1 ? $"1/{Math.Round(1 / info.Shutter):0} s" : $"{info.Shutter:0.###} s" : "—",
-                Iso = Positive(info.Iso) ? $"{info.Iso:0}" : "—"
+                Iso = Positive(info.Iso) ? $"{info.Iso:0}" : "—",
+                ExposureBias = info.HasExposureBias != 0 && double.IsFinite(info.ExposureBias)
+                    ? info.ExposureBias.ToString("+0.##;-0.##;0", CultureInfo.InvariantCulture) + " EV" : "—"
             };
             return new(metadata, info.Width, info.Height, info.Orientation);
         }
@@ -119,13 +122,15 @@ public static class RawImageDecoder
         public long Timestamp;
         [MarshalAs(UnmanagedType.ByValArray, SizeConst = 128)] public byte[] Camera;
         [MarshalAs(UnmanagedType.ByValArray, SizeConst = 32)] public byte[] CapturedAt;
+        public double ExposureBias;
+        public int HasExposureBias;
     }
     [StructLayout(LayoutKind.Sequential)] private struct NativeImage
     {
         public IntPtr Handle, Pixels;
         public int Width, Height, Stride, Bytes;
     }
-    [DllImport(Library, EntryPoint = "bpr_read_info", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Unicode, ExactSpelling = true)]
+    [DllImport(Library, EntryPoint = "bpr_read_info_v2", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Unicode, ExactSpelling = true)]
     private static extern int NativeReadInfo(string path, CancelCallback cancel, out NativeInfo info);
     [DllImport(Library, EntryPoint = "bpr_decode", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Unicode, ExactSpelling = true)]
     private static extern int NativeDecode(string path, int maxWidth, CancelCallback cancel, out NativeImage image);

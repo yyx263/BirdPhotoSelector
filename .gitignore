@@ -19,3 +19,5 @@ __pycache__/
 *.bphoto
 models/*.onnx
 models/bioclip2/vision*.onnx*
+# Local temporary development notes.
+/docs/

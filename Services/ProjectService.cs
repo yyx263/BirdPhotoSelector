@@ -128,7 +128,9 @@ public sealed class ProjectService
                     SelectedBirdNumber = photo.SelectedBird?.Number, NextBirdNumber = photo.NextBirdNumber,
                     Birds = photo.Birds.Select(bird => (BirdRecord?)new BirdRecord
                     { Number = bird.Number, IsManual = bird.IsManual, Box = bird.Box.Copy(), Species = bird.Species, RecognitionStatus = bird.RecognitionStatus }).ToList(),
-                    ViewZoom = photo.ViewZoom, ViewCenterX = photo.ViewCenterX, ViewCenterY = photo.ViewCenterY
+                    ViewZoom = photo.ViewZoom, ViewCenterX = photo.ViewCenterX, ViewCenterY = photo.ViewCenterY,
+                    ViewReference = photo.ViewZoom is double zoom && double.IsFinite(zoom) && zoom > 0
+                        ? SnapshotGeometry(PhotoGeometryReference.Capture(photo.ActivePreviewAsset!, photo.PixelWidth, photo.PixelHeight)) : null
                 });
             }
             document.Groups!.Add(savedGroup);
@@ -355,7 +357,7 @@ public sealed class ProjectService
         photo.SetGeometryReference(reference, status);
         if (sourceFileChanged && active.Kind == PhotoAssetKind.Raw)
             photo.PixelWidth = photo.PixelHeight = 0;
-        if (!activeChanged && photo.GeometryStatus != PhotoGeometryStatus.NeedsReview) RestoreView(photo, record);
+        if (!activeChanged && CanRestoreView(record, photo, active, baseDirectory, result)) RestoreView(photo, record);
         photoIds.Add(photo.Id);
         foreach (var asset in assets) { assetIds.Add(asset.Id); assetPaths.Add(asset.CanonicalPath); }
         return photo;
@@ -376,6 +378,25 @@ public sealed class ProjectService
         var file = new FileInfo(active.CanonicalPath);
         return reference.FileLength is { } length && file.Length != length ||
             reference.LastWriteTimeUtcTicks is { } ticks && file.LastWriteTimeUtc.Ticks != ticks;
+    }
+
+    private static bool CanRestoreView(PhotoRecord record, PhotoItem photo, PhotoAsset active,
+        string baseDirectory, ProjectLoadResult result)
+    {
+        // Old documents do not distinguish the viewport's source from historical bird geometry.
+        if (record.ViewReference is null) return photo.GeometryStatus != PhotoGeometryStatus.NeedsReview;
+        try
+        {
+            var reference = ReadGeometry(record.ViewReference, baseDirectory)!;
+            return reference.AssetId == active.Id && SamePath(reference.CanonicalPath, active.CanonicalPath) &&
+                reference.FileLength is not null && reference.LastWriteTimeUtcTicks is not null &&
+                !GeometryFileChanged(reference, active);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException and not OutOfMemoryException)
+        {
+            result.Errors.Add($"{record.Id}：视图来源参照无效，已恢复全图：{ex.Message}");
+            return false;
+        }
     }
 
     private static bool SamePath(string first, string second) =>
@@ -474,6 +495,8 @@ public sealed class ProjectService
         public double? ViewZoom { get; set; }
         public double? ViewCenterX { get; set; }
         public double? ViewCenterY { get; set; }
+        // Optional v2 extension: manual viewing coordinates can belong to a newer source than bird boxes.
+        public GeometryRecord? ViewReference { get; set; }
     }
     private sealed class AssetRecord
     {
