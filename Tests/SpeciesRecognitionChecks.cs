@@ -187,8 +187,10 @@ internal static class SpeciesRecognitionChecks
                     "batch recognition processes every stored bird and preserves zero-based photo/bird identity");
                 Check(batch.SkippedPhotos == 1 && batch.Errors.Count == 0 && updates.Last().Completed == 2 && updates.Last().Total == 2,
                     "photos without detections are skipped and progress counts individual birds");
-                Check(updates.Any(update => update.Message.Contains("鸟 6")),
-                    "batch progress uses stable region numbers after earlier regions have been deleted");
+                Check(updates.Any(update => update.Message.Contains("鸟 1")) &&
+                      updates.Any(update => update.Message.Contains("鸟 2")) &&
+                      updates.All(update => !update.Message.Contains("鸟 6")),
+                    "batch progress uses consecutive display numbers independently from stored region identity");
                 Check(mutations == 0 && ReferenceEquals(photo.Birds[0].Species, existing) && photo.SelectedBirdIndex == 1 && photo.Birds[1].Species is null,
                     "worker results never mutate UI-owned species, selection, or photo state");
                 var missingPhoto = new PhotoItem { FilePath = Path.Combine(root, "absent.jpg"), Bird = full.Copy() };
@@ -209,8 +211,9 @@ internal static class SpeciesRecognitionChecks
             using (var service = new BirdSpeciesRecognitionService(assets, (_, _) => throw new InvalidDataException("fixture encoder failure")))
             {
                 var failed = await service.RecognizeAsync(new[] { photo });
-                Check(failed.Errors.Any(error => error.Contains("鸟 6")) && failed.Outcomes[1].BirdIndex == 1,
-                    "per-bird failures report stable UI numbers while application outcomes retain collection indices");
+                Check(failed.Errors.Any(error => error.Contains("鸟 2")) &&
+                      failed.Errors.All(error => !error.Contains("鸟 6")) && failed.Outcomes[1].BirdIndex == 1,
+                    "per-bird failures report consecutive UI numbers while application outcomes retain collection indices");
             }
             var disposed = new BirdSpeciesRecognitionService(assets, (_, _) => Vector(3, 4)); disposed.Dispose();
             Reject<ObjectDisposedException>(() => disposed.Recognize(red, full), "disposed model services reject further work");

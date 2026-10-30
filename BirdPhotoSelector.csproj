@@ -7,22 +7,30 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <AssemblyName>BirdPhotoSelector</AssemblyName>
     <RootNamespace>BirdPhotoSelector</RootNamespace>
-    <Version>1.6.1</Version>
+    <Version>1.8.3</Version>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>Assets/App.ico</ApplicationIcon>
     <PlatformTarget>x64</PlatformTarget>
     <NuGetAudit>false</NuGetAudit>
     <RestorePackagesPath>$(MSBuildThisFileDirectory).tools/packages</RestorePackagesPath>
-    <DefaultItemExcludes>$(DefaultItemExcludes);.tools/**;Tests/**;publish/**;artifacts/**</DefaultItemExcludes>
+    <DefaultItemExcludes>$(DefaultItemExcludes);.tools/**;Tests/**;publish/**;artifacts/**;docs/**</DefaultItemExcludes>
   </PropertyGroup>
   <ItemGroup>
     <Resource Include="Assets/App.ico" />
+    <EmbeddedResource Include="Assets/SpeciesSearchData.json" LogicalName="BirdPhotoSelector.SpeciesSearchData.json" />
     <PackageReference Include="Microsoft.ML.OnnxRuntime" Version="1.20.1" />
     <None Update="models/yolov10n.onnx" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <None Update="models/bioclip2/**" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <None Update="THIRD_PARTY_NOTICES.md" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <None Update="使用说明.md" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <None Update="RELEASE_NOTES.md" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <None Update="远程兼容启动.cmd" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <None Update="licenses/**" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <None Include=".tools/raw-decoder/BirdPhotoSelector.Raw.dll" Link="BirdPhotoSelector.Raw.dll" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <None Include=".tools/raw-decoder/libraw.dll" Link="libraw.dll" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <None Include=".tools/raw-decoder/msvcp140.dll;.tools/raw-decoder/vcruntime140.dll;.tools/raw-decoder/vcruntime140_1.dll" Link="%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
+  <Target Name="BuildRawDecoder" BeforeTargets="PrepareForBuild" Condition="'$(DesignTimeBuild)' != 'true'">
+    <Exec Command="powershell.exe -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildProjectDirectory)/scripts/Build-RawDecoder.ps1&quot;" />
+  </Target>
 </Project>

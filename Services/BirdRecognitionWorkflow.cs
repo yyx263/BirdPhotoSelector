@@ -19,13 +19,14 @@ public sealed class PhotoRecognitionOutcome
     {
         ArgumentNullException.ThrowIfNull(photo);
         if (photo.Id != PhotoId) throw new ArgumentException("识别结果与照片不匹配。", nameof(photo));
-        bool hadLocatedBirds = photo.Birds.Count > 0;
+        if (photo.Birds.Count > 0 && (photo.HasManualSpeciesEdits || photo.Birds.Any(bird => bird.ManualSpecies is not null))) throw new InvalidOperationException("照片已有人工编辑，未应用批量识别结果。");
+        bool hadLocatedBirds = photo.Birds.Any(bird => bird.HasRegion);
         var original = photo.Birds.ToDictionary(bird => bird.Number);
         var applied = Birds.Select(bird =>
         {
             // Keep manual regions and unchanged automatic objects so current UI selections
             // and bindings remain attached to the same objects.
-            if (original.TryGetValue(bird.Number, out var previous) && previous.IsManual == bird.IsManual &&
+            if (original.TryGetValue(bird.Number, out var previous) && previous.IsManual == bird.IsManual && previous.ManualSpecies == bird.ManualSpecies &&
                 SameBox(previous.Box, bird.Box))
             {
                 previous.Species = bird.Species;
@@ -45,8 +46,12 @@ public sealed class PhotoRecognitionOutcome
         // A photo may already have a fit-to-window view saved from browsing before its
         // first localization. Let ShowPhoto initialize the bird detail view next time.
         // Existing automatic/manual regions keep the user's saved zoom and pan.
-        if (!hadLocatedBirds && photo.Birds.Count > 0)
+        if (!hadLocatedBirds && photo.Birds.Any(bird => bird.HasRegion))
+        {
+            if (photo.ActivePreviewAsset is { } active)
+                photo.SetGeometryReference(PhotoGeometryReference.Capture(active, photo.PixelWidth, photo.PixelHeight), PhotoGeometryStatus.Current);
             photo.ViewZoom = photo.ViewCenterX = photo.ViewCenterY = null;
+        }
     }
 
     private static bool SameBox(BirdBox first, BirdBox second) =>
@@ -62,6 +67,7 @@ public sealed class BirdRecognitionBatchResult
     public bool MissingSpeciesModel { get; internal set; }
     public bool MissingModel => MissingDetectionModel || MissingSpeciesModel;
     public int SkippedPhotos { get; internal set; }
+    public int ManuallyEditedSkippedPhotos { get; internal set; }
     public int MatchedBirds => Outcomes.Sum(outcome => outcome.MatchedBirds);
 }
 
@@ -93,9 +99,11 @@ public sealed class BirdRecognitionWorkflow : IDisposable
     {
         ArgumentNullException.ThrowIfNull(photos);
         ObjectDisposedException.ThrowIf(_disposed, this);
-        var jobs = photos.Select(photo => new PhotoJob(photo.Id, photo.FilePath,
+        var jobs = photos.Select(photo => new PhotoJob(photo.Id, photo.ActivePreviewAsset?.CanonicalPath ?? photo.FilePath,
             photo.Birds.Select(CopyBird).ToArray(), photo.SelectedBird?.Number ?? 0,
-            photo.NextBirdNumber, photo.DetectionStatus, photo.PixelWidth, photo.PixelHeight)).ToArray();
+            photo.NextBirdNumber, photo.DetectionStatus, photo.PixelWidth, photo.PixelHeight,
+            photo.Birds.Any(bird => bird.HasRegion) && (photo.GeometryStatus == PhotoGeometryStatus.NeedsReview || !photo.CanUseBirdGeometry),
+            photo.Birds.Count > 0 && (photo.HasManualSpeciesEdits || photo.Birds.Any(bird => bird.ManualSpecies is not null)))).ToArray();
         await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
@@ -115,10 +123,23 @@ public sealed class BirdRecognitionWorkflow : IDisposable
             ObjectDisposedException.ThrowIf(_disposed, this);
             var job = jobs[index];
             string label = $"{index + 1} / {jobs.Length} · {Path.GetFileName(job.Path)} · {job.Path}";
+            if (job.ManuallyEdited)
+            {
+                result.SkippedPhotos++; result.ManuallyEditedSkippedPhotos++;
+                progress?.Report(new(index + 1, jobs.Length, $"已跳过人工编辑照片 {label}"));
+                continue;
+            }
+            if (job.NeedsGeometryReview)
+            {
+                result.SkippedPhotos++;
+                result.Errors.Add($"{job.Path}：来源已变化，鸟框位置待核对；保留原选区与鸟种结果。");
+                progress?.Report(new(index + 1, jobs.Length, $"已跳过待核对鸟框 {label}"));
+                continue;
+            }
             progress?.Report(new(index, jobs.Length, $"正在定位鸟类 {label}"));
             try
             {
-                var image = ImageLoader.Load(job.Path);
+                var image = ImageLoader.Load(job.Path, cancellationToken: cancellationToken);
                 BirdDetectionResult detection;
                 try
                 {
@@ -133,7 +154,7 @@ public sealed class BirdRecognitionWorkflow : IDisposable
                 result.MissingDetectionModel |= detection.MissingModel;
                 if (detection.Error is not null) result.Errors.Add($"{job.Path}：{detection.Error}");
                 bool preserve = detection.MissingModel || detection.Error is not null ||
-                    detection.Birds.Count == 0 && job.Birds.Any(bird => !bird.IsManual);
+                    detection.Birds.Count == 0 && job.Birds.Any(bird => bird.HasRegion && !bird.IsManual);
                 int nextNumber = job.NextBirdNumber;
                 var birds = preserve ? job.Birds.Select(CopyBird).ToArray() :
                     MergeDetectedBirds(job.Birds, detection.Birds, ref nextNumber);
@@ -144,8 +165,9 @@ public sealed class BirdRecognitionWorkflow : IDisposable
                 {
                     cancellationToken.ThrowIfCancellationRequested();
                     var bird = birds[birdIndex];
+                    if (!bird.HasRegion) continue;
                     progress?.Report(new(index, jobs.Length,
-                        $"正在识别鸟种 {label} · 选区 {birdIndex + 1} / {birds.Length}（鸟 {bird.Number}）"));
+                        $"正在识别鸟种 {label} · 选区 {birdIndex + 1} / {birds.Length}（鸟 {birdIndex + 1}）"));
                     SpeciesRecognitionResult recognition;
                     try
                     {
@@ -163,7 +185,7 @@ public sealed class BirdRecognitionWorkflow : IDisposable
                     bird.RecognitionStatus = recognition.Status +
                         (recognition.Match is not { IsValid: true } && bird.Species is not null ? "；保留上次结果" : "");
                     if (recognition.Error is not null)
-                        result.Errors.Add($"{job.Path} · 鸟 {bird.Number}：{recognition.Error}");
+                        result.Errors.Add($"{job.Path} · 鸟 {birdIndex + 1}：{recognition.Error}");
                 }
                 // A failed species stage must not discard old evidence when a changed detector
                 // output could not be matched back to a previous automatic region.
@@ -199,7 +221,7 @@ public sealed class BirdRecognitionWorkflow : IDisposable
     private static DetectedBird[] MergeDetectedBirds(DetectedBird[] previous, IReadOnlyList<BirdBox> detected,
         ref int nextNumber)
     {
-        var unused = previous.Where(bird => !bird.IsManual).ToList();
+        var unused = previous.Where(bird => bird.HasRegion && !bird.IsManual).ToList();
         var merged = new List<DetectedBird>();
         foreach (var box in detected.Where(box => box.IsValid))
         {
@@ -219,7 +241,7 @@ public sealed class BirdRecognitionWorkflow : IDisposable
                 RecognitionStatus = match?.RecognitionStatus ?? "待识别"
             });
         }
-        merged.AddRange(previous.Where(bird => bird.IsManual).Select(CopyBird));
+        merged.AddRange(previous.Where(bird => bird.IsManual || bird.ManualSpecies is not null).Select(CopyBird));
         return merged.ToArray();
     }
 
@@ -230,11 +252,7 @@ public sealed class BirdRecognitionWorkflow : IDisposable
         return area / (first.Width * first.Height + second.Width * second.Height - area);
     }
 
-    private static DetectedBird CopyBird(DetectedBird bird) => new()
-    {
-        Number = bird.Number, IsManual = bird.IsManual, Box = bird.Box.Copy(),
-        Species = bird.Species, RecognitionStatus = bird.RecognitionStatus
-    };
+    private static DetectedBird CopyBird(DetectedBird bird) => bird.Copy();
 
     public void Dispose()
     {
@@ -245,5 +263,5 @@ public sealed class BirdRecognitionWorkflow : IDisposable
     }
 
     private sealed record PhotoJob(string Id, string Path, DetectedBird[] Birds, int SelectedBirdNumber,
-        int NextBirdNumber, string DetectionStatus, int Width, int Height);
+        int NextBirdNumber, string DetectionStatus, int Width, int Height, bool NeedsGeometryReview, bool ManuallyEdited);
 }

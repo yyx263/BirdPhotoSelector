@@ -2,6 +2,19 @@
 
 本应用的第三方代码、运行库与模型各自受其原始许可证约束。保留发布目录中的许可和第三方说明文件。
 
+## LibRaw 0.22.3 RAW 解码器
+
+- 上游：[LibRaw](https://www.libraw.org/)，[许可说明](https://www.libraw.org/about#license)。上游允许选择 LGPL 2.1 或 CDDL 1.0；本项目使用 **CDDL 1.0** 选项，未修改 LibRaw 源码或 DLL。
+- 固定 Win64 SDK（包含原始源码及二进制）：[LibRaw-0.22.3-Win64.zip](https://www.libraw.org/data/LibRaw-0.22.3-Win64.zip)。相同版本的对应源码可从此固定地址取得。
+- SDK SHA-256：`4e2213a0b10e32199a30b9114a61376cdb40f94df861262b4a6dca659701276b`，是从官方 HTTPS 下载记录的指纹，不是上游签名。
+- 运行文件 `libraw.dll` SHA-256：`2c4df36d9011267fd3ffd5c23e80d69d5f42c3d503f03ac02448f5c8a7fe0fa2`。
+- 原始版权与许可副本：`licenses/LibRaw-COPYRIGHT.txt`、`licenses/LibRaw-CDDL-1.0.txt`、`licenses/LibRaw-LGPL-2.1.txt`。保留 LibRaw 所包含的 dcraw、DCB/FBDD、X3F、Adobe DNG 相关署名；DCB/X3F 的 BSD 条款原文另保存在 `licenses/LibRaw-ComponentNotices.txt`。
+- 本项目的 ABI 桥接源码位于 `native/raw-decoder.cpp`，构建脚本为 `scripts/Build-RawDecoder.ps1`。桥接只调用官方库，不复制或改变库内部算法。
+
+显示流程使用传感器 RAW 解码、适用的解拜耳、相机白平衡及 sRGB 输出；不将内嵌 JPEG 作为 RAW 解码结果。格式扩展名能被识别不代表所有机型或压缩模式都受支持。
+
+原生 DLL 所需的 Microsoft C++ 运行库为 `msvcp140.dll`、`vcruntime140.dll`、`vcruntime140_1.dll`。构建时从已安装 Visual Studio 的 x64 CRT 可再分发目录复制到程序目录，不从系统目录任意收集 DLL；它们仍受 Microsoft 原始条款约束。分发规则与应用目录部署方式见 [Microsoft C++ 运行库分发文档](https://learn.microsoft.com/en-us/cpp/windows/redistributing-visual-cpp-files)。这三个运行库不按本项目或 LibRaw 的开源许可重新授权。
+
 ## YOLOv10n ONNX 模型
 
 - 模型文件：`models/yolov10n.onnx`
@@ -34,6 +47,16 @@ BioCLIP 2 文本向量和分类标签来自 [Imageomics / TreeOfLife-200M](https
 中国候选学名、中文名及分类关系来自 [Catalogue of Life China 2023](https://doi.org/10.15468/ae6ush)，使用固定的 v1.1 Darwin Core Archive，SHA-256 为 `9c17cdea98e210b2acc6ccf482580a22991a568455e0d6d3b58ba0ea5c675d1b`。该资料采用 **CC BY-NC 4.0**，具有署名和非商业使用条件；这项资料的许可不因模型采用 MIT 而改变。原始署名、发布者和许可记录位于 `models/bioclip2/licenses/ChinaChecklist-v1.1-EML.xml`，完整许可位于 `ChinaChecklist-CC-BY-NC-4.0.txt`。再次分发时保留这些文件，并单独评估候选资料是否适合预期用途。
 
 候选整理优先使用学名精确匹配；仅在精确匹配缺失时使用经目、科和其他已接受名冲突检查的同义词。逐项来源、未匹配名称和排除原因随 `candidates.json`、`china-unmatched.json` 及相关审计文件保存。候选表只限定比对范围，不保证照片中一定有该物种，也不代表完整覆盖中国现行鸟种名录。
+
+## 离线拼音检索索引的构建依赖
+
+`Assets/SpeciesSearchData.json` 由 `scripts/Generate-SpeciesSearchIndex.py` 从现有鸟种名称生成，嵌入程序集供离线检索；运行时不加载 Python、pypinyin 或 AI 模型，也不修改原名称或模型候选文件。
+
+- 拼音工具：[pypinyin 0.55.0](https://pypi.org/project/pypinyin/0.55.0/)，使用 MIT License，本地原文为 `licenses/Pypinyin-MIT.txt`。固定官方 wheel SHA-256：`d53b1e8ad2cdb815fb2cb604ed3123372f5a28c6f447571244aca36fc62a286f`。该工具仅在生成索引时放入项目内 `.tools/search-python`，不作为程序运行依赖。
+- 拼音数据：[pinyin-data](https://github.com/mozillazg/pinyin-data) v0.15.0 与 [phrase-pinyin-data](https://github.com/mozillazg/phrase-pinyin-data) v0.19.0，均使用 MIT License；原始许可分别为 `licenses/Pypinyin-Data-MIT.txt` 和 `licenses/Pypinyin-Phrase-Data-MIT.txt`。
+- 简繁折叠使用 Windows 自带的语言转换接口及少量显式罕见字变体，不使用 OpenCC。该转换仅作用于搜索比较键。
+
+索引中鸟种名称仍来自上述中国候选资料，相关署名及 CC BY-NC 4.0 条件继续适用，不能因拼音工具采用 MIT 而将名称资料重新标为 MIT。索引重建不应修改 `models/bioclip2` 中的模型、候选表或原哈希清单。
 
 ## Microsoft.ML.OnnxRuntime 1.20.1
 
@@ -71,7 +94,7 @@ SOFTWARE.
 
 - [.NET Runtime 源码和许可](https://github.com/dotnet/runtime)
 - [WPF 源码和许可](https://github.com/dotnet/wpf)
-- 本次 Windows x64 发布运行库版本为 8.0.32，随附以下 NuGet 运行库包的原始声明：
+- 本次 Windows x64 发布运行库版本为 8.0.33，随附以下 NuGet 运行库包的原始声明：
   - `licenses/DotNetRuntime-LICENSE.txt`：`Microsoft.NETCore.App.Runtime.win-x64` 的 MIT 许可。
   - `licenses/DotNetRuntime-ThirdPartyNotices.txt`：同包完整第三方声明。
   - `licenses/WindowsDesktopRuntime-LICENSE.txt`：`Microsoft.WindowsDesktop.App.Runtime.win-x64` 的 MIT 许可。该版本的 WindowsDesktop 运行库包未另外提供第三方声明文件。

@@ -1,0 +1,19 @@
+<Window x:Class="BirdPhotoSelector.SpeciesExportReminderDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Style="{StaticResource {x:Type Window}}" Title="导出前核对鸟种" Width="600" Height="420"
+        MinWidth="520" MinHeight="350" WindowStartupLocation="CenterOwner" ShowInTaskbar="False">
+  <Grid Margin="25">
+    <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+    <TextBlock x:Name="HeadingText" FontSize="22" FontWeight="SemiBold" TextWrapping="Wrap"/>
+    <TextBlock x:Name="SummaryText" Grid.Row="1" Foreground="#B7C9D0" TextWrapping="Wrap" Margin="0,12,0,12"/>
+    <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto" Background="#141D24" Padding="12">
+      <TextBlock x:Name="DetailsText" TextWrapping="Wrap" Foreground="#CCD9DF"/>
+    </ScrollViewer>
+    <TextBlock Grid.Row="3" Text="继续后，有有效鸟种的照片按已有鸟种分类；没有有效鸟种的进入“未分类”目录。" TextWrapping="Wrap" Foreground="#90A8B2" Margin="0,12,0,16"/>
+    <StackPanel Grid.Row="4" Orientation="Horizontal" HorizontalAlignment="Right">
+      <Button Content="返回核对" IsCancel="True" Margin="0,0,10,0" MinWidth="100"/>
+      <Button Content="继续导出" Click="Continue_Click" Style="{StaticResource PrimaryButton}" MinWidth="100"/>
+    </StackPanel>
+  </Grid>
+</Window>

@@ -431,7 +431,7 @@ internal static class ViewerUiChecks
         }
 
         Check(overlay.Children.Count == 3 && overlay.Children.OfType<Grid>().Select(target =>
-                ((TextBlock)target.Children.OfType<Border>().Single().Child).Text).SequenceEqual(new[] { "1", "2", "3" }),
+                ((TextBlock)target.Children.OfType<Border>().Single().Child).Text).SequenceEqual(new[] { "01", "02", "03" }),
             "every detected bird has a numbered overlay while the largest first bird remains selected by default");
         Check(photo.SelectedBirdIndex == 0 && Near(BirdFraction(), .7) && selectedEvents == 0 && viewEvents == 0,
             "opening multiple detections initializes the first bird view without reporting a user edit or selection");
@@ -496,7 +496,7 @@ internal static class ViewerUiChecks
         viewer.ShowPhoto(legacy, bitmap);
         Layout(viewer, 1200, 650);
         Check(overlay.IsHitTestVisible && overlay.Children.Count == 1 && selectedEvents == 1 &&
-              ((TextBlock)((Grid)overlay.Children[0]).Children.OfType<Border>().Single().Child).Text == "1",
+              ((TextBlock)((Grid)overlay.Children[0]).Children.OfType<Border>().Single().Child).Text == "01",
             "successful replacement restores interaction and legacy single-bird fixtures receive one numbered box");
         viewer.ShowPhoto(null);
         Check(overlay.Children.Count == 0 && overlay.Clip is null,
@@ -626,7 +626,7 @@ internal static class ViewerUiChecks
         Check(ReferenceEquals(automaticTarget.Tag, automatic) && ReferenceEquals(manualTarget.Tag, manual) &&
               automaticDelete.Header?.ToString() == "删除选区" && manualDelete.Header?.ToString() == "删除选区" &&
               manualTarget.ToolTip.ToString()!.Contains("手动选区", StringComparison.Ordinal),
-            "automatic and manual boxes both expose deletion and retain exact object identity and stable number labels");
+            "automatic and manual boxes both expose deletion and retain exact object identity with continuous display labels");
         automaticDelete.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
         Check(deletions.Count == 1 && ReferenceEquals(deletions[^1].Photo, photo) &&
               ReferenceEquals(deletions[^1].Bird, automatic) && photo.Birds.Count == 2,
@@ -634,24 +634,25 @@ internal static class ViewerUiChecks
         photo.RemoveBird(automatic);
         manualDelete.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
         Check(deletions.Count == 2 && ReferenceEquals(deletions[^1].Bird, manual) &&
-              manual.Number == 9 && photo.SelectedBird == manual,
+              manual.Number == 9 && manual.DisplayNumber == 1 && photo.SelectedBird == manual,
             "an existing menu still targets the same manual object after a prior deletion shifts collection indices");
         automaticDelete.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
         Check(deletions.Count == 2 && !viewer.RequestDeleteRegion(automatic),
             "a menu for an already removed object cannot delete its replacement at the old index");
         viewer.RefreshBirdOverlays();
-        Check(((TextBlock)((Grid)overlay.Children[0]).Children.OfType<Border>().Single().Child).Text == "9" &&
-              ((TextBlock)viewer.FindName("DetectionText")).Text.StartsWith("手动选区9", StringComparison.Ordinal) &&
+        Check(((TextBlock)((Grid)overlay.Children[0]).Children.OfType<Border>().Single().Child).Text == "01" &&
+              ((TextBlock)viewer.FindName("DetectionText")).Text.StartsWith("手动选区1", StringComparison.Ordinal) &&
               !((TextBlock)viewer.FindName("DetectionText")).Text.Contains('%'),
-            "number gaps remain visible and an unclassified manual box never displays detector confidence");
+            "deletion immediately renumbers the surviving manual overlay from one without inventing detector confidence");
         manual.Number = 10009;
         viewer.RefreshBirdOverlays();
         Layout(viewer, 1000, 600);
         var highNumberChip = ((Grid)overlay.Children[0]).Children.OfType<Border>().Single();
         var highNumberText = (TextBlock)highNumberChip.Child;
-        Check(highNumberText.Text == "10009" && highNumberChip.ActualWidth >= highNumberText.ActualWidth + 4 &&
+        Check(manual.Number == 10009 && manual.DisplayNumber == 1 && highNumberText.Text == "01" &&
+              highNumberChip.ActualWidth >= highNumberText.ActualWidth + 4 &&
               highNumberChip.ActualWidth < 60,
-            "stable highwater numbers expand their small chip enough to keep every digit readable");
+            "an internal identity change cannot leak a large number into the compact continuous display label");
 
         viewer.BeginManualRegionSelection();
         int beforeLoadingProposals = proposals.Count;

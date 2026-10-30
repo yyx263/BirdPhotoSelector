@@ -25,6 +25,7 @@ internal static class MainWindowUiChecks
             count++;
             Console.WriteLine("  OK WINDOW " + description);
         }
+        count += BalancedMetadataPanelChecks.Run();
 
         string fixtureRoot = Path.Combine(Path.GetTempPath(), "BirdPhotoSelector.WindowUiChecks", Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(fixtureRoot);
@@ -96,6 +97,28 @@ internal static class MainWindowUiChecks
             string recognitionTip = recognizeButton.ToolTip?.ToString() ?? "";
             Check(recognitionTip.Contains("无需先分组", StringComparison.Ordinal) && recognitionTip.Contains("定位", StringComparison.Ordinal),
                 "the recognition action explains that bird localization runs without prior grouping");
+            Check(window.FindName("IncludeRawCheckBox") is null,
+                "automatic JPG/RAW pairing needs no import checkbox in the production window");
+            var clearRecognition = (Button)window.FindName("ClearRecognitionResultsButton");
+            var reidentify = (Button)window.FindName("ReidentifyCurrentPhotoButton");
+            Check(clearRecognition.IsEnabled && clearRecognition.Content?.ToString() == "清空识别结果" &&
+                  clearRecognition.ToolTip?.ToString()?.Contains("撤销", StringComparison.Ordinal) == true &&
+                  clearRecognition.TransformToAncestor(root).TransformBounds(new Rect(clearRecognition.RenderSize)).Right <=
+                      reidentify.TransformToAncestor(root).TransformBounds(new Rect(reidentify.RenderSize)).Left + 1,
+                "the editable current photo exposes undoable clear-results immediately before single-photo recognition");
+            string reidentifyTip = reidentify.ToolTip?.ToString() ?? "";
+            Check(reidentifyTip.Contains("点击即运行", StringComparison.Ordinal) && reidentifyTip.Contains("Ctrl+Z", StringComparison.Ordinal) &&
+                  reidentifyTip.Contains("手动选区", StringComparison.Ordinal) && reidentifyTip.Contains("失败或取消保留", StringComparison.Ordinal),
+                "single-photo recognition explains immediate execution, replacement, undo and retained results on failure");
+            var companion = new PhotoAsset(Path.ChangeExtension(first.FilePath, ".NEF"), PhotoAssetKind.Raw);
+            first.AddAsset(companion);
+            SettleBindings(root);
+            Check(((TextBlock)window.FindName("MetadataFormat")).Text.Contains("JPG + RAW", StringComparison.Ordinal) &&
+                  ((TextBlock)window.FindName("MetadataFormat")).Text.Contains(".NEF", StringComparison.Ordinal) &&
+                  ((TextBlock)window.FindName("PreviewSourceText")).Text == "预览：JPG" && model.PhotoCount == 3,
+                "the parameter bar shows paired format and RAW extension while one logical photo still previews JPG");
+            first.RemoveAsset(companion.Id);
+            model.Dirty = false;
             Check(((TextBlock)viewer.FindName("DetectionText")).Text.Contains("91%", StringComparison.Ordinal),
                 "bird confidence reaches the real detail-pane label");
             foreach (string field in new[] { "CapturedAt", "Camera", "FocalLength", "Aperture", "Shutter", "Iso", "ExposureBias" })
@@ -105,6 +128,7 @@ internal static class MainWindowUiChecks
             TestNativeManualRecognition(window, root, model, viewer, first, bitmap, Check);
             TestRegionDeletion(window, root, model, viewer, first, bitmap, Check);
             TestLongSpeciesResults(window, root, model, viewer, first, bitmap, Check);
+            TestFourVisibleSpeciesResults(window, root, model, viewer, first, bitmap, Check);
             TestRatingAndNavigationModel(Check);
 
             groupList.SelectedItems.Clear();
@@ -199,6 +223,7 @@ internal static class MainWindowUiChecks
                 "busy operations disable rating changes");
             Check(!((ListBox)window.FindName("SpeciesResultsList")).IsEnabled,
                 "busy operations disable changing the selected detected bird");
+            Check(!clearRecognition.IsEnabled, "busy operations disable clearing current-photo recognition results");
             model.IsBusy = false;
 
             var dialog = new ExportDialog(imported.Added);
@@ -526,7 +551,7 @@ internal static class MainWindowUiChecks
             owner.ContextMenu!.PlacementTarget = owner;
             return owner.ContextMenu;
         }
-        void Delete(ContextMenu menu) => menu.Items.OfType<MenuItem>().Single(item => item.Header?.ToString() == "删除选区")
+        void Delete(ContextMenu menu) => menu.Items.OfType<MenuItem>().Single(item => item.Header?.ToString() == "删除鸟种")
             .RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
         try
         {
@@ -821,6 +846,181 @@ internal static class MainWindowUiChecks
         model.Dirty = false;
     }
 
+    private static void TestFourVisibleSpeciesResults(MainWindow window, FrameworkElement root, MainViewModel model,
+        DualPhotoViewer viewer, PhotoItem photo, BitmapSource bitmap, Action<bool, string> check)
+    {
+        var original = photo.Birds.ToArray();
+        int selected = photo.SelectedBirdIndex, next = photo.NextBirdNumber;
+        var originalView = (photo.ViewZoom, photo.ViewCenterX, photo.ViewCenterY);
+        bool dirty = model.Dirty;
+        var results = (ListBox)window.FindName("SpeciesResultsList");
+        photo.SetBirds(Enumerable.Range(0, 4).Select(index => new DetectedBird
+        {
+            Box = new BirdBox { X = .1 + index * .2, Y = .25, Width = .12, Height = .2, Confidence = .9 },
+            Species = new SpeciesMatch("四行测试鸟" + (index + 1), "Parus major", .7, Confidence: .95),
+            RecognitionStatus = "四行布局验证"
+        }));
+        viewer.ShowPhoto(photo, bitmap); model.IsPreviewReady = true;
+        double normalResultsHeight = 0;
+        try
+        {
+            foreach (var (width, height, suffix) in new[] { (1560, 860, "normal"), (1160, 700, "minimum") })
+            {
+                Layout(root, width, height); SettleBindings(root);
+                var scroll = Descendants(results).OfType<ScrollViewer>().First();
+                scroll.ScrollToTop(); SettleBindings(root);
+                check(results.Items.Count == 4 && scroll.ViewportHeight >= 4,
+                    $"the species list has room for four complete logical rows at {width} × {height}");
+                CheckVisibleResultRows(results, Enumerable.Range(0, 4), check, $"{width} × {height}");
+                CheckPreviewPanes(viewer, check);
+                CheckMetadataWrap(window, root, width == 1560, check);
+                TestDynamicMetadata(window, root, viewer, photo, results, width, height, check);
+                if (width == 1560) normalResultsHeight = results.ActualHeight;
+                else check(normalResultsHeight > results.ActualHeight,
+                    "single-line metadata gives the normal window more species-result space while narrow metadata wraps without losing four rows");
+                var add = (Button)window.FindName("AddSpeciesButton");
+                var undo = (Button)window.FindName("UndoSpeciesButton");
+                var rating = (RadioButton)window.FindName("RatingKeep");
+                Rect listBounds = results.TransformToAncestor(root).TransformBounds(new Rect(results.RenderSize));
+                Rect addBounds = add.TransformToAncestor(root).TransformBounds(new Rect(add.RenderSize));
+                Rect undoBounds = undo.TransformToAncestor(root).TransformBounds(new Rect(undo.RenderSize));
+                Rect ratingBounds = rating.TransformToAncestor(root).TransformBounds(new Rect(rating.RenderSize));
+                check(listBounds.Bottom <= Math.Min(addBounds.Top, undoBounds.Top) + 1 &&
+                      Math.Max(addBounds.Bottom, undoBounds.Bottom) <= ratingBounds.Top + 1,
+                    $"four species rows, manual add/undo and ratings occupy separate visible bands at {width} × {height}");
+                SaveScreenshot(root, $"species-four-rows-{suffix}.png", width, height);
+
+                photo.SetBirds(photo.Birds.Concat(Enumerable.Range(4, 4).Select(index => new DetectedBird
+                {
+                    ManualSpecies = new SpeciesIdentity("更多测试鸟" + (index + 1), "Testus species" + index),
+                    RecognitionStatus = "人工指定"
+                })));
+                viewer.RefreshBirdOverlays(); SettleBindings(root);
+                check(results.Items.Count == 8 && scroll.ScrollableHeight > 0,
+                    $"more than four species remain scrollable at {width} × {height}");
+                viewer.SelectBird(7); SettleBindings(root);
+                check(results.SelectedIndex == 7 && photo.SelectedBirdIndex == 7 &&
+                      scroll.VerticalOffset > 0 && scroll.ViewportHeight >= 4,
+                    $"revealing the last result keeps a four-row viewport at {width} × {height}");
+                CheckVisibleResultRows(results, Enumerable.Range(4, 4), check, $"last four at {width} × {height}");
+                SaveScreenshot(root, $"species-last-four-rows-{suffix}.png", width, height);
+                photo.SetBirds(photo.Birds.Take(4).ToArray()); viewer.RefreshBirdOverlays();
+            }
+        }
+        finally
+        {
+            photo.SetBirds(original, selected, next);
+            (photo.ViewZoom, photo.ViewCenterX, photo.ViewCenterY) = originalView;
+            viewer.ShowPhoto(photo, bitmap); model.IsPreviewReady = true;
+            Layout(root, 1560, 860); SettleBindings(root); model.Dirty = dirty;
+        }
+    }
+
+    private static void CheckVisibleResultRows(ListBox results, IEnumerable<int> indices,
+        Action<bool, string> check, string layout)
+    {
+        var viewport = Descendants(results).OfType<ScrollContentPresenter>().First();
+        foreach (int index in indices)
+        {
+            var row = results.ItemContainerGenerator.ContainerFromIndex(index) as ListBoxItem;
+            Rect bounds = row is null ? Rect.Empty : row.TransformToAncestor(viewport).TransformBounds(new Rect(row.RenderSize));
+            check(row is { ActualHeight: > 0 } && !bounds.IsEmpty && bounds.Top >= -.5 &&
+                  bounds.Bottom <= viewport.ActualHeight + .5 && bounds.Left >= -.5 && bounds.Right <= viewport.ActualWidth + .5,
+                $"species row {index + 1} is fully inside the actual scroll viewport ({layout})");
+        }
+    }
+
+    private static void CheckMetadataWrap(MainWindow window, FrameworkElement root, bool singleLine,
+        Action<bool, string> check)
+    {
+        var panel = (BalancedMetadataPanel)window.FindName("MetadataPanel");
+        var segments = panel.Children.Cast<FrameworkElement>().Select(child =>
+            child.TransformToAncestor(panel).TransformBounds(new Rect(child.RenderSize))).ToArray();
+        int lineCount = segments.Select(bounds => Math.Round(bounds.Top, 1)).Distinct().Count();
+        check((singleLine ? lineCount == 1 : lineCount > 1) && lineCount <= 2 &&
+              segments.All(bounds => bounds.Left >= -.5 && bounds.Top >= -.5 &&
+                  bounds.Right <= panel.ActualWidth + .5 && bounds.Bottom <= panel.ActualHeight + .5),
+            $"EXIF segments {(singleLine ? "share one readable row" : "wrap into complete rows")} at content width {root.ActualWidth:0}");
+        foreach (string name in new[] { "CapturedAt", "Camera", "FocalLength", "Aperture", "Shutter", "Iso", "ExposureBias", "Format" })
+        {
+            var text = (TextBlock)window.FindName("Metadata" + name);
+            Rect bounds = text.TransformToAncestor(panel).TransformBounds(new Rect(text.RenderSize));
+            check(text.ActualHeight >= 13 && bounds.Top >= -.5 && bounds.Bottom <= panel.ActualHeight + .5,
+                $"metadata {name} remains vertically visible after EXIF reflow at content width {root.ActualWidth:0}");
+            CheckCompleteMetadataValue(text, name, root, check);
+        }
+    }
+
+    private static void CheckCompleteMetadataValue(TextBlock text, string name, FrameworkElement root,
+        Action<bool, string> check)
+    {
+        double naturalWidth = new FormattedText(text.Text, CultureInfo.CurrentUICulture, text.FlowDirection,
+            new Typeface(text.FontFamily, text.FontStyle, text.FontWeight, text.FontStretch),
+            text.FontSize, text.Foreground, VisualTreeHelper.GetDpi(text).PixelsPerDip).WidthIncludingTrailingWhitespace;
+        IEnumerable<GlyphRun> Runs(Drawing? drawing)
+        {
+            if (drawing is GlyphRunDrawing glyph) yield return glyph.GlyphRun;
+            if (drawing is DrawingGroup group)
+                foreach (var child in group.Children)
+                    foreach (var run in Runs(child)) yield return run;
+        }
+        var runs = Runs(VisualTreeHelper.GetDrawing(text)).ToArray();
+        bool hasEllipsis = runs.Any(run => run.Characters?.Contains('…') == true ||
+            run.GlyphTypeface.CharacterToGlyphMap.TryGetValue('…', out ushort ellipsis) && run.GlyphIndices.Contains(ellipsis));
+        check(text.ActualWidth + .01 >= naturalWidth && runs.Length > 0 && !hasEllipsis,
+            $"ordinary metadata {name} renders its complete value without ellipsis at content width {root.ActualWidth:0} " +
+            $"(value='{text.Text}', available={text.ActualWidth:0.###}, natural={naturalWidth:0.###})");
+    }
+
+    private static void TestDynamicMetadata(MainWindow window, FrameworkElement root, DualPhotoViewer viewer,
+        PhotoItem photo, ListBox results, int width, int height, Action<bool, string> check)
+    {
+        var original = photo.Metadata;
+        var camera = (TextBlock)window.FindName("MetadataCamera");
+        var panel = (BalancedMetadataPanel)window.FindName("MetadataPanel");
+        double ValueWidth(TextBlock text) => new FormattedText(text.Text, CultureInfo.CurrentUICulture,
+            text.FlowDirection, new Typeface(text.FontFamily, text.FontStyle, text.FontWeight, text.FontStretch),
+            text.FontSize, text.Foreground, 1).WidthIncludingTrailingWhitespace;
+        try
+        {
+            const string longCamera = "Canon EOS R5 Mark II Professional";
+            photo.Metadata = new PhotoMetadata
+            {
+                CapturedAt = original.CapturedAt, Camera = longCamera, FocalLength = original.FocalLength,
+                Aperture = original.Aperture, Shutter = original.Shutter, Iso = original.Iso, ExposureBias = original.ExposureBias
+            };
+            Layout(root, width, height); SettleBindings(root);
+            check(camera.Text == longCamera && camera.ActualWidth + 1 >= ValueWidth(camera) && camera.ToolTip?.ToString() == longCamera,
+                $"a naturally wide camera name borrows space and remains fully readable at {width} × {height}");
+            var segments = panel.Children.Cast<FrameworkElement>().Select(child =>
+                child.TransformToAncestor(panel).TransformBounds(new Rect(child.RenderSize))).ToArray();
+            check(segments.All(bounds => bounds.Left >= -.5 && bounds.Right <= panel.ActualWidth + .5) &&
+                  segments.Select(bounds => Math.Round(bounds.Top, 1)).Distinct().Count() <= 2,
+                $"borrowed metadata columns stay within two bounded rows at {width} × {height}");
+            foreach (var text in Descendants(panel).OfType<TextBlock>().Where(text => text.Name.StartsWith("Metadata", StringComparison.Ordinal)))
+                CheckCompleteMetadataValue(text, text.Name["Metadata".Length..] + " with a long camera", root, check);
+            SaveScreenshot(root, $"metadata-balanced-long-{width}.png", width, height);
+
+            photo.Metadata = new PhotoMetadata { Camera = string.Concat(Enumerable.Repeat("极长相机型号", 50)) };
+            Layout(root, width, height); SettleBindings(root);
+            Rect cameraBounds = camera.TransformToAncestor(panel).TransformBounds(new Rect(camera.RenderSize));
+            check(camera.ActualWidth > 0 && camera.ActualWidth < ValueWidth(camera) &&
+                  camera.TextTrimming == TextTrimming.CharacterEllipsis && camera.ToolTip?.ToString() == photo.Metadata.Camera &&
+                  cameraBounds.Left >= -.5 && cameraBounds.Right <= panel.ActualWidth + .5 && panel.ActualHeight <= 40.5,
+                $"an extreme camera field uses bounded ellipsis and retains its full tooltip at {width} × {height}");
+            var scroll = Descendants(results).OfType<ScrollViewer>().First(); scroll.ScrollToTop(); SettleBindings(root);
+            CheckVisibleResultRows(results, Enumerable.Range(0, 4), check, $"extreme metadata {width} × {height}");
+            CheckPreviewPanes(viewer, check);
+
+            photo.Metadata = new PhotoMetadata(); Layout(root, width, height); SettleBindings(root);
+            var fields = Descendants(panel).OfType<TextBlock>().Where(text => text.Name.StartsWith("Metadata", StringComparison.Ordinal)).ToArray();
+            check(fields.Length == 8 && fields.All(text => text.ActualHeight >= 13 && text.ActualWidth > 0 &&
+                      text.TransformToAncestor(panel).TransformBounds(new Rect(text.RenderSize)).Bottom <= panel.ActualHeight + .5),
+                $"missing metadata values remain readable without reserving oversized columns at {width} × {height}");
+        }
+        finally { photo.Metadata = original; Layout(root, width, height); SettleBindings(root); }
+    }
+
     private static void TestContextMenus(ListBox groups, ListBox photos, MainViewModel model, PhotoItem first,
         PhotoItem second, PhotoItem third, Action<bool, string> check)
     {
@@ -1080,8 +1280,8 @@ internal static class MainWindowUiChecks
 
     private static void CheckImportantButtons(FrameworkElement root, double width, double height, Action<bool, string> check)
     {
-        string[] required = { "添加照片", "清空列表", "打开工程", "保存工程", "恢复自动保存", "导出 / 清理", "自动分组", "识别鸟种", "拆分整组", "从列表中移除",
-            "将当前图独立", "从列表中移除", "适应画面", "还原鸟类视图", "手动选区" };
+        string[] required = { "添加照片", "清空列表", "打开工程", "保存工程", "恢复自动保存", "导出 / 清理", "自动分组", "识别鸟种", "清空识别结果", "重新识别本张", "拆分整组", "从列表中移除",
+            "将当前图独立", "从列表中移除", "适应画面", "还原鸟类视图", "手动选区", "＋ 手动添加鸟种", "撤销" };
         var buttons = Descendants(root).OfType<ContentControl>().Where(control =>
             control is ButtonBase && required.Contains(control.Content?.ToString()) ||
             control is RadioButton && control.Name.StartsWith("Rating", StringComparison.Ordinal)).ToList();

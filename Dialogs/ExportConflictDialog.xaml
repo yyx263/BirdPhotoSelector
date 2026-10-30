@@ -1,0 +1,36 @@
+<Window x:Class="BirdPhotoSelector.ExportConflictDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Style="{StaticResource {x:Type Window}}" Title="处理导出重名"
+        Width="700" Height="480" MinHeight="440" ResizeMode="NoResize"
+        WindowStartupLocation="CenterOwner" ShowInTaskbar="False">
+  <Grid Margin="27,22">
+    <Grid.RowDefinitions>
+      <RowDefinition Height="Auto"/><RowDefinition Height="Auto"/>
+      <RowDefinition Height="*"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/>
+    </Grid.RowDefinitions>
+    <StackPanel>
+      <TextBlock Text="目标中有同名照片" FontSize="23" FontWeight="SemiBold"/>
+      <TextBlock Text="文件内容不同，请选择如何处理这一份副本。" Foreground="#9CAAB7" Margin="0,8,0,16"/>
+    </StackPanel>
+    <Grid Grid.Row="1">
+      <Grid.ColumnDefinitions><ColumnDefinition Width="54"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+      <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+      <TextBlock Text="原件" Foreground="#9CAAB7" Margin="0,0,10,10"/>
+      <TextBlock x:Name="SourcePathText" Grid.Column="1" TextWrapping="Wrap" Margin="0,0,0,10" MaxHeight="72"/>
+      <TextBlock Grid.Row="1" Text="目标" Foreground="#9CAAB7" Margin="0,0,10,0"/>
+      <TextBlock x:Name="TargetPathText" Grid.Row="1" Grid.Column="1" TextWrapping="Wrap" MaxHeight="72"/>
+    </Grid>
+    <StackPanel Grid.Row="2" Margin="0,15,0,10" VerticalAlignment="Center">
+      <TextBlock Text="覆盖：副本复制并校验成功后，替换现有目标。" TextWrapping="Wrap" Foreground="#A8B5C1"/>
+      <TextBlock Text="重命名：保留现有目标，新副本使用 _1、_2… 后缀。" TextWrapping="Wrap" Margin="0,5,0,0" Foreground="#A8B5C1"/>
+      <TextBlock x:Name="ProtectionText" TextWrapping="Wrap" Foreground="#EDBA77" Margin="0,8,0,0" Visibility="Collapsed"/>
+    </StackPanel>
+    <CheckBox x:Name="ApplyToRemainingBox" Grid.Row="3" Content="本次导出后续重名使用相同操作" IsChecked="False" Margin="0,0,0,18"/>
+    <StackPanel Grid.Row="4" Orientation="Horizontal" HorizontalAlignment="Right">
+      <Button x:Name="CancelButton" Content="取消导出" IsCancel="True" Click="Cancel_Click" Margin="0,0,10,0"/>
+      <Button x:Name="OverwriteButton" Content="覆盖" Click="Overwrite_Click" Margin="0,0,10,0"/>
+      <Button x:Name="RenameButton" Content="重命名" Click="Rename_Click" Style="{StaticResource PrimaryButton}"/>
+    </StackPanel>
+  </Grid>
+</Window>

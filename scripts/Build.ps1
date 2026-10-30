@@ -1,4 +1,4 @@
-[CmdletBinding()]
+﻿[CmdletBinding()]
 param(
     [switch]$SkipModel,
     [switch]$SkipSpeciesModel
@@ -48,6 +48,12 @@ try {
     if ($LASTEXITCODE -ne 0) { throw "Publish failed (exit $LASTEXITCODE)." }
     if (-not (Test-Path -LiteralPath (Join-Path $OutputDirectory 'BirdPhotoSelector.exe') -PathType Leaf)) {
         throw 'Publish did not produce BirdPhotoSelector.exe.'
+    }
+    foreach ($Dependency in @('BirdPhotoSelector.Raw.dll', 'libraw.dll', 'msvcp140.dll', 'vcruntime140.dll', 'vcruntime140_1.dll',
+            'THIRD_PARTY_NOTICES.md', 'licenses/LibRaw-CDDL-1.0.txt', 'licenses/LibRaw-COPYRIGHT.txt', 'RELEASE_NOTES.md', '远程兼容启动.cmd')) {
+        if (-not (Test-Path -LiteralPath (Join-Path $OutputDirectory $Dependency) -PathType Leaf)) {
+            throw "Publish did not include required RAW/runtime/documentation file: $Dependency"
+        }
     }
     if (-not $SkipModel -and -not (Test-Path -LiteralPath (Join-Path $OutputDirectory 'models/yolov10n.onnx') -PathType Leaf)) {
         throw 'Publish did not include models/yolov10n.onnx.'

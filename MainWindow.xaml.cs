@@ -19,6 +19,9 @@ public partial class MainWindow : Window
     private readonly ExportService _export = new();
     private readonly PhotoPreviewCache _previewCache = new(512L * 1024 * 1024);
     private readonly AutoSaveService _autoSave = new();
+    private readonly SpeciesEditHistory _speciesEdits = new();
+    private readonly RecentSpeciesHistory _recentSpecies = new();
+    private SpeciesNameCatalog? _speciesCatalog;
     private readonly SemaphoreSlim _projectSaveGate = new(1, 1);
     private readonly CancellationTokenSource _lifetime = new();
     private readonly DispatcherTimer _autoSaveTimer = new() { Interval = TimeSpan.FromSeconds(30) };
@@ -41,6 +44,10 @@ public partial class MainWindow : Window
         InitializeComponent();
         DataContext = _vm;
         _vm.PhotoChanged += LoadPreview;
+        _vm.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName is nameof(MainViewModel.IsBusy) or nameof(MainViewModel.CanEdit)) UpdateSpeciesUndoButton();
+        };
         Viewer.ViewChanged += (_, _) => _vm.Dirty = true;
         Viewer.ManualRegionSelected += Viewer_ManualRegionSelected;
         Viewer.DeleteRegionRequested += (_, e) => RemoveBirdRegion(e.Photo, e.Bird);
@@ -50,6 +57,7 @@ public partial class MainWindow : Window
                 QueueBirdResultSelection(photo, _previewVersion, _speciesListScrollVersion);
         };
         _autoSaveTimer.Tick += async (_, _) => await TryAutoSave();
+        UpdateSpeciesUndoButton();
         Closed += (_, _) =>
         {
             _isClosed = true; ++_previewVersion;
@@ -89,10 +97,17 @@ public partial class MainWindow : Window
         try
         {
             if (_isClosed || version != _previewVersion) return;
+            RawImageInfo? rawInfo = null;
+            if (photo.ActivePreviewAsset is { Kind: PhotoAssetKind.Raw } raw)
+                rawInfo = await Task.Run(() => RawImageDecoder.ReadInfo(raw.CanonicalPath, token), token);
+            if (_isClosed || version != _previewVersion) return;
             var pending = _previewCache.GetAsync(photo, token);
             _previewCache.UpdateNeighborhood(_vm.AllPhotos.ToList(), photo);
             var bitmap = await pending;
             if (_isClosed || version != _previewVersion) return;
+            if (rawInfo is not null) photo.Metadata = rawInfo.Metadata;
+            photo.PixelWidth = bitmap.PixelWidth; photo.PixelHeight = bitmap.PixelHeight;
+            if (photo.Thumbnail is null) photo.Thumbnail = CreatePreviewThumbnail(bitmap);
             Viewer.ShowPhoto(photo, bitmap);
             _vm.IsPreviewReady = true;
             QueuePhotoSelection(photo, version, scrollVersion);
@@ -104,6 +119,21 @@ public partial class MainWindow : Window
         {
             if (!_isClosed && version == _previewVersion) { Viewer.ShowLoadError(ex.Message); _vm.Status = "预览失败：" + ex.Message; }
         }
+    }
+
+    private static BitmapSource CreatePreviewThumbnail(BitmapSource image)
+    {
+        BitmapSource small = image;
+        if (image.PixelWidth > 160)
+            small = new TransformedBitmap(image, new System.Windows.Media.ScaleTransform(160.0 / image.PixelWidth, 160.0 / image.PixelWidth));
+        var pixels = new FormatConvertedBitmap(small, System.Windows.Media.PixelFormats.Bgra32, null, 0);
+        int stride = checked(pixels.PixelWidth * 4);
+        var buffer = new byte[checked(stride * pixels.PixelHeight)];
+        pixels.CopyPixels(buffer, stride, 0);
+        var thumbnail = BitmapSource.Create(pixels.PixelWidth, pixels.PixelHeight, 96, 96,
+            System.Windows.Media.PixelFormats.Bgra32, null, buffer, stride);
+        thumbnail.Freeze();
+        return thumbnail;
     }
 
     private void QueuePhotoSelection(PhotoItem photo, int version, long scrollVersion)
@@ -178,8 +208,12 @@ public partial class MainWindow : Window
 
     private void SetSessionGroups(IEnumerable<PhotoGroup> groups, string? selectedPhotoId = null)
     {
-        _vm.SetGroups(groups, selectedPhotoId);
+        var snapshot = groups.ToArray();
+        var retained = snapshot.SelectMany(group => group.Photos).ToHashSet();
+        if (_vm.AllPhotos.Any(photo => !retained.Contains(photo))) _speciesEdits.Clear();
+        _vm.SetGroups(snapshot, selectedPhotoId);
         _previewCache.TrimToPaths(_vm.AllPhotos.Select(p => p.FilePath));
+        UpdateSpeciesUndoButton();
     }
 
     private async Task RunOperation(Func<CancellationToken, Task> action)
@@ -237,19 +271,27 @@ public partial class MainWindow : Window
     private async Task ChoosePhotos()
     {
         if (_vm.IsBusy) return;
-        var dialog = new OpenFileDialog { Title = "选择要挑选的 JPG 照片（可跨目录继续添加）", Filter = "JPG 照片 (*.jpg;*.jpeg)|*.jpg;*.jpeg|所有文件 (*.*)|*.*", Multiselect = true, CheckFileExists = true };
+        var dialog = new OpenFileDialog
+        {
+            Title = "选择 JPG / RAW 照片（同目录同名文件自动配对）",
+            Filter = "照片 (*.jpg;*.jpeg;*.cr2;*.cr3;*.nef;*.arw;*.orf;*.rw2;*.dng)|*.jpg;*.jpeg;*.crw;*.cr2;*.cr3;*.nef;*.nrw;*.arw;*.sr2;*.srf;*.orf;*.rw2;*.dng;*.raf;*.pef;*.srw;*.raw;*.rwl;*.3fr;*.fff;*.iiq;*.mos;*.mrw;*.x3f|JPG 照片 (*.jpg;*.jpeg)|*.jpg;*.jpeg|所有文件 (*.*)|*.*",
+            Multiselect = true, CheckFileExists = true
+        };
         if (dialog.ShowDialog(this) == true) await Import(dialog.FileNames);
     }
     private async Task Import(string[] files) => await RunOperation(async ct =>
     {
         _vm.Status = "正在读取照片和 EXIF 信息…";
-        var result = await _import.ImportAsync(files, _vm.AllPhotos.Select(p => p.FileName), ct, FileProgress());
+        var photos = _vm.AllPhotos.ToList();
+        var result = await _import.ImportAsync(files, photos, includeRaw: true, ct, FileProgress());
+        ct.ThrowIfCancellationRequested();
+        foreach (var update in result.Updates) update.ApplyTo(photos.Single(photo => photo.Id == update.PhotoId));
         var groups = _vm.Groups.Select(g => g.Model).ToList();
         foreach (var photo in result.Added) { var group = new PhotoGroup(); group.Photos.Add(photo); groups.Add(group); }
         SetSessionGroups(groups, _vm.CurrentPhoto?.Id ?? result.Added.FirstOrDefault()?.Id);
-        if (result.Added.Count > 0) _vm.Dirty = true;
+        if (result.Added.Count > 0 || result.Updates.Count > 0) _vm.Dirty = true;
         _vm.Progress = 100;
-        _vm.Status = $"已添加 {result.Added.Count} 张 · 跳过非 JPG {result.SkippedUnsupported} 张 · 同名去重 {result.SkippedDuplicate} 张";
+        _vm.Status = $"已添加 {result.Added.Count} 张 · 更新关联 {result.Updates.Count} 张 · 跳过重复 {result.SkippedDuplicate} 个文件 · 不支持 {result.SkippedUnsupported} 个文件 · 配对冲突 {result.SkippedConflict} 处";
         if (result.Errors.Count > 0) ShowDetails("部分照片未能读取", result.Errors);
     });
     private async void Window_Drop(object sender, DragEventArgs e)
@@ -259,7 +301,7 @@ public partial class MainWindow : Window
 
     private async void Analyze_Click(object sender, RoutedEventArgs e)
     {
-        if (_vm.PhotoCount == 0) { _vm.Status = "请先添加 JPG 照片"; return; }
+        if (_vm.PhotoCount == 0) { _vm.Status = "请先添加照片"; return; }
         await RunOperation(async ct =>
         {
             _vm.Status = "正在按背景相似度分组…";
@@ -286,7 +328,7 @@ public partial class MainWindow : Window
     {
         if (_vm.IsBusy) return;
         if (_vm.PhotoCount == 0)
-        { _vm.Status = "请先添加 JPG 照片"; return; }
+        { _vm.Status = "请先添加照片"; return; }
         await RunOperation(async ct =>
         {
             var photos = _vm.AllPhotos.ToList();
@@ -314,10 +356,61 @@ public partial class MainWindow : Window
             _vm.Progress = 100;
             _vm.Status = result.MissingModel ? "定位与鸟种识别未完整完成 · 模型资源不完整" :
                 result.MatchedBirds == 0 && result.Errors.Count > 0 ? "鸟种识别未完成 · 请查看错误提示" :
-                $"鸟种识别完成 · {photos.Count} 张照片 · 中国候选 · {result.MatchedBirds} 只鸟有结果 · {result.SkippedPhotos} 张无可用鸟框";
+                $"鸟种识别完成 · {result.MatchedBirds} 只鸟有结果 · 跳过 {result.SkippedPhotos} 张，其中人工编辑 {result.ManuallyEditedSkippedPhotos} 张";
             if (result.MissingModel)
                 ShowMessage("鸟类定位或鸟种识别模型资源不完整。\n\n定位模型：运行 scripts/Setup-Model.ps1。\n鸟种模型：运行 scripts/Setup-SpeciesModel.ps1。\n也可以使用包含完整 models 目录的发布包。\n\n已有的分组、鸟框、鸟种结果和评级会保留。", "识别模型未就绪", MessageBoxImage.Information);
             else if (result.Errors.Count > 0) ShowDetails("鸟种识别中的提示", result.Errors);
+        });
+    }
+
+    private async void ReidentifyCurrentPhoto_Click(object sender, RoutedEventArgs e) => await ReidentifyCurrentPhoto();
+
+    private void ClearRecognitionResults_Click(object sender, RoutedEventArgs e) => ClearRecognitionResults();
+
+    private bool ClearRecognitionResults()
+    {
+        if (!_vm.CanEditBirdRegions || _vm.CurrentPhoto is not { } photo) return false;
+        Viewer.CancelManualRegionSelection();
+        if (!_speciesEdits.Clear(photo)) return false;
+        _vm.Dirty = true;
+        Viewer.ShowPhoto(photo, Viewer.CurrentImage as BitmapSource);
+        QueueBirdResultSelection(photo, _previewVersion, _speciesListScrollVersion);
+        UpdateSpeciesUndoButton();
+        _vm.Status = "已清空本张识别结果 · 下次“识别鸟种”将重新识别 · Ctrl+Z 撤销";
+        return true;
+    }
+
+    private async Task ReidentifyCurrentPhoto(Func<SinglePhotoRecognitionService>? createRecognition = null,
+        Action<IReadOnlyList<string>>? reportErrors = null)
+    {
+        if (!_vm.CanReidentifyCurrentPhoto || _vm.CurrentPhoto is not { } photo) return;
+        await RunOperation(async ct =>
+        {
+            _vm.Status = "正在重新识别本张 · " + photo.FilePath;
+            var progress = OperationProgress<SpeciesProgress>(p =>
+            { _vm.Progress = p.Total > 0 ? p.Completed * 100.0 / p.Total : 0; _vm.Status = p.Message; });
+            using var recognition = createRecognition?.Invoke() ?? new SinglePhotoRecognitionService();
+            var result = await recognition.RebuildAsync(photo, chinaOnly: true, progress, ct);
+            ct.ThrowIfCancellationRequested();
+            if (!result.Success)
+            {
+                _vm.Status = "本张重新识别未完成 · 原选区与鸟种结果已保留";
+                if (result.Errors.Count > 0)
+                {
+                    if (reportErrors is null) ShowDetails("重新识别本张未完成", result.Errors);
+                    else reportErrors(result.Errors);
+                }
+                return;
+            }
+            ct.ThrowIfCancellationRequested();
+            var checkpoint = _speciesEdits.Capture(photo, "重新识别本张");
+            result.ApplyTo(photo, allowEmpty: result.IsEmpty, cancellationToken: ct);
+            _speciesEdits.Commit(checkpoint);
+            UpdateSpeciesUndoButton();
+            _vm.Dirty = true; _vm.Progress = 100;
+            LoadPreview(photo);
+            _vm.Status = result.IsEmpty ? "本张未检出鸟 · 已清空旧结果 · Ctrl+Z 撤销"
+                : $"本张重新识别完成 · {result.Birds.Count} 只鸟 · Ctrl+Z 撤销";
         });
     }
 
@@ -325,41 +418,52 @@ public partial class MainWindow : Window
     {
         if (!_vm.CanRate || _vm.CurrentPhoto is not { } photo || SpeciesResultsList.SelectedItem is not DetectedBird bird) return;
         int index = photo.Birds.IndexOf(bird);
-        if (index >= 0 && index != photo.SelectedBirdIndex) Viewer.SelectBird(index);
+        if (index >= 0 && index != photo.SelectedBirdIndex)
+            Viewer.SelectBird(index);
     }
 
     private async void Viewer_ManualRegionSelected(object? sender, ManualRegionEventArgs e)
     {
-        if (!_vm.CanRate || !ReferenceEquals(_vm.CurrentPhoto, e.Photo) || Viewer.CurrentImage is not BitmapSource image) return;
+        if (!_vm.CanEditBirdRegions || !ReferenceEquals(_vm.CurrentPhoto, e.Photo) || Viewer.CurrentImage is not BitmapSource image) return;
         var photo = e.Photo;
         await RunOperation(async ct =>
         {
-            var bird = photo.AddManualRegion(e.Box);
-            _vm.Dirty = true;
-            Viewer.SelectBird(photo.SelectedBirdIndex);
-            QueueBirdResultSelection(photo, _previewVersion, _speciesListScrollVersion);
-            _vm.Status = $"正在识别手动选区 {bird.Number} · 中国鸟种候选…";
-            using var recognition = new BirdSpeciesRecognitionService();
-            var result = await Task.Run(() => recognition.Recognize(image, bird.Box, chinaOnly: true, ct), ct);
-            ct.ThrowIfCancellationRequested();
-            if (_isClosed || !photo.Birds.Contains(bird)) return;
-            if (result.Match is { IsValid: true } match) bird.Species = match;
-            bird.RecognitionStatus = result.Status;
-            _vm.Dirty = true;
-            Viewer.RefreshBirdOverlays();
-            _vm.Progress = 100;
-            _vm.Status = result.Match is { IsValid: true }
-                ? $"手动选区 {bird.Number} · {bird.SpeciesName} · 置信度 {bird.ConfidenceText}"
-                : $"手动选区 {bird.Number} 已保留 · {result.Status}，可稍后点击“识别鸟种”重试";
+            var checkpoint = _speciesEdits.Capture(photo, "绘制并识别手动选区");
+            try
+            {
+                var bird = photo.AddManualRegion(e.Box);
+                _vm.Dirty = true;
+                Viewer.SelectBird(photo.SelectedBirdIndex);
+                QueueBirdResultSelection(photo, _previewVersion, _speciesListScrollVersion);
+                _vm.Status = $"正在识别手动选区 {bird.DisplayNumber} · 中国鸟种候选…";
+                using var recognition = new BirdSpeciesRecognitionService();
+                var result = await Task.Run(() => recognition.Recognize(image, bird.Box, chinaOnly: true, ct), ct);
+                ct.ThrowIfCancellationRequested();
+                if (_isClosed || !photo.Birds.Contains(bird)) return;
+                if (result.Match is { IsValid: true } match) bird.Species = match;
+                bird.RecognitionStatus = result.Status;
+                _vm.Dirty = true;
+                Viewer.RefreshBirdOverlays();
+                _vm.Progress = 100;
+                _vm.Status = result.Match is { IsValid: true }
+                    ? $"手动选区 {bird.DisplayNumber} · {bird.SpeciesName} · 置信度 {bird.ConfidenceText}"
+                    : $"手动选区 {bird.DisplayNumber} 已保留 · {result.Status}，可更换鸟种或重新识别本张";
+            }
+            finally
+            {
+                _speciesEdits.Commit(checkpoint);
+                UpdateSpeciesUndoButton();
+            }
         });
     }
 
     private bool RemoveBirdRegion(PhotoItem photo, DetectedBird bird)
     {
-        if (!_vm.CanRate || !ReferenceEquals(_vm.CurrentPhoto, photo) || !photo.Birds.Contains(bird)) return false;
+        if (!_vm.CanEditBirdRegions || !ReferenceEquals(_vm.CurrentPhoto, photo) || !photo.Birds.Contains(bird)) return false;
         bool wasSelected = ReferenceEquals(photo.SelectedBird, bird);
+        string removedName = bird.SpeciesName;
         Viewer.CancelManualRegionSelection();
-        if (!photo.RemoveBird(bird)) return false;
+        if (!_speciesEdits.Delete(photo, bird)) return false;
         _vm.Dirty = true;
         if (wasSelected)
         {
@@ -372,7 +476,8 @@ public partial class MainWindow : Window
         }
         else Viewer.RefreshBirdOverlays();
         QueueBirdResultSelection(photo, _previewVersion, _speciesListScrollVersion);
-        _vm.Status = $"已删除选区 {bird.Number} · 原照片与评级保留";
+        UpdateSpeciesUndoButton();
+        _vm.Status = $"已删除鸟种及关联选区 · {removedName} · Ctrl+Z 撤销";
         return true;
     }
 
@@ -381,6 +486,87 @@ public partial class MainWindow : Window
         if (sender is not MenuItem item || _vm.CurrentPhoto is not { } photo ||
             ItemsControl.ItemsControlFromItemContainer(item) is not ContextMenu menu) return;
         if ((menu.PlacementTarget as FrameworkElement)?.DataContext is DetectedBird bird) RemoveBirdRegion(photo, bird);
+    }
+
+    private void BirdResultMenu_Opening(object sender, ContextMenuEventArgs e)
+    {
+        if (!_vm.CanEditBirdRegions) e.Handled = true;
+    }
+
+    private SpeciesIdentity? PickSpecies(SpeciesIdentity? initial = null)
+    {
+        try
+        {
+            _speciesCatalog ??= SpeciesNameCatalog.Load();
+            var picker = new SpeciesPickerDialog(_speciesCatalog.Records, _recentSpecies.Items, initial) { Owner = this };
+            return picker.ShowDialog() == true ? picker.SelectedSpecies : null;
+        }
+        catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException or ArgumentException)
+        {
+            ShowMessage(ex.Message, "无法打开鸟种名录", MessageBoxImage.Warning);
+            return null;
+        }
+    }
+
+    private void AddSpecies_Click(object sender, RoutedEventArgs e)
+    {
+        if (!_vm.CanRate || _vm.CurrentPhoto is not { } photo) return;
+        var choice = PickSpecies();
+        if (choice is not null) ApplyManualSpecies(photo, choice);
+    }
+
+    private void ReplaceBirdSpeciesMenu_Click(object sender, RoutedEventArgs e)
+    {
+        if (!_vm.CanRate || _vm.CurrentPhoto is not { } photo || sender is not MenuItem item ||
+            ItemsControl.ItemsControlFromItemContainer(item) is not ContextMenu menu ||
+            (menu.PlacementTarget as FrameworkElement)?.DataContext is not DetectedBird bird || !photo.Birds.Contains(bird)) return;
+        var choice = PickSpecies(bird.EffectiveSpecies);
+        if (choice is not null) ApplyManualSpecies(photo, choice, bird);
+    }
+
+    private bool ApplyManualSpecies(PhotoItem photo, SpeciesIdentity species, DetectedBird? replaced = null)
+    {
+        if (!_vm.CanRate || !ReferenceEquals(_vm.CurrentPhoto, photo) ||
+            replaced is not null && !photo.Birds.Contains(replaced)) return false;
+        Viewer.CancelManualRegionSelection();
+        if (replaced is null) _speciesEdits.Add(photo, species);
+        else _speciesEdits.Replace(photo, replaced, species);
+        _recentSpecies.Use(species);
+        _vm.Dirty = true;
+        Viewer.SelectBird(photo.SelectedBirdIndex);
+        QueueBirdResultSelection(photo, _previewVersion, _speciesListScrollVersion);
+        UpdateSpeciesUndoButton();
+        _vm.Status = $"已{(replaced is null ? "添加" : "更换为")}手动鸟种 · {species.DisplayName} · Ctrl+Z 撤销";
+        return true;
+    }
+
+    private void UpdateSpeciesUndoButton()
+    {
+        if (UndoSpeciesButton is null) return;
+        UndoSpeciesButton.IsEnabled = !_isClosed && _vm.CanEdit && _speciesEdits.CanUndo;
+        UndoSpeciesButton.ToolTip = _speciesEdits.CanUndo
+            ? $"撤销：{_speciesEdits.Description} · Ctrl+Z" : "撤销最近一次鸟种或选区编辑 · Ctrl+Z";
+    }
+
+    private void UndoSpecies_Click(object sender, RoutedEventArgs e) => UndoSpeciesEdit();
+
+    private bool UndoSpeciesEdit()
+    {
+        if (_vm.IsBusy || !_speciesEdits.CanUndo) return false;
+        Viewer.CancelManualRegionSelection();
+        var photo = _speciesEdits.Undo();
+        UpdateSpeciesUndoButton();
+        if (photo is null || !_vm.AllPhotos.Contains(photo)) return false;
+        _vm.Dirty = true;
+        if (!ReferenceEquals(_vm.CurrentPhoto, photo)) _vm.LocatePhoto(photo);
+        else if (_vm.IsPreviewReady && Viewer.CurrentImage is BitmapSource image)
+        {
+            Viewer.ShowPhoto(photo, image);
+            QueueBirdResultSelection(photo, _previewVersion, _speciesListScrollVersion);
+        }
+        _vm.Refresh();
+        _vm.Status = "已撤销最近一次鸟种或选区编辑";
+        return true;
     }
 
     private void SplitGroup_Click(object sender, RoutedEventArgs e)
@@ -459,6 +645,8 @@ public partial class MainWindow : Window
     {
         _vm.Status = "正在打开工程并检查照片路径…";
         var result = await _projects.LoadAsync(path, ct);
+        _speciesEdits.Clear();
+        _recentSpecies.Replace(result.RecentSpecies);
         _vm.Threshold = result.GroupingThreshold;
         _previewCache.Clear();
         SetSessionGroups(result.Groups);
@@ -469,7 +657,9 @@ public partial class MainWindow : Window
         _vm.AutoSaveSummary = "自动保存 · 5分钟";
         _vm.AutoSavePath = recovering ? path : "自动保存将更新当前 JSON 工程。";
         _vm.Status = $"工程已打开 · {_vm.PhotoCount} 张照片"; _vm.Progress = 100;
-        var summary = $"已载入 {_vm.PhotoCount} 张照片，{_vm.Groups.Count} 个组。\n\n跳过路径不存在：{result.SkippedMissing}\n跳过无效文件：{result.SkippedInvalid}\n跳过同名照片：{result.SkippedDuplicate}";
+        var summary = $"已载入 {_vm.PhotoCount} 张照片，{_vm.Groups.Count} 个组。\n\n跳过全部原件缺失的照片：{result.SkippedMissing}\n跳过无效照片：{result.SkippedInvalid}\n跳过重复照片：{result.SkippedDuplicate}";
+        if (result.MissingAssetCount + result.InvalidAssetCount + result.DuplicateAssetCount > 0)
+            summary += $"\n\n文件成员缺失：{result.MissingAssetCount}\n无效成员：{result.InvalidAssetCount}\n重复成员：{result.DuplicateAssetCount}";
         if (result.Errors.Count > 0) summary += "\n\n" + string.Join("\n", result.Errors.Take(8));
         ShowMessage(summary, "工程导入完成", MessageBoxImage.Information);
     });
@@ -486,7 +676,7 @@ public partial class MainWindow : Window
             try
             {
                 long revision = _vm.Revision;
-                await _projects.SaveAsync(dialog.FileName, _vm.Groups.Select(g => g.Model), _vm.Threshold, ct);
+                await _projects.SaveAsync(dialog.FileName, _vm.Groups.Select(g => g.Model), _vm.Threshold, ct, _recentSpecies.Items);
                 _projectPath = dialog.FileName; _vm.ProjectName = Path.GetFileNameWithoutExtension(dialog.FileName);
                 if (revision == _vm.Revision) _vm.Dirty = false;
                 _autoSave.NoteManualSave(revision);
@@ -511,7 +701,7 @@ public partial class MainWindow : Window
                 if (_isClosed || _vm.IsBusy || !_vm.Dirty || !_autoSave.IsDue) return;
                 long revision = _vm.Revision;
                 var result = await _autoSave.SaveAsync(_vm.Groups.Select(g => g.Model), _vm.Threshold,
-                    _projectPath, revision, _lifetime.Token);
+                    _projectPath, revision, _lifetime.Token, _recentSpecies.Items);
                 if (_isClosed || result.SessionGeneration != _autoSave.SessionGeneration) return;
                 if (!result.IsRecovery && revision == _vm.Revision) _vm.Dirty = false;
                 _vm.AutoSaveSummary = $"自动保存 {DateTime.Now:HH:mm}";
@@ -563,22 +753,78 @@ public partial class MainWindow : Window
         if (!ConfirmUnmarkedBeforeFileOperation(dialog.DeleteOnly)) return;
         var photos = _vm.AllPhotos.Where(dialog.Includes).ToList();
         if (photos.Count == 0) { ShowMessage("没有符合所选评级的照片。", "没有待处理照片"); return; }
+        var plan = ExportService.CreatePlan(photos, dialog.Scope, dialog.GroupBySpecies);
+        var protectedSources = _vm.AllPhotos.SelectMany(photo => photo.Assets).Select(asset => asset.CanonicalPath)
+            .Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+        if (plan.FileCount == 0) { ShowMessage("所选评级中没有对应文件格式的原件。", "没有待处理文件"); return; }
+        if (dialog.GroupBySpecies && !ConfirmSpeciesBeforeExport(photos, dialog.Scope)) return;
         if (dialog.DeleteOnly || dialog.RemoveOriginal)
         {
             var action = dialog.DeleteOnly ? "删除这些舍弃的原文件" : "复制成功并校验后移除对应原文件";
-            if (MessageBox.Show(this, $"即将{action}，共 {photos.Count} 张。\n\n原文件会放入回收站；所在磁盘不支持回收站时将永久删除。\n取消、冲突或复制失败的文件不会移除。\n\n是否继续？", "确认原文件操作", MessageBoxButton.OKCancel, MessageBoxImage.Warning) != MessageBoxResult.OK) return;
+            var rule = dialog.DeleteOnly ? "取消后停止后续文件，已完成的删除保留。"
+                : "同一张照片的所选文件在全部目标目录复制并校验后才开始移除；复制冲突或失败时保留该张原件。";
+            if (MessageBox.Show(this, $"即将{action}。\n范围：{dialog.ScopeLabel} · {plan.PhotoCount} 张照片 / {plan.FileCount} 个文件。\n\n原文件会放入回收站；所在磁盘不支持回收站时将永久删除。\n{rule}\n文件删除可能部分成功，结果将逐文件报告。\n\n是否继续？", "确认原文件操作", MessageBoxButton.OKCancel, MessageBoxImage.Warning) != MessageBoxResult.OK) return;
         }
         await RunOperation(async ct =>
         {
             _vm.Status = dialog.DeleteOnly ? "正在移除舍弃的原文件…" : "正在复制照片并校验…";
             var result = dialog.DeleteOnly
-                ? await _export.DeleteAsync(photos, ct, FileProgress())
-                : await _export.ExportAsync(photos, dialog.Destination, dialog.RemoveOriginal, ct, FileProgress());
-            if (result.SourceRemoved.Count > 0) { RemoveFromSession(result.SourceRemoved); _vm.Dirty = true; }
-            _vm.Status = $"操作完成 · 成功 {result.Succeeded.Count} 张 · 跳过 {result.Skipped.Count} 张 · 失败 {result.Errors.Count} 张"; _vm.Progress = 100;
-            ShowMessage($"成功：{result.Succeeded.Count} 张\n已移除原文件：{result.SourceRemoved.Count} 张\n跳过：{result.Skipped.Count} 张\n失败：{result.Errors.Count} 张" +
+                ? await _export.DeleteAsync(plan, ct, FileProgress())
+                : await _export.ExportAsync(plan, dialog.Destination, dialog.RemoveOriginal, ct, FileProgress(),
+                    (conflict, token) => ResolveExportConflict(conflict, token), protectedSources);
+            // Cancellation can follow a successful recycle. Always apply the actual
+            // per-member outcomes before returning from the operation.
+            var emptyPhotos = result.ApplyRemovedAssets(photos).ToList();
+            if (result.RemovedFileCount > 0)
+            {
+                _speciesEdits.Clear(); UpdateSpeciesUndoButton();
+                if (emptyPhotos.Count > 0) RemoveFromSession(emptyPhotos);
+                _previewCache.TrimToPaths(_vm.AllPhotos.Select(photo => photo.ActivePreviewAsset?.CanonicalPath ?? photo.FilePath));
+                _vm.Dirty = true;
+            }
+            int verified = result.VerifiedCopyCount;
+            _vm.Status = $"{(ct.IsCancellationRequested || result.CanceledFileCount > 0 ? "操作已取消" : "操作完成")} · 已校验 {verified} 份副本 · 已移除 {result.RemovedFileCount} 个原件 · 跳过 {result.SkippedFileCount} 个 · 失败 {result.FailedFileCount} 个"; _vm.Progress = 100;
+            ShowMessage($"范围：{dialog.ScopeLabel}{(dialog.GroupBySpecies ? " · 按鸟种分类" : "")}\n处理：{plan.PhotoCount} 张照片 / {plan.FileCount} 个原件\n完成所选范围：{result.Succeeded.Count} 张照片\n成功复制校验：{verified} 份副本\n已移除原文件：{result.RemovedFileCount} 个\n已无剩余原件：{emptyPhotos.Count} 张照片\n跳过：{result.SkippedFileCount} 个原件\n失败：{result.FailedFileCount} 个原件\n取消：{result.CanceledFileCount} 个原件" +
                 (result.Skipped.Count + result.Errors.Count > 0 ? "\n\n" + string.Join("\n", result.Skipped.Concat(result.Errors).Take(12)) : ""), "处理完成", result.Errors.Count > 0 ? MessageBoxImage.Warning : MessageBoxImage.Information);
         });
+    }
+
+    private Task<ExportConflictDecision> ResolveExportConflict(ExportConflict conflict, CancellationToken token,
+        Func<ExportConflictDialog, bool?>? showDialog = null) => Dispatcher.InvokeAsync(() =>
+    {
+        if (_isClosed || token.IsCancellationRequested) return new ExportConflictDecision(ExportConflictAction.Cancel);
+        var dialog = new ExportConflictDialog(conflict);
+        using var cancellation = token.Register(() => Dispatcher.BeginInvoke(new Action(() =>
+        {
+            if (dialog.IsVisible) dialog.Close();
+        })));
+        bool? accepted;
+        if (showDialog is null) { dialog.Owner = this; accepted = dialog.ShowDialog(); }
+        else accepted = showDialog(dialog);
+        return accepted == true && !token.IsCancellationRequested ? dialog.Decision
+            : new ExportConflictDecision(ExportConflictAction.Cancel);
+    }, DispatcherPriority.Normal).Task;
+
+    private bool ConfirmSpeciesBeforeExport(IReadOnlyList<PhotoItem> photos, PhotoFileScope scope,
+        Func<SpeciesExportReminderDialog, bool?>? showReminder = null)
+    {
+        var review = SpeciesExportReview.Review(photos, scope);
+        if (review.Count == 0) return true;
+        var reminder = new SpeciesExportReminderDialog(review);
+        bool? response;
+        if (showReminder is null) { reminder.Owner = this; response = reminder.ShowDialog(); }
+        else response = showReminder(reminder);
+        if (response == true) return true;
+        var first = review[0].Photo;
+        var bird = first.Birds.FirstOrDefault(item => item.HasRegion && (item.EffectiveSpecies is null ||
+            item.ManualSpecies is null && item.Species is { HasValidConfidence: true } match &&
+            match.Confidence < SpeciesExportReview.DefaultLowConfidenceThreshold));
+        if (bird is not null) first.SelectedBirdIndex = first.Birds.IndexOf(bird);
+        bool alreadyCurrent = ReferenceEquals(_vm.CurrentPhoto, first);
+        _vm.LocatePhoto(first);
+        if (alreadyCurrent && _vm.IsPreviewReady && bird is not null) Viewer.SelectBird(first.SelectedBirdIndex);
+        _vm.Status = "已返回待核对照片 · 可更换、删除或手动添加鸟种";
+        return false;
     }
 
     private bool ConfirmUnmarkedBeforeFileOperation(bool deleteOnly,
@@ -598,12 +844,28 @@ public partial class MainWindow : Window
         return proceed;
     }
     private void Cancel_Click(object sender, RoutedEventArgs e) => _operation?.Cancel();
-    private void Help_Click(object sender, RoutedEventArgs e) => ShowMessage("1. 添加照片：直接多选 JPG，可从不同目录继续添加。同名文件自动跳过。“清空列表”仅移除当前列表，不删除原文件。\n2. 自动分组：只按当前列表顺序合并连续相似背景，保留已有鸟框、鸟种、当前选区与缩放视图。新版默认 50% 相当于旧版 95%，阈值越高分组越严格。\n3. 识别鸟种：逐张定位鸟并识别所有自动框及手动选区，无需先分组，默认中国鸟种候选。下方每行对应左图同序号虚线框，可点击编号或结果切换主体。置信度根据全部候选的分数差距计算，并非实际准确率；鼠标悬停可查看原始相似度与相近候选。旧工程需重新识别后才有新置信度。\n4. 左侧全图固定；右侧滚轮缩放、拖动平移，白框指示当前区域，拖动和缩放均不会超出照片边界。缩放范围为适应画面至 200%；极小图片最高显示 200%。R 还原鸟类约占框 70% 的视图，也可点击适应画面。右上“手动选区”开启后拖框，松开即识别并追加编号，Esc 取消；在编号框或结果行右键可删除选区，剩余编号保持不变。重新分组保留全部已有鸟框与识别结果。\n5. 两栏缩略图滚轮只滚动列表。方向键 / WASD 切换组内照片；Page Up / Page Down 切换照片组。在组内首尾继续切图，会衔接上一组最后一张或下一组第一张。\n6. 1 未标记，2 舍弃，3 保留，4 精选。评级保持选中状态；缩略图右键可快速评级，照片组右键仅用于独立照片。Ctrl / Shift 支持列表多选。\n7. 导出到自行选择的现有目录，不会自动创建子目录；同名目标跳过。导出或删除舍弃前若有未标记照片，可返回定位继续挑选；处理时显示当前照片序号和文件名。\n8. JSON 工程记录原始路径、分组、视图和评级，不打包照片。工程仅使用 .json 格式。\n9. 前后各预加载两张照片，缓存上限 512 MB（不含当前显示和解码缓冲）。每 5 分钟自动保存修改；未命名工程或原路径不可写时保存本机恢复文件，可点击“恢复自动保存”打开。\n\nCtrl+O 添加照片 · Ctrl+S 保存工程\n所有分析均在本机进行。", "羽选 · 使用帮助", MessageBoxImage.Information);
+    private void Help_Click(object sender, RoutedEventArgs e) => new HelpDialog(UsageHelpText) { Owner = this }.ShowDialog();
+
+    private const string UsageHelpText = """
+1. 添加照片：自动关联同目录同名 JPG / RAW，优先显示 JPG；只有 RAW 时解码原始像素。同名配对冲突会提示。清空列表仅移除记录，保留原片。
+2. 自动分组：按连续相似背景分组，保留鸟种、选区和评级。默认 50% 相当于旧版 95%，阈值越高越严格。
+3. 识别鸟种：默认中国候选，无需先分组。仍有结果的人工编辑照片自动跳过；评级和缩放不影响此规则。删光全部结果，或点击“清空识别结果”后，下次批量识别会重新识别该张。清空支持撤销。“重新识别本张”点击即运行，不再弹出确认；成功后直接替换结果，正常零检出直接清空，均可 Ctrl+Z 撤销。已删框可能重新检出，成功后清除人工编辑保护，失败或取消保留原结果。
+4. 鸟种结果：右键删除鸟种同时删除对应框；更换鸟种在确认后变为无框手动项。框上删除选区与结果行删除鸟种相同。有框结果在前并连续编号，无框人工项在后按名称排序。下方“手动添加鸟种”每次选择一种，可重复添加多种；空搜索显示本工程最近 10 种，支持中文、学名、全拼、首字母及简繁混输。
+5. 撤销：Ctrl+Z 或结果区的撤销按钮，恢复鸟种、选区和选择。保留本次工程会话最近 50 步，不撤销原片导出或删除。人工指定没有 AI 分数；AI 置信度是候选区分程度，不代表实际准确率。
+6. 预览：左侧固定全图，右侧滚轮缩放、拖动移动；范围为适应画面至 200%。R 还原鸟类视图。手动选区拖框后立即识别新框，Esc 取消。
+7. 导航与评级：方向键 / WASD 连续切换照片，Page Up / Down 切组；两栏缩略图滚轮仅滚动列表。1 未标记、2 舍弃、3 保留、4 精选，缩略图支持右键评级。
+8. 导出：评级和 JPG / RAW 范围独立。直接复制到现有目录；同名且内容相同自动跳过，内容不同逐个询问覆盖或重命名（追加 _1、_2 等后缀），可勾选后续重名沿用本次操作。已有 _n 后缀则继续累加。勾选“按鸟种创建子文件夹”后，一张多种会在各鸟种目录复制一份；同种多只去重，没有鸟种进入“未分类”。自动提醒未分类、识别失败选区及 AI 低于 80% 的结果，可继续或返回核对；位置待核对不影响分类。所有目标副本校验成功后才开始移除该张所选原件；跳过的同名文件保留原件。
+9. 工程：JSON v3 保存路径、分组、评级、人工结果、编辑保护及最近 10 种，兼容读取 v1 / v2。工程不打包照片；旧版本无法读取 v3。每 5 分钟自动保存修改，未命名时生成本机恢复文件。
+10. JPG 前后各预加载两张，解码缓存上限 512 MiB；RAW 只解码当前照片。所有识别均在本机进行。
+
+Ctrl+O 添加照片 · Ctrl+S 保存工程 · Ctrl+Z 撤销鸟种编辑
+""";
 
     private async void Window_PreviewKeyDown(object sender, KeyEventArgs e)
     {
         if (e.Key == Key.Escape && Viewer.HandleSelectionKey(e.Key)) { e.Handled = true; return; }
         if (_vm.IsBusy || e.OriginalSource is TextBox) return;
+        if (TryUndoSpeciesKey(e.Key, Keyboard.Modifiers)) { e.Handled = true; return; }
         if (Keyboard.Modifiers == ModifierKeys.Control)
         {
             if (e.Key == Key.O) { e.Handled = true; await ChoosePhotos(); }
@@ -619,6 +881,13 @@ public partial class MainWindow : Window
             default: return;
         }
         e.Handled = true;
+    }
+
+    private bool TryUndoSpeciesKey(Key key, ModifierKeys modifiers)
+    {
+        if (_vm.IsBusy || key != Key.Z || modifiers != ModifierKeys.Control) return false;
+        UndoSpeciesEdit();
+        return true;
     }
 
     private void ThumbnailList_PreviewMouseWheel(object sender, MouseWheelEventArgs e)

@@ -10,7 +10,7 @@ internal static class Program
     private static int _assertions;
 
     [STAThread]
-    private static int Main()
+    private static int Main(string[] args)
     {
         try
         {
@@ -26,12 +26,100 @@ internal static class Program
             foreach (var operation in startupOperations) operation.Abort();
             app.InitializeComponent();
             app.ShutdownMode = System.Windows.ShutdownMode.OnExplicitShutdown;
+            if (args.Contains("--workflow-updates-only", StringComparer.Ordinal))
+            {
+                _assertions += RecognitionResetChecks.RunAsync().GetAwaiter().GetResult();
+                _assertions += ExportConflictChecks.RunAsync().GetAwaiter().GetResult();
+                _assertions += MainWorkflowUpdateChecks.Run();
+                _assertions += SpeciesEditingChecks.RunAsync().GetAwaiter().GetResult();
+                _assertions += SpeciesProjectChecks.RunAsync().GetAwaiter().GetResult();
+                _assertions += SpeciesWindowChecks.Run();
+                _assertions += ManualLabelViewerChecks.Run();
+                _assertions += SpeciesPickerUiChecks.Run();
+                _assertions += SpeciesExportUiChecks.Run();
+                _assertions += MainWindowUiChecks.Run();
+                Console.WriteLine($"PASS: {_assertions} workflow update assertions.");
+                return 0;
+            }
+            if (args.Contains("--species-search-only", StringComparer.Ordinal))
+            {
+                _assertions += SpeciesSearchChecks.Run();
+                _assertions += SpeciesPickerUiChecks.Run();
+                _assertions += MainWindowUiChecks.Run();
+                Console.WriteLine($"PASS: {_assertions} search and layout assertions.");
+                return 0;
+            }
+            if (args.Contains("--species-version-only", StringComparer.Ordinal))
+            {
+                _assertions += SpeciesSearchChecks.Run();
+                _assertions += SpeciesEditingChecks.RunAsync().GetAwaiter().GetResult();
+                _assertions += SpeciesProjectChecks.RunAsync().GetAwaiter().GetResult();
+                _assertions += SpeciesExportChecks.RunAsync().GetAwaiter().GetResult();
+                _assertions += ManualLabelViewerChecks.Run();
+                _assertions += SpeciesPickerUiChecks.Run();
+                _assertions += SpeciesExportUiChecks.Run();
+                _assertions += SpeciesWindowChecks.Run();
+                Console.WriteLine($"PASS: {_assertions} species-version assertions.");
+                return 0;
+            }
+            if (args.Contains("--raw-exposure-only", StringComparer.Ordinal))
+            {
+                _assertions += RawExposureBiasChecks.RunAsync().GetAwaiter().GetResult();
+                Console.WriteLine($"PASS: {_assertions} targeted RAW exposure assertions.");
+                return 0;
+            }
+            if (args.Contains("--review-changes-only", StringComparer.Ordinal))
+            {
+                _assertions += SourceReviewEditingChecks.Run();
+                _assertions += ContinuousBirdNumberChecks.RunAsync().GetAwaiter().GetResult();
+                _assertions += AlwaysRawImportChecks.RunAsync().GetAwaiter().GetResult();
+                _assertions += ReviewChangesUiChecks.Run();
+                _assertions += SinglePhotoWindowChecks.Run();
+                Console.WriteLine($"PASS: {_assertions} targeted review-workflow assertions.");
+                return 0;
+            }
+            if (args.Contains("--file-operations-only", StringComparer.Ordinal))
+            {
+                _assertions += BatchProgressChecks.RunAsync().GetAwaiter().GetResult();
+                _assertions += AssetTransitionGuardChecks.RunAsync().GetAwaiter().GetResult();
+                _assertions += RawFileOperationChecks.RunAsync().GetAwaiter().GetResult();
+                _assertions += ExportScopeUiChecks.Run();
+                Console.WriteLine($"PASS: {_assertions} targeted file-operation assertions.");
+                return 0;
+            }
+            _assertions += RecognitionResetChecks.RunAsync().GetAwaiter().GetResult();
+            _assertions += ExportConflictChecks.RunAsync().GetAwaiter().GetResult();
+            _assertions += MainWorkflowUpdateChecks.Run();
+            _assertions += SpeciesSearchChecks.Run();
+            _assertions += SpeciesEditingChecks.RunAsync().GetAwaiter().GetResult();
+            _assertions += SpeciesProjectChecks.RunAsync().GetAwaiter().GetResult();
+            _assertions += SpeciesExportChecks.RunAsync().GetAwaiter().GetResult();
+            _assertions += ManualLabelViewerChecks.Run();
+            _assertions += SpeciesPickerUiChecks.Run();
+            _assertions += SpeciesExportUiChecks.Run();
+            _assertions += SpeciesWindowChecks.Run();
             _assertions += AutoSaveChecks.RunAsync().GetAwaiter().GetResult();
             _assertions += PhotoPreviewCacheChecks.RunAsync().GetAwaiter().GetResult();
             _assertions += SpeciesRecognitionChecks.RunAsync().GetAwaiter().GetResult();
             _assertions += GroupingThresholdChecks.RunAsync().GetAwaiter().GetResult();
             _assertions += RecognitionWorkflowChecks.RunAsync().GetAwaiter().GetResult();
             _assertions += BatchProgressChecks.RunAsync().GetAwaiter().GetResult();
+            _assertions += PhotoAssetChecks.RunAsync().GetAwaiter().GetResult();
+            _assertions += PhotoProjectV2Checks.RunAsync().GetAwaiter().GetResult();
+            _assertions += AssetTransitionGuardChecks.RunAsync().GetAwaiter().GetResult();
+            _assertions += RawFileOperationChecks.RunAsync().GetAwaiter().GetResult();
+            _assertions += SinglePhotoRecognitionChecks.RunAsync().GetAwaiter().GetResult();
+            _assertions += RawImportChecks.RunAsync().GetAwaiter().GetResult();
+            _assertions += RawPreviewChecks.RunAsync().GetAwaiter().GetResult();
+            _assertions += RawNativeChecks.RunAsync().GetAwaiter().GetResult();
+            _assertions += RawExposureBiasChecks.RunAsync().GetAwaiter().GetResult();
+            _assertions += RawWindowChecks.Run();
+            _assertions += SourceReviewEditingChecks.Run();
+            _assertions += ContinuousBirdNumberChecks.RunAsync().GetAwaiter().GetResult();
+            _assertions += AlwaysRawImportChecks.RunAsync().GetAwaiter().GetResult();
+            _assertions += ReviewChangesUiChecks.Run();
+            _assertions += ExportScopeUiChecks.Run();
+            _assertions += SinglePhotoWindowChecks.Run();
             _assertions += ViewerUiChecks.Run();
             _assertions += MainWindowUiChecks.Run();
             RunAsync().GetAwaiter().GetResult();

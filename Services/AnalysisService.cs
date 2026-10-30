@@ -45,9 +45,9 @@ public sealed class AnalysisService : IDisposable
         ObjectDisposedException.ThrowIf(_disposed, this);
         if (!double.IsFinite(similarityThreshold) || similarityThreshold is < 0 or > 1)
             throw new ArgumentOutOfRangeException(nameof(similarityThreshold), "相似度阈值应在 0 到 1 之间。");
-        var jobs = photos.Select(photo => new AnalysisJob(photo, photo.Id, photo.FilePath,
-            photo.PixelWidth, photo.PixelHeight, photo.Birds.Select(b => b.Box.Copy()).ToArray(),
-            photo.DetectionStatus)).ToArray();
+        var jobs = photos.Select(photo => new AnalysisJob(photo, photo.Id, photo.ActivePreviewAsset?.CanonicalPath ?? photo.FilePath,
+            photo.PixelWidth, photo.PixelHeight, photo.Birds.Where(bird => bird.HasRegion).Select(b => b.Box.Copy()).ToArray(),
+            photo.DetectionStatus, photo.CanUseBirdGeometry)).ToArray();
         await _analysisLock.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
@@ -72,10 +72,11 @@ public sealed class AnalysisService : IDisposable
             progress?.Report(new(i, jobs.Length, $"正在背景分组 {i + 1} / {jobs.Length} · {job.Path}"));
             try
             {
-                var image = ImageLoader.Load(job.Path, maxWidth: 1280);
+                var image = ImageLoader.Load(job.Path, maxWidth: 1280, cancellationToken: cancellationToken);
                 // Previously found automatic and manual boxes can improve background comparison,
                 // but grouping never reruns localization or rewrites the existing bird collection.
-                var descriptor = BackgroundSimilarity.DescribeAll(image, job.ExistingBirds);
+                var descriptor = BackgroundSimilarity.DescribeAll(image,
+                    job.CanUseBirdGeometry ? job.ExistingBirds : Array.Empty<BirdBox>());
                 bool joins = previous is not null && representative is not null && currentGroup is not null &&
                     BackgroundSimilarity.Compare(previous, descriptor) >= threshold &&
                     BackgroundSimilarity.Compare(representative, descriptor) >= threshold;
@@ -87,7 +88,7 @@ public sealed class AnalysisService : IDisposable
                 }
                 currentGroup!.Add(job.Photo);
                 previous = descriptor;
-                var (width, height) = job.Width > 0 && job.Height > 0 ? (job.Width, job.Height) : ReadDimensions(job.Path, image);
+                var (width, height) = job.Width > 0 && job.Height > 0 ? (job.Width, job.Height) : ReadDimensions(job.Path, image, cancellationToken);
                 result.Outcomes.Add(new PhotoAnalysisOutcome
                 {
                     PhotoId = job.Id, Bird = job.ExistingBirds.FirstOrDefault(), Birds = job.ExistingBirds,
@@ -115,21 +116,27 @@ public sealed class AnalysisService : IDisposable
         return result;
     }
 
-    private static (int Width, int Height) ReadDimensions(string path, BitmapSource fallback)
+    private static (int Width, int Height) ReadDimensions(string path, BitmapSource fallback, CancellationToken cancellationToken)
     {
         try
         {
+            if (PhotoAsset.TryGetKind(path, out var kind) && kind == PhotoAssetKind.Raw)
+            {
+                var info = RawImageDecoder.ReadInfo(path, cancellationToken);
+                return (info.PixelWidth, info.PixelHeight);
+            }
             using var stream = File.OpenRead(path);
             var decoder = new JpegBitmapDecoder(stream, BitmapCreateOptions.DelayCreation, BitmapCacheOption.None);
             var frame = decoder.Frames[0];
             int orientation = ImageLoader.GetOrientation(frame.Metadata as BitmapMetadata);
             return orientation is >= 5 and <= 8 ? (frame.PixelHeight, frame.PixelWidth) : (frame.PixelWidth, frame.PixelHeight);
         }
+        catch (OperationCanceledException) { throw; }
         catch { return (fallback.PixelWidth, fallback.PixelHeight); }
     }
 
     public void Dispose() => _disposed = true;
 
     private sealed record AnalysisJob(PhotoItem Photo, string Id, string Path, int Width, int Height,
-        BirdBox[] ExistingBirds, string DetectionStatus);
+        BirdBox[] ExistingBirds, string DetectionStatus, bool CanUseBirdGeometry);
 }

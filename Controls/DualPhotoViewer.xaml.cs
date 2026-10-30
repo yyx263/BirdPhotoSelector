@@ -1,6 +1,7 @@
 using System.Windows;
 using System.Windows.Automation;
 using System.Windows.Controls;
+using System.Windows.Data;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
@@ -28,6 +29,7 @@ public partial class DualPhotoViewer : UserControl
     private bool _needsInitialView;
     private bool _notifyInitialView;
     private bool _fitPending;
+    private bool _allowUnverifiedBirdFocus;
     private bool _interactionBlocked;
     private bool _dragging;
     private Point _dragStart;
@@ -90,8 +92,9 @@ public partial class DualPhotoViewer : UserControl
         _needsInitialView = false;
         _notifyInitialView = false;
         _fitPending = false;
+        _allowUnverifiedBirdFocus = false;
         EmptyTitle.Text = "等待照片";
-        EmptyMessage.Text = "从左上角导入 JPG 照片";
+        EmptyMessage.Text = "从左上角导入 JPG 或 RAW 照片";
         DetectionText.ToolTip = DetailInteractionHint;
 
         if (photo is not null)
@@ -133,6 +136,8 @@ public partial class DualPhotoViewer : UserControl
 
         ImageSizeText.Text = $"{_bitmap!.PixelWidth:N0} × {_bitmap.PixelHeight:N0}  ·  白框为当前视野";
         RefreshBirdOverlays();
+        // A real source transition already clears the previous view in PhotoItem.
+        // New views on the active source remain usable while old bird boxes await review.
         if (photo!.ViewZoom is double savedZoom && double.IsFinite(savedZoom) && savedZoom > 0)
         {
             _zoom = savedZoom;
@@ -197,6 +202,9 @@ public partial class DualPhotoViewer : UserControl
         _needsInitialView = true;
         _notifyInitialView = true;
         _fitPending = false;
+        // The source-change notice remains visible in the window. Focusing an
+        // existing box is an explicit review gesture, independent of AI geometry.
+        _allowUnverifiedBirdFocus = true;
         InitializeView();
     }
 
@@ -206,7 +214,12 @@ public partial class DualPhotoViewer : UserControl
         if (_interactionBlocked || _bitmap is null || _photo is null || index < 0 || index >= _photo.Birds.Count) return;
         bool changed = _photo.SelectedBirdIndex != index;
         _photo.SelectedBirdIndex = index;
-        RestoreBirdView();
+        if (_photo.SelectedBird is { HasRegion: true }) RestoreBirdView();
+        else
+        {
+            CancelManualRegionSelection();
+            StopDragging();
+        }
         RefreshBirdOverlays();
         if (changed) BirdSelectionChanged?.Invoke(this, EventArgs.Empty);
     }
@@ -228,6 +241,7 @@ public partial class DualPhotoViewer : UserControl
         for (int index = 0; index < _photo.Birds.Count; index++)
         {
             var bird = _photo.Birds[index];
+            if (!bird.HasRegion) continue;
             var box = bird.Box;
             if (!IsValidBird(box.X, box.Y, box.Width, box.Height)) continue;
             var bounds = new Rect(photoBounds.Left + box.X * photoBounds.Width,
@@ -240,20 +254,20 @@ public partial class DualPhotoViewer : UserControl
             {
                 Width = bounds.Width, Height = bounds.Height, Background = Brushes.Transparent,
                 Cursor = Cursors.Hand, Tag = bird,
-                ToolTip = $"第 {bird.Number} 只鸟 · {bird.SpeciesName}\n{(bird.IsManual ? "手动选区" : "自动定位")} · 点击查看细节，右键删除选区"
+                ToolTip = $"第 {bird.DisplayNumber} 只鸟 · {bird.SpeciesName}\n{(bird.IsManual ? "手动选区" : "自动定位")} · 点击查看细节，右键删除选区"
             };
             var delete = new MenuItem { Header = "删除选区", Tag = new BirdRegionDeleteEventArgs(_photo, bird) };
             delete.Click += DeleteRegionMenu_Click;
             target.ContextMenu = new ContextMenu();
             target.ContextMenu.Items.Add(delete);
-            AutomationProperties.SetName(target, $"选择第 {bird.Number} 只鸟");
+            AutomationProperties.SetName(target, $"选择第 {bird.DisplayNumber} 只鸟");
             target.MouseLeftButtonDown += BirdBox_MouseLeftButtonDown;
             target.Children.Add(new Rectangle
             {
                 Margin = new Thickness(.75), Stroke = stroke, StrokeThickness = 1.25,
                 StrokeDashArray = new DoubleCollection { 4, 3 }, IsHitTestVisible = false
             });
-            string numberText = bird.Number.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            string numberText = bird.DisplayNumberText;
             double labelWidth = Math.Min(Math.Max(24, 10 + numberText.Length * 7), photoBounds.Width);
             double labelHeight = Math.Min(20, photoBounds.Height);
             var label = new Border
@@ -273,6 +287,8 @@ public partial class DualPhotoViewer : UserControl
                     HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center
                 }
             };
+            ((TextBlock)label.Child).SetBinding(TextBlock.TextProperty,
+                new Binding(nameof(DetectedBird.DisplayNumberText)) { Source = bird });
             target.Children.Add(label);
             Canvas.SetLeft(target, bounds.Left);
             Canvas.SetTop(target, bounds.Top);
@@ -430,7 +446,8 @@ public partial class DualPhotoViewer : UserControl
         _needsInitialView = false;
         _zoom = MinimumPixelScale / FitScale;
         _centerX = _centerY = 0.5;
-        var bird = _photo.Bird;
+        var bird = (_photo.CanUseBirdGeometry || _allowUnverifiedBirdFocus) && _photo.SelectedBird is { HasRegion: true } selected
+            ? selected.Box : null;
         if (!_fitPending && bird is not null && IsValidBird(bird.X, bird.Y, bird.Width, bird.Height))
         {
             var birdWidth = Math.Min(bird.Width, 1 - bird.X) * _bitmap.PixelWidth;
@@ -452,15 +469,21 @@ public partial class DualPhotoViewer : UserControl
 
     private void UpdateDetectionLabel()
     {
-        var bird = _photo?.Bird;
+        if (_manualRegionMode) { DetectionText.Text = ManualRegionHint; return; }
+        var selected = _photo?.SelectedBird;
+        if (selected is { HasRegion: false, EffectiveSpecies: { } species })
+        {
+            DetectionText.Text = "人工指定 · " + species.DisplayName;
+            return;
+        }
+        var bird = selected is { HasRegion: true } ? selected.Box : null;
         if (bird is null || !IsValidBird(bird.X, bird.Y, bird.Width, bird.Height))
         {
             DetectionText.Text = "未定位鸟类 · 可手动缩放";
             return;
         }
-        var selected = _photo!.SelectedBird;
-        DetectionText.Text = _manualRegionMode ? ManualRegionHint : selected is not null && (_photo.Birds.Count > 1 || selected.Species is not null || selected.IsManual)
-            ? selected.IsManual ? $"手动选区{selected.Number} · {selected.SpeciesName}" : $"第{selected.Number}只鸟 · {selected.SpeciesName}"
+        DetectionText.Text = selected is not null && (_photo!.Birds.Count > 1 || selected.EffectiveSpecies is not null || selected.IsManual)
+            ? selected.IsManual ? $"手动选区{selected.DisplayNumber} · {selected.SpeciesName}" : $"第{selected.DisplayNumber}只鸟 · {selected.SpeciesName}"
             : $"鸟类已定位 · {bird.Confidence:P0}";
     }
 
