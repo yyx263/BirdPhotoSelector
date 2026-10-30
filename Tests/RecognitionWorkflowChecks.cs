@@ -58,7 +58,10 @@ internal static class RecognitionWorkflowChecks
             }
 
             var original = empty.Birds[0];
-            var manual = empty.AddManualRegion(Box(.65));
+            // Seed a restored region to exercise inference-failure preservation. Actual
+            // user drawing now installs the manual-edit barrier, tested separately.
+            var manual = new DetectedBird { IsManual = true, Box = Box(.65) };
+            empty.SetBirds(empty.Birds.Append(manual), empty.Birds.Count, empty.NextBirdNumber);
             manual.Species = species;
             manual.RecognitionStatus = "原有手动识别";
             empty.ViewZoom = 2.4; empty.ViewCenterX = .7; empty.ViewCenterY = .4;

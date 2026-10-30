@@ -42,7 +42,8 @@ public sealed class AutoSaveService
 
     /// <summary>The UI serializes this with manual saves and snapshots groups on its own thread.</summary>
     public async Task<AutoSaveResult> SaveAsync(IEnumerable<PhotoGroup> groups, double threshold,
-        string? projectPath, long revision, CancellationToken cancellationToken = default)
+        string? projectPath, long revision, CancellationToken cancellationToken = default,
+        IReadOnlyList<SpeciesIdentity>? recentSpecies = null)
     {
         await _writes.WaitAsync(cancellationToken);
         try
@@ -50,6 +51,7 @@ public sealed class AutoSaveService
             long generation = SessionGeneration;
             string recoveryPath = RecoveryPath;
             var snapshotGroups = groups.ToArray();
+            var snapshotRecent = recentSpecies?.ToArray();
             string? primaryError = null;
             string savedPath = recoveryPath;
             bool isRecovery = true;
@@ -57,7 +59,7 @@ public sealed class AutoSaveService
             {
                 try
                 {
-                    await _projects.SaveAsync(projectPath, snapshotGroups, threshold, cancellationToken);
+                    await _projects.SaveAsync(projectPath, snapshotGroups, threshold, cancellationToken, snapshotRecent);
                     savedPath = Path.GetFullPath(projectPath);
                     isRecovery = false;
                 }
@@ -67,7 +69,7 @@ public sealed class AutoSaveService
             if (isRecovery)
             {
                 Directory.CreateDirectory(RecoveryDirectory);
-                await _projects.SaveAsync(recoveryPath, snapshotGroups, threshold, cancellationToken);
+                await _projects.SaveAsync(recoveryPath, snapshotGroups, threshold, cancellationToken, snapshotRecent);
             }
             if (generation == SessionGeneration)
             {

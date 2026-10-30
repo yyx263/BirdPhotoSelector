@@ -16,26 +16,30 @@ public sealed record PlannedPhotoAsset(PhotoAsset Asset, long? Length, long? Wri
 
 public sealed class PhotoFilePlan
 {
-    internal PhotoFilePlan(PhotoItem photo, PlannedPhotoAsset[] all, PlannedPhotoAsset[] selected)
-    { Photo = photo; PhotoId = photo.Id; AllAssets = Array.AsReadOnly(all); Assets = Array.AsReadOnly(selected); }
+    internal PhotoFilePlan(PhotoItem photo, PlannedPhotoAsset[] all, PlannedPhotoAsset[] selected, string[]? targetFolders = null)
+    { Photo = photo; PhotoId = photo.Id; AllAssets = Array.AsReadOnly(all); Assets = Array.AsReadOnly(selected);
+      TargetFolders = Array.AsReadOnly(targetFolders ?? new[] { "" }); }
     public PhotoItem Photo { get; }
     public string PhotoId { get; }
     public IReadOnlyList<PlannedPhotoAsset> AllAssets { get; }
     public IReadOnlyList<PlannedPhotoAsset> Assets { get; }
+    public IReadOnlyList<string> TargetFolders { get; }
 }
 
 /// <summary>Immutable members selected before confirmation; execution never discovers companion files.</summary>
 public sealed class PhotoFileOperationPlan
 {
-    internal PhotoFileOperationPlan(PhotoFileScope scope, PhotoFilePlan[] photos)
-    { Scope = scope; Photos = Array.AsReadOnly(photos); }
+    internal PhotoFileOperationPlan(PhotoFileScope scope, PhotoFilePlan[] photos, bool groupBySpecies = false)
+    { Scope = scope; Photos = Array.AsReadOnly(photos); GroupBySpecies = groupBySpecies; }
     public PhotoFileScope Scope { get; }
     public IReadOnlyList<PhotoFilePlan> Photos { get; }
     public int PhotoCount => Photos.Count;
     public int FileCount => Photos.Sum(photo => photo.Assets.Count);
+    public bool GroupBySpecies { get; }
+    public int CopyCount => Photos.Sum(photo => checked(photo.Assets.Count * photo.TargetFolders.Count));
 }
 
-public sealed class AssetFileOperationResult
+public class AssetFileOperationResult
 {
     internal AssetFileOperationResult(string photoId, PlannedPhotoAsset asset)
     { PhotoId = photoId; AssetId = asset.Id; SourcePath = asset.FilePath; }
@@ -51,6 +55,15 @@ public sealed class AssetFileOperationResult
     internal byte[]? VerifiedHash { get; set; }
 }
 
+/// <summary>One destination copy; source removal is recorded only once in FileOperationResult.Files.</summary>
+public sealed class AssetCopyOperationResult : AssetFileOperationResult
+{
+    internal AssetCopyOperationResult(string photoId, PlannedPhotoAsset asset, string folder) : base(photoId, asset)
+    { PlannedAsset = asset; TargetFolder = folder; }
+    public string TargetFolder { get; }
+    internal PlannedPhotoAsset PlannedAsset { get; }
+}
+
 public sealed class FileOperationResult
 {
     public List<PhotoItem> Succeeded { get; } = new();
@@ -59,6 +72,9 @@ public sealed class FileOperationResult
     public List<string> Errors { get; } = new();
     public List<string> Skipped { get; } = new();
     public List<AssetFileOperationResult> Files { get; } = new();
+    public List<AssetCopyOperationResult> Copies { get; } = new();
+    public int VerifiedCopyCount => Copies.Count(copy => copy.Verified);
+    public int CopyCount => Copies.Count;
     public int CopiedFileCount => Files.Count(file => file.Verified);
     public int RemovedFileCount => Files.Count(file => file.SourceRemoved);
     public int SkippedFileCount => Files.Count(file => file.Status == AssetFileOperationStatus.Skipped);
@@ -96,7 +112,8 @@ public sealed class ExportService
         Func<Stream, Stream, CancellationToken, Task>? copyOverride = null)
     { _remove = recycleSource ?? Recycle; _copy = copyOverride ?? ((source, target, token) => source.CopyToAsync(target, token)); }
 
-    public static PhotoFileOperationPlan CreatePlan(IEnumerable<PhotoItem> photos, PhotoFileScope scope = PhotoFileScope.All)
+    public static PhotoFileOperationPlan CreatePlan(IEnumerable<PhotoItem> photos, PhotoFileScope scope = PhotoFileScope.All,
+        bool groupBySpecies = false)
     {
         ArgumentNullException.ThrowIfNull(photos);
         if (!Enum.IsDefined(scope)) throw new ArgumentOutOfRangeException(nameof(scope));
@@ -125,7 +142,13 @@ public sealed class ExportService
                     throw new InvalidDataException("待处理文件有重复的成员 ID 或完整路径。");
             if (selected.Length > 0) result.Add(new(photo, all, selected));
         }
-        return new(scope, result.ToArray());
+        if (groupBySpecies)
+        {
+            var folders = SpeciesExportFolders.Create(result.Select(item => item.Photo));
+            result = result.Select(item => new PhotoFilePlan(item.Photo, item.AllAssets.ToArray(),
+                item.Assets.ToArray(), folders[item.PhotoId])).ToList();
+        }
+        return new(scope, result.ToArray(), groupBySpecies);
     }
 
     public Task<FileOperationResult> ExportAsync(IEnumerable<PhotoItem> photos, string existingDestination, bool removeOriginal,
@@ -138,7 +161,8 @@ public sealed class ExportService
         ArgumentNullException.ThrowIfNull(plan);
         string destination = Path.GetFullPath(existingDestination);
         if (!Directory.Exists(destination)) throw new DirectoryNotFoundException("请选择已经存在的导出目录，程序不会自动新建文件夹。");
-        return Execute(plan, export: true, destination, removeOriginal, cancellationToken, progress);
+        return plan.GroupBySpecies ? ExecuteGrouped(plan, destination, removeOriginal, cancellationToken, progress)
+            : Execute(plan, export: true, destination, removeOriginal, cancellationToken, progress);
     }
 
     public Task<FileOperationResult> DeleteAsync(IEnumerable<PhotoItem> photos, CancellationToken cancellationToken = default,
@@ -272,8 +296,167 @@ public sealed class ExportService
             if (photo.AllAssets.All(asset => result.Files.Any(file =>
                 file.PhotoId == photo.PhotoId && file.AssetId == asset.Id && file.SourceRemoved)))
                 result.SourceRemoved.Add(photo.Photo);
+        if (export)
+        {
+            var assets = plan.Photos.SelectMany(photo => photo.Assets).ToDictionary(asset => asset.Id);
+            foreach (var file in result.Files)
+                result.Copies.Add(new(file.PhotoId, assets[file.AssetId], "")
+                {
+                    TargetPath = file.TargetPath, Status = file.Verified ? AssetFileOperationStatus.Verified : file.Status,
+                    Copied = file.Copied, Verified = file.Verified, VerifiedHash = file.VerifiedHash, Message = file.Message
+                });
+        }
         return result;
     }, CancellationToken.None);
+
+    private Task<FileOperationResult> ExecuteGrouped(PhotoFileOperationPlan plan, string destination,
+        bool removeOriginal, CancellationToken token, IProgress<PhotoOperationProgress>? progress) => Task.Run(async () =>
+    {
+        var result = new FileOperationResult();
+        foreach (var photo in plan.Photos)
+            foreach (var asset in photo.Assets)
+            {
+                result.Files.Add(new(photo.PhotoId, asset));
+                foreach (string folder in photo.TargetFolders) result.Copies.Add(new(photo.PhotoId, asset, folder));
+            }
+        int completed = 0, copyOffset = 0;
+        for (int photoIndex = 0; photoIndex < plan.Photos.Count; photoIndex++)
+        {
+            if (token.IsCancellationRequested) break;
+            var photo = plan.Photos[photoIndex];
+            var files = result.Files.Where(file => file.PhotoId == photo.PhotoId).ToArray();
+            var copies = result.Copies.Where(copy => copy.PhotoId == photo.PhotoId).ToArray();
+            void Report(int index, string stage, bool finished = false) => progress?.Report(new(completed,
+                plan.CopyCount, copyOffset + index + 1, copies[index].SourcePath, stage, finished, photoIndex + 1, plan.PhotoCount));
+            for (int index = 0; index < copies.Length; index++)
+            {
+                var copy = copies[index];
+                if (token.IsCancellationRequested) break;
+                Report(index, "正在复制");
+                if (token.IsCancellationRequested) break;
+                try
+                {
+                    string folder = SpeciesExportFolders.EnsureDestination(destination, copy.TargetFolder);
+                    await CopyAndVerify(copy.PlannedAsset, copy, folder, result, () => Report(index, "正在校验"), token);
+                }
+                catch (OperationCanceledException) when (token.IsCancellationRequested)
+                { copy.Status = AssetFileOperationStatus.Canceled; copy.Message = "已取消导出"; }
+                catch (Exception ex) { Fail(copy, result, ex.Message, "分类目录不可用"); }
+            }
+            foreach (var copy in copies.Where(copy => copy.Status == AssetFileOperationStatus.Pending))
+            { copy.Status = AssetFileOperationStatus.Canceled; copy.Message = "已取消，尚未处理"; }
+            foreach (var file in files) AggregateCopies(file, copies.Where(copy => copy.AssetId == file.AssetId).ToArray(), result);
+
+            // All originals x all species folders form one photo-level removal barrier.
+            // Keep every verified destination locked until each unique original is handled.
+            if (removeOriginal && files.All(file => file.Verified) && !token.IsCancellationRequested)
+            {
+                var protectedTargets = new List<FileStream>();
+                bool valid = true;
+                try
+                {
+                    for (int index = 0; index < copies.Length; index++)
+                    {
+                        var copy = copies[index];
+                        Report(index, "正在确认目标副本");
+                        try
+                        {
+                            token.ThrowIfCancellationRequested();
+                            var target = new FileStream(copy.TargetPath!, FileMode.Open, FileAccess.Read,
+                                FileShare.Read, 131072, FileOptions.Asynchronous | FileOptions.SequentialScan);
+                            protectedTargets.Add(target);
+                            var hash = await SHA256.HashDataAsync(target, token);
+                            if (target.Length != copy.PlannedAsset.Length || copy.VerifiedHash is null ||
+                                !CryptographicOperations.FixedTimeEquals(hash, copy.VerifiedHash))
+                                throw new IOException("目标副本在复制后发生变化，已保留该张全部原件。");
+                        }
+                        catch (OperationCanceledException) when (token.IsCancellationRequested) { valid = false; break; }
+                        catch (Exception ex)
+                        {
+                            valid = false; copy.Verified = false;
+                            Fail(copy, result, ex.Message, "目标副本不可用，原件保留");
+                            AggregateCopies(files.Single(file => file.AssetId == copy.AssetId),
+                                copies.Where(item => item.AssetId == copy.AssetId).ToArray(), result);
+                            break;
+                        }
+                    }
+                    if (valid)
+                        foreach (var file in files)
+                        {
+                            try { await VerifySource(photo.Assets.Single(asset => asset.Id == file.AssetId), file, token); }
+                            catch (OperationCanceledException) when (token.IsCancellationRequested) { valid = false; break; }
+                            catch (Exception ex) { valid = false; Fail(file, result, ex.Message, "已导出，原件变化未移除"); }
+                        }
+                    if (valid)
+                        foreach (var file in files)
+                        {
+                            if (token.IsCancellationRequested) break;
+                            int index = Array.FindIndex(copies, copy => copy.AssetId == file.AssetId);
+                            Report(index, "正在移除原文件");
+                            if (token.IsCancellationRequested) break;
+                            try
+                            {
+                                await VerifySource(photo.Assets.Single(asset => asset.Id == file.AssetId), file, token);
+                                token.ThrowIfCancellationRequested();
+                                RemoveMember(file, result, "已导出并移除原文件");
+                            }
+                            catch (OperationCanceledException) when (token.IsCancellationRequested) { break; }
+                            catch (Exception ex) { Fail(file, result, ex.Message, "已导出，原文件未移除"); break; }
+                        }
+                }
+                finally { foreach (var target in protectedTargets) await target.DisposeAsync(); }
+            }
+            if (removeOriginal && token.IsCancellationRequested)
+                foreach (var file in files.Where(file => file.Verified && !file.SourceRemoved && file.Status == AssetFileOperationStatus.Verified))
+                { file.Status = AssetFileOperationStatus.Canceled; file.Message = "已导出，取消原件移除"; }
+            if (removeOriginal && files.Any(file => !file.SourceRemoved))
+                foreach (var file in files.Where(file => file.Status == AssetFileOperationStatus.Verified))
+                    file.Message = "已导出，同张另有未完成副本或移除未完成，原件保留";
+            if (files.All(file => file.Verified)) result.Succeeded.Add(photo.Photo);
+            for (int index = 0; index < copies.Length; index++)
+            {
+                var copy = copies[index];
+                bool finished = copy.Status != AssetFileOperationStatus.Canceled;
+                if (finished) completed++;
+                var source = files.Single(file => file.AssetId == copy.AssetId);
+                Report(index, source.SourceRemoved ? "已导出并移除原文件" : copy.Message, finished);
+            }
+            copyOffset += copies.Length;
+        }
+        foreach (var copy in result.Copies.Where(copy => copy.Status == AssetFileOperationStatus.Pending))
+        { copy.Status = AssetFileOperationStatus.Canceled; copy.Message = "已取消，尚未处理"; }
+        foreach (var file in result.Files.Where(file => file.Status == AssetFileOperationStatus.Pending))
+        { file.Status = AssetFileOperationStatus.Canceled; file.Message = "已取消，尚未处理"; }
+        foreach (var photo in plan.Photos)
+            if (photo.AllAssets.All(asset => result.Files.Any(file =>
+                file.PhotoId == photo.PhotoId && file.AssetId == asset.Id && file.SourceRemoved)))
+                result.SourceRemoved.Add(photo.Photo);
+        return result;
+    }, CancellationToken.None);
+
+    private static void AggregateCopies(AssetFileOperationResult file, AssetCopyOperationResult[] copies, FileOperationResult result)
+    {
+        file.TargetPath = copies.FirstOrDefault()?.TargetPath;
+        file.Copied = copies.Any(copy => copy.Copied);
+        file.Verified = copies.Length > 0 && copies.All(copy => copy.Verified);
+        if (file.Verified)
+        {
+            file.VerifiedHash = copies[0].VerifiedHash;
+            if (file.VerifiedHash is null || copies.Any(copy => copy.VerifiedHash is null ||
+                !CryptographicOperations.FixedTimeEquals(file.VerifiedHash, copy.VerifiedHash)))
+            {
+                file.Verified = false;
+                Fail(file, result, "各目标副本对应的原件内容不一致，原件保留。", "原件在复制期间变化");
+                return;
+            }
+            file.Status = AssetFileOperationStatus.Verified; file.Message = "全部目标副本已导出并校验";
+            return;
+        }
+        file.Status = copies.Any(copy => copy.Status == AssetFileOperationStatus.Failed) ? AssetFileOperationStatus.Failed :
+            copies.Any(copy => copy.Status == AssetFileOperationStatus.Canceled) ? AssetFileOperationStatus.Canceled :
+            copies.Any(copy => copy.Status == AssetFileOperationStatus.Skipped) ? AssetFileOperationStatus.Skipped : AssetFileOperationStatus.Pending;
+        file.Message = "存在未完成目标副本，该张原件保留";
+    }
 
     private async Task CopyAndVerify(PlannedPhotoAsset asset, AssetFileOperationResult file, string destination,
         FileOperationResult result, Action reportVerification, CancellationToken token)

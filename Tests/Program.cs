@@ -26,6 +26,18 @@ internal static class Program
             foreach (var operation in startupOperations) operation.Abort();
             app.InitializeComponent();
             app.ShutdownMode = System.Windows.ShutdownMode.OnExplicitShutdown;
+            if (args.Contains("--species-version-only", StringComparer.Ordinal))
+            {
+                _assertions += SpeciesEditingChecks.RunAsync().GetAwaiter().GetResult();
+                _assertions += SpeciesProjectChecks.RunAsync().GetAwaiter().GetResult();
+                _assertions += SpeciesExportChecks.RunAsync().GetAwaiter().GetResult();
+                _assertions += ManualLabelViewerChecks.Run();
+                _assertions += SpeciesPickerUiChecks.Run();
+                _assertions += SpeciesExportUiChecks.Run();
+                _assertions += SpeciesWindowChecks.Run();
+                Console.WriteLine($"PASS: {_assertions} species-version assertions.");
+                return 0;
+            }
             if (args.Contains("--raw-exposure-only", StringComparer.Ordinal))
             {
                 _assertions += RawExposureBiasChecks.RunAsync().GetAwaiter().GetResult();
@@ -51,6 +63,13 @@ internal static class Program
                 Console.WriteLine($"PASS: {_assertions} targeted file-operation assertions.");
                 return 0;
             }
+            _assertions += SpeciesEditingChecks.RunAsync().GetAwaiter().GetResult();
+            _assertions += SpeciesProjectChecks.RunAsync().GetAwaiter().GetResult();
+            _assertions += SpeciesExportChecks.RunAsync().GetAwaiter().GetResult();
+            _assertions += ManualLabelViewerChecks.Run();
+            _assertions += SpeciesPickerUiChecks.Run();
+            _assertions += SpeciesExportUiChecks.Run();
+            _assertions += SpeciesWindowChecks.Run();
             _assertions += AutoSaveChecks.RunAsync().GetAwaiter().GetResult();
             _assertions += PhotoPreviewCacheChecks.RunAsync().GetAwaiter().GetResult();
             _assertions += SpeciesRecognitionChecks.RunAsync().GetAwaiter().GetResult();

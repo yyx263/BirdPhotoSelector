@@ -46,7 +46,7 @@ public sealed class AnalysisService : IDisposable
         if (!double.IsFinite(similarityThreshold) || similarityThreshold is < 0 or > 1)
             throw new ArgumentOutOfRangeException(nameof(similarityThreshold), "相似度阈值应在 0 到 1 之间。");
         var jobs = photos.Select(photo => new AnalysisJob(photo, photo.Id, photo.ActivePreviewAsset?.CanonicalPath ?? photo.FilePath,
-            photo.PixelWidth, photo.PixelHeight, photo.Birds.Select(b => b.Box.Copy()).ToArray(),
+            photo.PixelWidth, photo.PixelHeight, photo.Birds.Where(bird => bird.HasRegion).Select(b => b.Box.Copy()).ToArray(),
             photo.DetectionStatus, photo.CanUseBirdGeometry)).ToArray();
         await _analysisLock.WaitAsync(cancellationToken).ConfigureAwait(false);
         try

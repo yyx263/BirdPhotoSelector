@@ -7,6 +7,7 @@ namespace BirdPhotoSelector;
 public sealed class ProjectLoadResult
 {
     public List<PhotoGroup> Groups { get; } = new();
+    public IReadOnlyList<SpeciesIdentity> RecentSpecies { get; internal set; } = Array.Empty<SpeciesIdentity>();
     public double GroupingThreshold { get; internal set; } = BirdPhotoSelector.GroupingThreshold.Default;
     // These counters count logical photos. Member-level failures are reported separately.
     public int SkippedMissing { get; internal set; }
@@ -31,7 +32,7 @@ public sealed class ProjectService
     };
 
     public async Task SaveAsync(string path, IEnumerable<PhotoGroup> groups, double groupingThreshold,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default, IReadOnlyList<SpeciesIdentity>? recentSpecies = null)
     {
         if (!IsProjectPath(path)) throw new InvalidDataException("工程文件必须使用 .json 扩展名。");
         if (!double.IsFinite(groupingThreshold) || groupingThreshold is < 0 or > 1)
@@ -40,7 +41,7 @@ public sealed class ProjectService
         cancellationToken.ThrowIfCancellationRequested();
         // Snapshot and validate every photo on the caller's thread, before opening even a
         // temporary output. An invalid multi-asset model never replaces a valid project.
-        var document = Snapshot(groups, groupingThreshold, cancellationToken);
+        var document = Snapshot(groups, groupingThreshold, cancellationToken, recentSpecies);
         string destination = Path.GetFullPath(path);
         string directory = Path.GetDirectoryName(destination)!;
         if (!Directory.Exists(directory)) throw new DirectoryNotFoundException("工程文件保存目录不存在。");
@@ -64,13 +65,17 @@ public sealed class ProjectService
         }
     }
 
-    private static ProjectDocument Snapshot(IEnumerable<PhotoGroup> groups, double threshold, CancellationToken ct)
+    private static ProjectDocument Snapshot(IEnumerable<PhotoGroup> groups, double threshold, CancellationToken ct,
+        IReadOnlyList<SpeciesIdentity>? recentSpecies)
     {
         var document = new ProjectDocument
         {
             GroupingThreshold = threshold,
             GroupingThresholdScaleVersion = GroupingThreshold.ScaleVersion
         };
+        var recent = new RecentSpeciesHistory();
+        recent.Replace(recentSpecies ?? Array.Empty<SpeciesIdentity>());
+        document.RecentSpecies = recent.Items.ToList();
         var photoIds = new HashSet<string>(StringComparer.Ordinal);
         var assetIds = new HashSet<string>(StringComparer.Ordinal);
         var assetPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -126,8 +131,15 @@ public sealed class ProjectService
                     Bird = photo.Bird?.Copy(), DetectionStatus = photo.DetectionStatus,
                     SelectedBirdIndex = photo.SelectedBirdIndex,
                     SelectedBirdNumber = photo.SelectedBird?.Number, NextBirdNumber = photo.NextBirdNumber,
+                    HasManualSpeciesEdits = photo.HasManualSpeciesEdits,
                     Birds = photo.Birds.Select(bird => (BirdRecord?)new BirdRecord
-                    { Number = bird.Number, IsManual = bird.IsManual, Box = bird.Box.Copy(), Species = bird.Species, RecognitionStatus = bird.RecognitionStatus }).ToList(),
+                    {
+                        Number = bird.Number, IsManual = bird.IsManual,
+                        Box = bird.HasRegion ? bird.Box.Copy() : null,
+                        ManualSpecies = bird.ManualSpecies,
+                        Species = bird.ManualSpecies is null ? bird.Species : null,
+                        RecognitionStatus = bird.RecognitionStatus
+                    }).ToList(),
                     ViewZoom = photo.ViewZoom, ViewCenterX = photo.ViewCenterX, ViewCenterY = photo.ViewCenterY,
                     ViewReference = photo.ViewZoom is double zoom && double.IsFinite(zoom) && zoom > 0
                         ? SnapshotGeometry(PhotoGeometryReference.Capture(photo.ActivePreviewAsset!, photo.PixelWidth, photo.PixelHeight)) : null
@@ -165,7 +177,7 @@ public sealed class ProjectService
             await using var stream = File.OpenRead(projectPath);
             var document = await JsonSerializer.DeserializeAsync<ProjectDocument>(stream, JsonOptions, cancellationToken)
                 ?? throw new InvalidDataException("工程文件为空。");
-            if (document.Schema != "BirdPhotoSelector.Project" || document.Version is not (1 or 2))
+            if (document.Schema != "BirdPhotoSelector.Project" || document.Version is not (1 or 2 or 3))
                 throw new InvalidDataException("工程格式或版本不受支持。");
             if (document.Groups is null || !double.IsFinite(document.GroupingThreshold) ||
                 document.GroupingThreshold is < 0 or > 1)
@@ -178,6 +190,9 @@ public sealed class ProjectService
                     ? GroupingThreshold.FromActual(document.GroupingThreshold)
                     : document.GroupingThreshold
             };
+            var recent = new RecentSpeciesHistory();
+            recent.Replace((document.RecentSpecies ?? new()).Where(species => species is { IsValid: true }));
+            result.RecentSpecies = recent.Items.ToArray();
             string baseDirectory = Path.GetDirectoryName(projectPath)!;
             var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             var photoIds = new HashSet<string>(StringComparer.Ordinal);
@@ -351,7 +366,7 @@ public sealed class ProjectService
         bool sourceFileChanged = GeometryFileChanged(reference, active);
         bool referenceMatchesActive = reference is not null && reference.AssetId == active.Id &&
             SamePath(reference.CanonicalPath, active.CanonicalPath);
-        if (invalidGeometry || activeChanged || sourceFileChanged || photo.Birds.Count > 0 &&
+        if (invalidGeometry || activeChanged || sourceFileChanged || photo.Birds.Any(bird => bird.HasRegion) &&
             (status != PhotoGeometryStatus.Current || !referenceMatchesActive))
             status = PhotoGeometryStatus.NeedsReview;
         photo.SetGeometryReference(reference, status);
@@ -413,7 +428,8 @@ public sealed class ProjectService
     {
         photo.Rating = Enum.IsDefined(record.Rating) ? record.Rating : PhotoRating.Unmarked;
         var validBirds = (record.Birds ?? new()).Select((bird, index) => (Bird: bird, Index: index))
-            .Where(entry => entry.Bird?.Box is { IsValid: true }).ToArray();
+            .Where(entry => entry.Bird is { } bird && (bird.ManualSpecies is not null
+                ? bird.ManualSpecies.IsValid : bird.Box is { IsValid: true })).ToArray();
         if (validBirds.Length > 0)
         {
             int selected = Array.FindIndex(validBirds, entry => entry.Index == record.SelectedBirdIndex);
@@ -424,13 +440,20 @@ public sealed class ProjectService
             }
             photo.SetBirds(validBirds.Select(entry => new DetectedBird
             {
-                Number = entry.Bird!.Number, IsManual = entry.Bird.IsManual, Box = entry.Bird.Box!,
-                Species = NormalizeSpecies(entry.Bird.Species), RecognitionStatus = entry.Bird.RecognitionStatus ?? "待识别"
+                Number = entry.Bird!.Number, IsManual = entry.Bird.IsManual,
+                Box = entry.Bird.ManualSpecies is null ? entry.Bird.Box! : new BirdBox(),
+                ManualSpecies = entry.Bird.ManualSpecies,
+                Species = entry.Bird.ManualSpecies is null ? NormalizeSpecies(entry.Bird.Species) : null,
+                RecognitionStatus = entry.Bird.RecognitionStatus ?? "待识别"
             }), Math.Max(0, selected), record.NextBirdNumber);
         }
         else photo.SetBirds(record.Bird is { IsValid: true } legacy
             ? new[] { new DetectedBird { Number = record.SelectedBirdNumber ?? 0, Box = legacy } }
             : Array.Empty<DetectedBird>(), nextBirdNumber: record.NextBirdNumber);
+        // Older projects did not store the edit barrier, but a saved hand-drawn
+        // region is explicit evidence that this photo has already been edited.
+        photo.HasManualSpeciesEdits = record.HasManualSpeciesEdits ||
+            photo.Birds.Any(bird => bird.ManualSpecies is not null || bird.IsManual);
         photo.DetectionStatus = record.DetectionStatus ?? (photo.Bird is null ? "尚未分析" : "已识别鸟类");
     }
 
@@ -458,11 +481,12 @@ public sealed class ProjectService
     {
         public ProjectDocument() { }
         [JsonRequired] public string Schema { get; set; } = "BirdPhotoSelector.Project";
-        [JsonRequired] public int Version { get; set; } = 2;
+        [JsonRequired] public int Version { get; set; } = 3;
         public DateTimeOffset SavedAt { get; set; } = DateTimeOffset.UtcNow;
         [JsonRequired] public double GroupingThreshold { get; set; } = 0.8;
         public int GroupingThresholdScaleVersion { get; set; } = 1;
         [JsonRequired] public List<GroupRecord?>? Groups { get; set; } = new();
+        public List<SpeciesIdentity>? RecentSpecies { get; set; } = new();
     }
     private sealed class GroupRecord
     {
@@ -491,6 +515,7 @@ public sealed class ProjectService
         public int SelectedBirdIndex { get; set; }
         public int? SelectedBirdNumber { get; set; }
         public int NextBirdNumber { get; set; } = 1;
+        public bool HasManualSpeciesEdits { get; set; }
         public string? DetectionStatus { get; set; }
         public double? ViewZoom { get; set; }
         public double? ViewCenterX { get; set; }
@@ -521,6 +546,7 @@ public sealed class ProjectService
         public BirdBox? Box { get; set; }
         public int Number { get; set; }
         public bool IsManual { get; set; }
+        public SpeciesIdentity? ManualSpecies { get; set; }
         public SpeciesMatch? Species { get; set; }
         public string? RecognitionStatus { get; set; }
     }

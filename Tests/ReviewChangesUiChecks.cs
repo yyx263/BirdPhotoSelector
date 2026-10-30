@@ -124,7 +124,7 @@ internal static class ReviewChangesUiChecks
                       second.Number == 19 && second.DisplayNumber == 1 && second.Species?.ScientificName == "Passer montanus" &&
                       photo.GeometryStatus == PhotoGeometryStatus.NeedsReview,
                     "deleting the first old region through the window preserves the surviving object and species while displaying number one");
-                Check(OverlayLabels(overlay).SequenceEqual(new[] { "1" }),
+                Check(OverlayLabels(overlay).SequenceEqual(new[] { "01" }),
                     "the surviving virtual box immediately follows the result list's compact display number");
                 Check(viewer.BeginManualRegionSelection(), "a pending review allows the real manual-selection control to start drawing");
                 viewer.CancelManualRegionSelection();
@@ -135,7 +135,7 @@ internal static class ReviewChangesUiChecks
                 Check(photo.Birds.Count == 2 && ReferenceEquals(photo.Birds[0], second) && added.IsManual &&
                       added.DisplayNumber == 2 && second.DisplayNumber == 1 &&
                       second.Species?.ScientificName == "Passer montanus" && photo.GeometryStatus == PhotoGeometryStatus.NeedsReview &&
-                      OverlayLabels(overlay).SequenceEqual(new[] { "1", "2" }),
+                      OverlayLabels(overlay).SequenceEqual(new[] { "01", "02" }),
                     "adding a current-image manual region keeps old species and displays continuous labels while the source reminder remains");
                 Check(reloads == 0 && model.IsPreviewReady,
                     "manual edits in review state do not reload or temporarily disable the current preview");
@@ -146,7 +146,7 @@ internal static class ReviewChangesUiChecks
                 ?? throw new InvalidOperationException("Empty-detection confirmation text missing.");
             string emptyText = (string)emptyTextField.GetRawConstantValue()!;
             var lines = emptyText.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
-            Check(lines.Contains("这会移除全部自动框和手动选区。") && lines.Contains("照片、评级和分组保留。"),
+            Check(lines.Contains("这会移除全部自动框、手动选区和手动鸟种。") && lines.Contains("照片、评级和分组保留。"),
                 "the clear-regions warning and the preserved-photo/rating/group statement occupy separate confirmation lines");
             Layout(root, 1560, 860); Settle(root);
             CheckBadges(root, Check);

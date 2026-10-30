@@ -143,6 +143,13 @@ public sealed class MainViewModel : INotifyPropertyChanged
         Notify(nameof(CanEditBirdRegions)); Notify(nameof(CanReidentifyCurrentPhoto)); Notify(nameof(CurrentFormatLabel));
         Notify(nameof(PreviewSourceLabel)); Notify(nameof(GeometryNotice));
     }
+    public bool LocatePhoto(PhotoItem photo)
+    {
+        foreach (var group in Groups)
+            if (group.Photos.Contains(photo)) { SelectPhoto(group, photo); return true; }
+        return false;
+    }
+
     public void NavigateGroup(int delta)
     {
         if (IsBusy || Groups.Count == 0) return;

@@ -1,0 +1,53 @@
+<Window x:Class="BirdPhotoSelector.SpeciesPickerDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Style="{StaticResource {x:Type Window}}" Title="选择鸟种" Width="640" Height="560"
+        MinWidth="520" MinHeight="420" WindowStartupLocation="CenterOwner" ShowInTaskbar="False"
+        KeyDown="Dialog_KeyDown">
+  <Grid Margin="24">
+    <Grid.RowDefinitions>
+      <RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/>
+      <RowDefinition Height="*"/><RowDefinition Height="Auto"/>
+    </Grid.RowDefinitions>
+    <StackPanel>
+      <TextBlock Text="选择鸟种" FontSize="21" FontWeight="SemiBold"/>
+      <TextBlock x:Name="CurrentSpeciesText" Foreground="#8FA59C" FontSize="12" Margin="0,7,0,0"
+                 TextTrimming="CharacterEllipsis" Visibility="Collapsed"/>
+    </StackPanel>
+    <StackPanel Grid.Row="1" Margin="0,18,0,12">
+      <TextBlock Text="中文名或学名" Foreground="#AABAC6" FontSize="12" Margin="0,0,0,6"/>
+      <TextBox x:Name="SearchBox" Height="42" FontSize="14" VerticalContentAlignment="Center"
+               TextChanged="SearchBox_TextChanged" ToolTip="输入中文名或学名搜索，清空后显示最近选择"/>
+    </StackPanel>
+    <DockPanel Grid.Row="2" Margin="1,0,1,9">
+      <TextBlock x:Name="ResultCountText" DockPanel.Dock="Right" Foreground="#7F9690" FontSize="11"/>
+      <TextBlock x:Name="ResultHeadingText" Text="最近选择" FontWeight="SemiBold"/>
+    </DockPanel>
+    <Grid Grid.Row="3">
+      <ListBox x:Name="SpeciesList" SelectionMode="Single" SelectionChanged="SpeciesList_SelectionChanged"
+               MouseDoubleClick="SpeciesList_MouseDoubleClick" Background="#151D24">
+        <ListBox.ItemContainerStyle>
+          <Style TargetType="ListBoxItem" BasedOn="{StaticResource {x:Type ListBoxItem}}">
+            <Setter Property="Margin" Value="0,0,0,4"/><Setter Property="Padding" Value="10,8"/>
+          </Style>
+        </ListBox.ItemContainerStyle>
+        <ListBox.ItemTemplate><DataTemplate>
+          <Grid>
+            <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="1.25*"/></Grid.ColumnDefinitions>
+            <TextBlock Text="{Binding DisplayName}" FontSize="14" TextTrimming="CharacterEllipsis" Margin="0,0,14,0"/>
+            <TextBlock Grid.Column="1" Text="{Binding ScientificName}" FontSize="12" FontStyle="Italic"
+                       Foreground="#91A8B2" TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/>
+          </Grid>
+        </DataTemplate></ListBox.ItemTemplate>
+      </ListBox>
+      <TextBlock x:Name="EmptyMessageText" Foreground="#8A9EAA" FontSize="13" TextWrapping="Wrap"
+                 MaxWidth="390" Margin="20" TextAlignment="Center" VerticalAlignment="Center"
+                 HorizontalAlignment="Center" IsHitTestVisible="False"/>
+    </Grid>
+    <StackPanel Grid.Row="4" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,18,0,0">
+      <Button x:Name="CancelButton" Content="取消" Click="Cancel_Click" Margin="0,0,10,0"/>
+      <Button x:Name="ConfirmButton" Content="确定" Style="{StaticResource PrimaryButton}"
+              IsDefault="True" IsEnabled="False" Click="Confirm_Click"/>
+    </StackPanel>
+  </Grid>
+</Window>

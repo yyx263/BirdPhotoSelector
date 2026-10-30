@@ -47,9 +47,9 @@ internal static class PhotoProjectV2Checks
             await projects.SaveAsync(baselinePath, new[] { group }, .5);
             string baselineJson = await File.ReadAllTextAsync(baselinePath);
             var baselineNode = JsonNode.Parse(baselineJson)!;
-            Check(baselineNode["Version"]!.GetValue<int>() == 2 &&
+            Check(baselineNode["Version"]!.GetValue<int>() == 3 &&
                   baselineNode["Groups"]![0]!["Photos"]![0]!["Assets"]!.AsArray().Count == 2,
-                "new projects explicitly write version 2 and both original file members");
+                "new projects write version 3 while preserving both original file members");
 
             var loaded = await projects.LoadAsync(baselinePath);
             var photos = loaded.Groups.Single().Photos.ToDictionary(photo => photo.Id);

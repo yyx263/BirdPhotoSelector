@@ -537,7 +537,7 @@ internal static class MainWindowUiChecks
             owner.ContextMenu!.PlacementTarget = owner;
             return owner.ContextMenu;
         }
-        void Delete(ContextMenu menu) => menu.Items.OfType<MenuItem>().Single(item => item.Header?.ToString() == "删除选区")
+        void Delete(ContextMenu menu) => menu.Items.OfType<MenuItem>().Single(item => item.Header?.ToString() == "删除鸟种")
             .RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
         try
         {

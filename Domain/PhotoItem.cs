@@ -39,6 +39,7 @@ public sealed record SpeciesMatch(string ChineseName, string ScientificName, dou
 public sealed class DetectedBird : INotifyPropertyChanged
 {
     private SpeciesMatch? _species;
+    private SpeciesIdentity? _manualSpecies;
     private int _number;
     private int _displayNumber;
     private string _recognitionStatus = "待识别";
@@ -47,30 +48,55 @@ public sealed class DetectedBird : INotifyPropertyChanged
     public int DisplayNumber
     {
         get => _displayNumber;
-        internal set { if (_displayNumber == value) return; _displayNumber = value; Notify(); }
+        internal set { if (_displayNumber == value) return; _displayNumber = value; Notify(); Notify(nameof(DisplayNumberText)); }
     }
     public bool IsManual { get; init; }
     public BirdBox Box { get; init; } = new();
+    public SpeciesIdentity? ManualSpecies
+    {
+        get => _manualSpecies;
+        set
+        {
+            if (value is not null && !value.IsValid) throw new ArgumentException("人工鸟种必须包含有效学名。", nameof(value));
+            if (_manualSpecies == value) return;
+            _manualSpecies = value;
+            if (value is not null) _species = null;
+            Notify(); Notify(nameof(Species)); Notify(nameof(HasRegion)); Notify(nameof(DisplayNumberText)); NotifySpecies();
+        }
+    }
+    public bool HasRegion => ManualSpecies is null && Box.IsValid;
+    public string DisplayNumberText => HasRegion ? $"{DisplayNumber:00}" : "手动";
+    public SpeciesIdentity? EffectiveSpecies => ManualSpecies ?? SpeciesIdentity.FromMatch(Species);
+    public DetectedBird Copy() => new()
+    {
+        Number = Number, IsManual = IsManual, Box = Box.Copy(), Species = ManualSpecies is null ? Species : null,
+        ManualSpecies = ManualSpecies, RecognitionStatus = RecognitionStatus
+    };
     public SpeciesMatch? Species
     {
         get => _species;
-        set { if (_species == value) return; _species = value; Notify(); Notify(nameof(SpeciesName)); Notify(nameof(ScientificName)); Notify(nameof(SimilarityText)); Notify(nameof(ConfidenceText)); Notify(nameof(EvidenceTooltip)); }
+        set { if (_species == value) return; _species = value; Notify(); NotifySpecies(); }
     }
     public string RecognitionStatus
     {
         get => _recognitionStatus;
         set { if (_recognitionStatus == value) return; _recognitionStatus = value; Notify(); Notify(nameof(SpeciesName)); }
     }
-    public string SpeciesName => Species?.DisplayName ?? RecognitionStatus;
-    public string ScientificName => Species?.ScientificName ?? "";
-    public string SimilarityText => Species is { IsValid: true } match ? $"{match.Similarity:0.000}" : "—";
-    public string ConfidenceText => Species is { IsValid: true, HasValidConfidence: true } match ? $"{match.Confidence:P1}" : "—";
-    public string EvidenceTooltip => Species is { IsValid: true } match
+    public string SpeciesName => EffectiveSpecies?.DisplayName ?? RecognitionStatus;
+    public string ScientificName => EffectiveSpecies?.ScientificName ?? "";
+    public string SimilarityText => ManualSpecies is null && Species is { IsValid: true } match ? $"{match.Similarity:0.000}" : "—";
+    public string ConfidenceText => ManualSpecies is null && Species is { IsValid: true, HasValidConfidence: true } match ? $"{match.Confidence:P1}" : "—";
+    public string EvidenceTooltip => ManualSpecies is not null ? "人工指定鸟种，无识别框及 AI 分数。" : Species is { IsValid: true } match
         ? $"原始相似度：{match.Similarity:0.000}\n" +
           (match.HasValidConfidence ? "置信度反映候选区分程度，未经准确率校准。" : "旧结果尚无置信度，请重新识别。") +
           (string.IsNullOrWhiteSpace(match.AlternativeName) ? "" : $"\n相近候选：{match.AlternativeName}（{match.RunnerUpSimilarity:0.000}）")
         : RecognitionStatus;
     public event PropertyChangedEventHandler? PropertyChanged;
+    private void NotifySpecies()
+    {
+        Notify(nameof(EffectiveSpecies)); Notify(nameof(SpeciesName)); Notify(nameof(ScientificName));
+        Notify(nameof(SimilarityText)); Notify(nameof(ConfidenceText)); Notify(nameof(EvidenceTooltip));
+    }
     private void Notify([CallerMemberName] string? name = null) => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
 }
 
@@ -94,8 +120,10 @@ public sealed class PhotoItem : INotifyPropertyChanged
     private PhotoGeometryReference? _geometryReference;
     private PhotoGeometryStatus _geometryStatus;
     private PhotoRating _rating;
+    private bool _hasManualSpeciesEdits;
     private int _selectedBirdIndex;
     private DetectedBird? _selectedBirdReference;
+    private readonly HashSet<DetectedBird> _observedBirds = new();
     public int NextBirdNumber { get; private set; } = 1;
     private string _detectionStatus = "尚未分析";
     private double? _viewZoom, _viewCenterX, _viewCenterY;
@@ -189,10 +217,10 @@ public sealed class PhotoItem : INotifyPropertyChanged
     public void SetGeometryReference(PhotoGeometryReference? reference, PhotoGeometryStatus status)
     {
         if (!Enum.IsDefined(status)) throw new ArgumentOutOfRangeException(nameof(status));
-        if (Birds.Count > 0 && (status != PhotoGeometryStatus.Current || !ReferenceMatchesActive(reference)))
+        if (Birds.Any(bird => bird.HasRegion) && (status != PhotoGeometryStatus.Current || !ReferenceMatchesActive(reference)))
             status = PhotoGeometryStatus.NeedsReview;
         else if (status == PhotoGeometryStatus.Current && !ReferenceMatchesActive(reference))
-            status = Birds.Count > 0 || reference is not null ? PhotoGeometryStatus.NeedsReview : PhotoGeometryStatus.Unspecified;
+            status = Birds.Any(bird => bird.HasRegion) || reference is not null ? PhotoGeometryStatus.NeedsReview : PhotoGeometryStatus.Unspecified;
         _geometryReference = reference; _geometryStatus = status;
         NotifyGeometry();
     }
@@ -223,21 +251,21 @@ public sealed class PhotoItem : INotifyPropertyChanged
         bool sourceChanged = old?.Id != active?.Id ||
             !StringComparer.OrdinalIgnoreCase.Equals(old?.CanonicalPath, active?.CanonicalPath);
         var priorReference = _geometryReference;
-        if (sourceChanged && priorReference is null && old is not null && Birds.Count > 0 &&
+        if (sourceChanged && priorReference is null && old is not null && Birds.Any(bird => bird.HasRegion) &&
             _geometryStatus != PhotoGeometryStatus.NeedsReview)
             priorReference = PhotoGeometryReference.Capture(old, PixelWidth, PixelHeight);
         bool invalidatePreview = sourceChanged && (old is not null || priorReference is not null);
         if (sourceChanged)
         {
             _geometryReference = priorReference;
-            if (priorReference is not null || Birds.Count > 0) _geometryStatus = PhotoGeometryStatus.NeedsReview;
+            if (priorReference is not null || Birds.Any(bird => bird.HasRegion)) _geometryStatus = PhotoGeometryStatus.NeedsReview;
             if (invalidatePreview)
             {
                 _thumbnail = null; _viewZoom = _viewCenterX = _viewCenterY = null;
                 _pixelWidth = _pixelHeight = 0;
             }
             // Old initializers may assign Bird before the first FilePath; no old source existed.
-            if (old is null && priorReference is null && active is not null && Birds.Count > 0)
+            if (old is null && priorReference is null && active is not null && Birds.Any(bird => bird.HasRegion))
             {
                 _geometryReference = PhotoGeometryReference.Capture(active, PixelWidth, PixelHeight);
                 _geometryStatus = PhotoGeometryStatus.Current;
@@ -286,6 +314,7 @@ public sealed class PhotoItem : INotifyPropertyChanged
         OnPropertyChanged(nameof(CanUseBirdGeometry)); OnPropertyChanged(nameof(Bird));
     }
     public PhotoRating Rating { get => _rating; set => Set(ref _rating, value); }
+    public bool HasManualSpeciesEdits { get => _hasManualSpeciesEdits; set => Set(ref _hasManualSpeciesEdits, value); }
     public ObservableCollection<DetectedBird> Birds { get; } = new();
     public DetectedBird? SelectedBird => _selectedBirdIndex >= 0 && _selectedBirdIndex < Birds.Count ? Birds[_selectedBirdIndex] : null;
     public int SelectedBirdIndex
@@ -302,7 +331,7 @@ public sealed class PhotoItem : INotifyPropertyChanged
     // The single-bird facade keeps the existing detail-view and single-bird project behavior.
     public BirdBox? Bird
     {
-        get => _geometryStatus == PhotoGeometryStatus.NeedsReview ? null : SelectedBird?.Box;
+        get => _geometryStatus == PhotoGeometryStatus.NeedsReview || SelectedBird is not { HasRegion: true } bird ? null : bird.Box;
         set
         {
             if (_geometryStatus != PhotoGeometryStatus.NeedsReview && ReferenceEquals(SelectedBird?.Box, value)) return;
@@ -311,7 +340,7 @@ public sealed class PhotoItem : INotifyPropertyChanged
     }
     public void SetBirds(IEnumerable<DetectedBird> birds, int selectedIndex = 0, int nextBirdNumber = 1)
     {
-        var snapshot = birds.Where(bird => bird.Box.IsValid).Distinct().ToArray();
+        var snapshot = birds.Where(bird => bird.HasRegion || bird.ManualSpecies is { IsValid: true }).Distinct().ToArray();
         var used = new HashSet<int>();
         int next = Math.Max(nextBirdNumber, 1);
         foreach (var bird in snapshot)
@@ -342,6 +371,7 @@ public sealed class PhotoItem : INotifyPropertyChanged
         if (number >= int.MaxValue) throw new InvalidOperationException("选区序号已达到上限。");
         var bird = new DetectedBird { Number = number, Box = box.Copy(), IsManual = true };
         Birds.Add(bird); NextBirdNumber++;
+        HasManualSpeciesEdits = true;
         _selectedBirdIndex = Birds.Count - 1;
         NotifyBirds();
         return bird;
@@ -350,6 +380,7 @@ public sealed class PhotoItem : INotifyPropertyChanged
     {
         int index = Birds.IndexOf(bird);
         if (index < 0) return false;
+        HasManualSpeciesEdits = true;
         var selected = SelectedBird;
         Birds.RemoveAt(index);
         _selectedBirdIndex = selected is not null && selected != bird ? Birds.IndexOf(selected) : Math.Min(index, Birds.Count - 1);
@@ -360,7 +391,7 @@ public sealed class PhotoItem : INotifyPropertyChanged
     public void ReplaceAutomaticRegions(IEnumerable<BirdBox> boxes)
     {
         var selected = SelectedBird;
-        var manual = Birds.Where(bird => bird.IsManual).ToArray();
+        var manual = Birds.Where(bird => bird.IsManual || bird.ManualSpecies is not null).ToArray();
         var automatic = boxes.Where(box => box.IsValid)
             .Select(box => new DetectedBird { Box = box.Copy() }).ToArray();
         var merged = automatic.Concat(manual).ToArray();
@@ -371,9 +402,9 @@ public sealed class PhotoItem : INotifyPropertyChanged
     {
         _selectedBirdReference = SelectedBird;
         RefreshDisplayNumbers();
-        if (Birds.Count == 0 && _geometryStatus != PhotoGeometryStatus.NeedsReview)
+        if (!Birds.Any(bird => bird.HasRegion) && _geometryStatus != PhotoGeometryStatus.NeedsReview)
             SetGeometryReference(null, PhotoGeometryStatus.Unspecified);
-        else if (_geometryReference is null && _geometryStatus != PhotoGeometryStatus.NeedsReview && ActivePreviewAsset is { } active)
+        else if (Birds.Any(bird => bird.HasRegion) && _geometryReference is null && _geometryStatus != PhotoGeometryStatus.NeedsReview && ActivePreviewAsset is { } active)
             SetGeometryReference(PhotoGeometryReference.Capture(active, PixelWidth, PixelHeight), PhotoGeometryStatus.Current);
         else if (_geometryReference is not null && (_geometryStatus != PhotoGeometryStatus.Current || !ReferenceMatchesActive(_geometryReference)))
             SetGeometryReference(_geometryReference, PhotoGeometryStatus.NeedsReview);
@@ -383,10 +414,15 @@ public sealed class PhotoItem : INotifyPropertyChanged
     }
     private void RefreshDisplayNumbers()
     {
-        for (int index = 0; index < Birds.Count; index++) Birds[index].DisplayNumber = index + 1;
+        int number = 0;
+        foreach (var bird in Birds) bird.DisplayNumber = bird.HasRegion ? ++number : 0;
     }
     private void OnBirdCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
     {
+        foreach (var bird in _observedBirds.Where(bird => !Birds.Contains(bird)).ToArray())
+        { bird.PropertyChanged -= OnBirdPropertyChanged; _observedBirds.Remove(bird); }
+        foreach (var bird in Birds)
+            if (_observedBirds.Add(bird)) bird.PropertyChanged += OnBirdPropertyChanged;
         // Reordering display rows must not silently select a different bird.
         var selected = _selectedBirdReference;
         int retained = selected is null ? -1 : Birds.IndexOf(selected);
@@ -400,6 +436,12 @@ public sealed class PhotoItem : INotifyPropertyChanged
         {
             OnPropertyChanged(nameof(SelectedBirdIndex)); OnPropertyChanged(nameof(SelectedBird)); OnPropertyChanged(nameof(Bird));
         }
+    }
+    private void OnBirdPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName != nameof(DetectedBird.ManualSpecies)) return;
+        HasManualSpeciesEdits = true;
+        NotifyBirds();
     }
     public string DetectionStatus { get => _detectionStatus; set => Set(ref _detectionStatus, value); }
     public double? ViewZoom { get => _viewZoom; set => Set(ref _viewZoom, value); }

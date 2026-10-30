@@ -214,7 +214,12 @@ public partial class DualPhotoViewer : UserControl
         if (_interactionBlocked || _bitmap is null || _photo is null || index < 0 || index >= _photo.Birds.Count) return;
         bool changed = _photo.SelectedBirdIndex != index;
         _photo.SelectedBirdIndex = index;
-        RestoreBirdView();
+        if (_photo.SelectedBird is { HasRegion: true }) RestoreBirdView();
+        else
+        {
+            CancelManualRegionSelection();
+            StopDragging();
+        }
         RefreshBirdOverlays();
         if (changed) BirdSelectionChanged?.Invoke(this, EventArgs.Empty);
     }
@@ -236,6 +241,7 @@ public partial class DualPhotoViewer : UserControl
         for (int index = 0; index < _photo.Birds.Count; index++)
         {
             var bird = _photo.Birds[index];
+            if (!bird.HasRegion) continue;
             var box = bird.Box;
             if (!IsValidBird(box.X, box.Y, box.Width, box.Height)) continue;
             var bounds = new Rect(photoBounds.Left + box.X * photoBounds.Width,
@@ -261,7 +267,7 @@ public partial class DualPhotoViewer : UserControl
                 Margin = new Thickness(.75), Stroke = stroke, StrokeThickness = 1.25,
                 StrokeDashArray = new DoubleCollection { 4, 3 }, IsHitTestVisible = false
             });
-            string numberText = bird.DisplayNumber.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            string numberText = bird.DisplayNumberText;
             double labelWidth = Math.Min(Math.Max(24, 10 + numberText.Length * 7), photoBounds.Width);
             double labelHeight = Math.Min(20, photoBounds.Height);
             var label = new Border
@@ -282,7 +288,7 @@ public partial class DualPhotoViewer : UserControl
                 }
             };
             ((TextBlock)label.Child).SetBinding(TextBlock.TextProperty,
-                new Binding(nameof(DetectedBird.DisplayNumber)) { Source = bird });
+                new Binding(nameof(DetectedBird.DisplayNumberText)) { Source = bird });
             target.Children.Add(label);
             Canvas.SetLeft(target, bounds.Left);
             Canvas.SetTop(target, bounds.Top);
@@ -440,7 +446,8 @@ public partial class DualPhotoViewer : UserControl
         _needsInitialView = false;
         _zoom = MinimumPixelScale / FitScale;
         _centerX = _centerY = 0.5;
-        var bird = _photo.CanUseBirdGeometry || _allowUnverifiedBirdFocus ? _photo.SelectedBird?.Box : null;
+        var bird = (_photo.CanUseBirdGeometry || _allowUnverifiedBirdFocus) && _photo.SelectedBird is { HasRegion: true } selected
+            ? selected.Box : null;
         if (!_fitPending && bird is not null && IsValidBird(bird.X, bird.Y, bird.Width, bird.Height))
         {
             var birdWidth = Math.Min(bird.Width, 1 - bird.X) * _bitmap.PixelWidth;
@@ -462,14 +469,20 @@ public partial class DualPhotoViewer : UserControl
 
     private void UpdateDetectionLabel()
     {
-        var bird = _photo?.SelectedBird?.Box;
+        if (_manualRegionMode) { DetectionText.Text = ManualRegionHint; return; }
+        var selected = _photo?.SelectedBird;
+        if (selected is { HasRegion: false, EffectiveSpecies: { } species })
+        {
+            DetectionText.Text = "人工指定 · " + species.DisplayName;
+            return;
+        }
+        var bird = selected is { HasRegion: true } ? selected.Box : null;
         if (bird is null || !IsValidBird(bird.X, bird.Y, bird.Width, bird.Height))
         {
             DetectionText.Text = "未定位鸟类 · 可手动缩放";
             return;
         }
-        var selected = _photo!.SelectedBird;
-        DetectionText.Text = _manualRegionMode ? ManualRegionHint : selected is not null && (_photo.Birds.Count > 1 || selected.Species is not null || selected.IsManual)
+        DetectionText.Text = selected is not null && (_photo!.Birds.Count > 1 || selected.EffectiveSpecies is not null || selected.IsManual)
             ? selected.IsManual ? $"手动选区{selected.DisplayNumber} · {selected.SpeciesName}" : $"第{selected.DisplayNumber}只鸟 · {selected.SpeciesName}"
             : $"鸟类已定位 · {bird.Confidence:P0}";
     }

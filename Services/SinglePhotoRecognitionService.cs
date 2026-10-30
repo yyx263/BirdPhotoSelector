@@ -57,6 +57,7 @@ public sealed class SinglePhotoRecognitionResult
         photo.SetGeometryReference(reference, PhotoGeometryStatus.Current);
         photo.DetectionStatus = DetectionStatus;
         photo.ViewZoom = photo.ViewCenterX = photo.ViewCenterY = null;
+        photo.HasManualSpeciesEdits = false;
         _applied = true;
     }
 }
@@ -177,6 +178,7 @@ internal sealed class SinglePhotoSnapshot
     private readonly DetectedBird[] _oldObjects, _oldValues;
     private readonly int _selectedIndex;
     private readonly PhotoRating _rating;
+    private readonly bool _manualSpeciesEdits;
     private readonly string _detectionStatus;
     private readonly PhotoGeometryReference? _geometry;
     private readonly PhotoGeometryStatus _geometryStatus;
@@ -193,6 +195,7 @@ internal sealed class SinglePhotoSnapshot
         _oldObjects = photo.Birds.ToArray(); _oldValues = _oldObjects.Select(CopyBird).ToArray();
         _selectedIndex = photo.SelectedBirdIndex; NextBirdNumber = photo.NextBirdNumber;
         _rating = photo.Rating; _detectionStatus = photo.DetectionStatus;
+        _manualSpeciesEdits = photo.HasManualSpeciesEdits;
         _geometry = photo.GeometryReference; _geometryStatus = photo.GeometryStatus;
         _width = photo.PixelWidth; _height = photo.PixelHeight;
         _zoom = photo.ViewZoom; _centerX = photo.ViewCenterX; _centerY = photo.ViewCenterY;
@@ -205,15 +208,15 @@ internal sealed class SinglePhotoSnapshot
         photo.Birds.Count == _oldObjects.Length && photo.Birds.Zip(_oldObjects).All(pair => ReferenceEquals(pair.First, pair.Second)) &&
         photo.Birds.Zip(_oldValues).All(pair => SameBird(pair.First, pair.Second)) &&
         photo.SelectedBirdIndex == _selectedIndex && photo.NextBirdNumber == NextBirdNumber && photo.Rating == _rating &&
+        photo.HasManualSpeciesEdits == _manualSpeciesEdits &&
         photo.DetectionStatus == _detectionStatus && photo.GeometryReference == _geometry && photo.GeometryStatus == _geometryStatus &&
         photo.PixelWidth == _width && photo.PixelHeight == _height &&
         photo.ViewZoom == _zoom && photo.ViewCenterX == _centerX && photo.ViewCenterY == _centerY;
 
-    internal static DetectedBird CopyBird(DetectedBird bird) => new()
-    { Number = bird.Number, IsManual = bird.IsManual, Box = bird.Box.Copy(), Species = bird.Species, RecognitionStatus = bird.RecognitionStatus };
+    internal static DetectedBird CopyBird(DetectedBird bird) => bird.Copy();
 
     private static bool SameBird(DetectedBird first, DetectedBird second) => first.Number == second.Number &&
-        first.IsManual == second.IsManual && first.Species == second.Species && first.RecognitionStatus == second.RecognitionStatus &&
+        first.IsManual == second.IsManual && first.ManualSpecies == second.ManualSpecies && first.Species == second.Species && first.RecognitionStatus == second.RecognitionStatus &&
         first.Box.X == second.Box.X && first.Box.Y == second.Box.Y && first.Box.Width == second.Box.Width &&
         first.Box.Height == second.Box.Height && first.Box.Confidence == second.Box.Confidence;
 }

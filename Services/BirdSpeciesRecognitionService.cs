@@ -16,6 +16,7 @@ public sealed class SpeciesBatchResult
     public List<string> Errors { get; } = new();
     public bool MissingModel { get; internal set; }
     public int SkippedPhotos { get; internal set; }
+    public int ManuallyEditedSkippedPhotos { get; internal set; }
 }
 
 /// <summary>
@@ -85,8 +86,10 @@ public sealed class BirdSpeciesRecognitionService : IDisposable
         ArgumentNullException.ThrowIfNull(photos);
         lock (_sync) ObjectDisposedException.ThrowIf(_disposed, this);
         var jobs = photos.Select(photo => new PhotoJob(photo.Id, photo.ActivePreviewAsset?.CanonicalPath ?? photo.FilePath,
-            photo.Birds.Select((bird, index) => new BirdJob(index, index + 1, bird.Box.Copy())).ToArray(),
-            photo.GeometryStatus == PhotoGeometryStatus.NeedsReview || photo.Birds.Count > 0 && !photo.CanUseBirdGeometry)).ToArray();
+            photo.Birds.Select((bird, index) => (bird, index)).Where(entry => entry.bird.HasRegion)
+                .Select(entry => new BirdJob(entry.index, entry.bird.DisplayNumber, entry.bird.Box.Copy())).ToArray(),
+            photo.GeometryStatus == PhotoGeometryStatus.NeedsReview || photo.Birds.Any(bird => bird.HasRegion) && !photo.CanUseBirdGeometry,
+            photo.HasManualSpeciesEdits || photo.Birds.Any(bird => bird.ManualSpecies is not null))).ToArray();
         await _batchGate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
@@ -100,15 +103,18 @@ public sealed class BirdSpeciesRecognitionService : IDisposable
         CancellationToken cancellationToken)
     {
         var result = new SpeciesBatchResult();
-        var safeJobs = jobs.Where(job => !job.NeedsGeometryReview).ToArray();
+        var safeJobs = jobs.Where(job => !job.ManuallyEdited && !job.NeedsGeometryReview).ToArray();
         int total = safeJobs.Sum(job => job.Birds.Length), completed = 0;
         progress?.Report(new(0, total, "正在准备本机鸟种识别…"));
-        foreach (var job in jobs.Where(job => job.NeedsGeometryReview))
+        result.ManuallyEditedSkippedPhotos = jobs.Count(job => job.ManuallyEdited);
+        result.SkippedPhotos = result.ManuallyEditedSkippedPhotos;
+        foreach (var job in jobs.Where(job => !job.ManuallyEdited && job.NeedsGeometryReview))
         {
             result.SkippedPhotos++;
             result.Errors.Add($"{job.Path}：来源已变化，鸟框位置待核对；保留原选区与鸟种结果。");
         }
         if (safeJobs.Length == 0) return result;
+        if (total == 0) { result.SkippedPhotos += safeJobs.Length; return result; }
         SpeciesRecognitionResult? unavailable;
         lock (_sync)
         {
@@ -239,5 +245,5 @@ public sealed class BirdSpeciesRecognitionService : IDisposable
         // A canceled async batch can still be releasing its semaphore; do not dispose it here.
     }
     private sealed record BirdJob(int Index, int DisplayNumber, BirdBox Box);
-    private sealed record PhotoJob(string Id, string Path, BirdJob[] Birds, bool NeedsGeometryReview);
+    private sealed record PhotoJob(string Id, string Path, BirdJob[] Birds, bool NeedsGeometryReview, bool ManuallyEdited);
 }
