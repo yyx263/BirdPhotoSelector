@@ -19,7 +19,7 @@ if (Test-Path -LiteralPath $LocalDotnet -PathType Leaf) { $Dotnet = $LocalDotnet
 else {
     $DotnetCommand = Get-Command dotnet -ErrorAction SilentlyContinue
     if ($null -eq $DotnetCommand) {
-        throw 'Install the .NET 8 SDK for Windows x64, or extract it into .tools/dotnet. No global tools will be installed by this script.'
+        throw 'Install the .NET 10 SDK for Windows x64, or extract it into .tools/dotnet. No global tools will be installed by this script.'
     }
     $Dotnet = $DotnetCommand.Source
 }
@@ -41,7 +41,7 @@ Push-Location $ProjectRoot
 try {
     $env:DOTNET_CLI_HOME = Join-Path $ProjectRoot '.tools/dotnet-home'
     $env:DOTNET_CLI_TELEMETRY_OPTOUT = '1'
-    & $Dotnet restore $ProjectFile --runtime win-x64 --packages $PackagesDirectory --configfile (Join-Path $ProjectRoot 'NuGet.Config')
+    & $Dotnet restore $ProjectFile --runtime win-x64 -p:SelfContained=true --packages $PackagesDirectory --configfile (Join-Path $ProjectRoot 'NuGet.Config')
     if ($LASTEXITCODE -ne 0) { throw "Dependency restore failed (exit $LASTEXITCODE)." }
     & $Dotnet publish $ProjectFile --configuration Release --runtime win-x64 --self-contained true --no-restore `
         -p:PublishSingleFile=false -p:PublishTrimmed=false --output $OutputDirectory

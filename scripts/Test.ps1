@@ -21,10 +21,13 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Native build failed.' }
     foreach ($PortableProject in @('Tests/Imaging.Core/BirdPhotoSelector.Imaging.Checks.csproj',
             'Tests/Application.Core/BirdPhotoSelector.Application.Checks.csproj',
-            'Tests/PortableAdapters/BirdPhotoSelector.PortableAdapters.Checks.csproj')) {
+            'Tests/PortableAdapters/BirdPhotoSelector.PortableAdapters.Checks.csproj',
+            'Tests/Desktop/BirdPhotoSelector.Desktop.Checks.csproj')) {
         & $Dotnet run --project $PortableProject -c Release
         if ($LASTEXITCODE -ne 0) { throw "Portable verification failed: $PortableProject" }
     }
+    & $Dotnet run --project Tests/Desktop/BirdPhotoSelector.Desktop.Checks.csproj -c Release --no-build -- --native-window
+    if ($LASTEXITCODE -ne 0) { throw 'Native desktop startup failed.' }
     & $Dotnet restore Tests/BirdPhotoSelector.SmokeTests.csproj --configfile NuGet.Config
     if ($LASTEXITCODE -ne 0) { throw 'Test dependency restore failed.' }
     & $Dotnet run --project Tests/BirdPhotoSelector.SmokeTests.csproj -c Release --no-restore

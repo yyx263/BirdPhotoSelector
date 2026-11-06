@@ -103,7 +103,7 @@ internal static class SpeciesProjectChecks
             var emptyLibrary = await projects.LoadAsync(emptyPath);
             Check(emptyLibrary.Groups.Count == 0 && emptyLibrary.RecentSpecies.Count == 10,
                 "clearing the photo list still allows its project-wide recent choices to be saved");
-            Check(original.SequenceEqual(SHA256.HashData(await File.ReadAllBytesAsync(firstPath))),
+            Check(original.AsEnumerable().SequenceEqual(SHA256.HashData(await File.ReadAllBytesAsync(firstPath))),
                 "project edits, migration and recovery leave original photo bytes unchanged");
         }
         finally

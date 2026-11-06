@@ -17,7 +17,7 @@ $LocalDotnet = Join-Path $ProjectRoot '.tools/dotnet/dotnet.exe'
 if (Test-Path -LiteralPath $LocalDotnet -PathType Leaf) { $Dotnet = $LocalDotnet }
 else {
     $DotnetCommand = Get-Command dotnet -ErrorAction SilentlyContinue
-    if ($null -eq $DotnetCommand) { throw 'No published app or .NET SDK was found. Run scripts/Build.ps1 after installing the .NET 8 SDK.' }
+    if ($null -eq $DotnetCommand) { throw 'No published app or .NET SDK was found. Run scripts/Build.ps1 after installing the .NET 10 SDK.' }
     $Dotnet = $DotnetCommand.Source
 }
 

@@ -4,3 +4,4 @@ using System.Runtime.CompilerServices;
 [assembly: InternalsVisibleTo("BirdPhotoSelector.Imaging.Native")]
 [assembly: InternalsVisibleTo("BirdPhotoSelector.Imaging.Portable")]
 [assembly: InternalsVisibleTo("BirdPhotoSelector.Imaging.Windows")]
+[assembly: InternalsVisibleTo("BirdPhotoSelector.Desktop")]

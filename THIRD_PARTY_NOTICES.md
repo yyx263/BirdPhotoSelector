@@ -18,11 +18,30 @@
 
 ## 跨平台 JPEG 与 EXIF 依赖（v2.0.0-alpha.3）
 
-- [SkiaSharp 3.119.4](https://www.nuget.org/packages/SkiaSharp/3.119.4)，MIT；同时固定 `SkiaSharp.NativeAssets.Win32`、`SkiaSharp.NativeAssets.macOS` 和 `SkiaSharp.NativeAssets.Linux.NoDependencies` 为 3.119.4。许可在 `licenses/SkiaSharp-MIT.txt`，各实际原生包自带的第三方声明完整保留于 `licenses/SkiaSharp-ThirdPartyNotices-Windows.txt`、`SkiaSharp-ThirdPartyNotices-macOS.txt`、`SkiaSharp-ThirdPartyNotices-Linux.txt`；发布时随适用库一并保留，不能仅附主包 MIT 文本。
+- [SkiaSharp 3.119.4](https://www.nuget.org/packages/SkiaSharp/3.119.4)，MIT；同时固定 `SkiaSharp.NativeAssets.Win32`、`SkiaSharp.NativeAssets.macOS` 和 `SkiaSharp.NativeAssets.Linux` 为 3.119.4。许可在 `licenses/SkiaSharp-MIT.txt`，各实际原生包自带的第三方声明完整保留于 `licenses/SkiaSharp-ThirdPartyNotices-Windows.txt`、`SkiaSharp-ThirdPartyNotices-macOS.txt`、`SkiaSharp-ThirdPartyNotices-Linux.txt`；发布时随适用库一并保留，不能仅附主包 MIT 文本。
 - [MetadataExtractor 2.9.3](https://github.com/drewnoakes/metadata-extractor-dotnet/tree/2.9.3)，Apache-2.0，许可在 `licenses/MetadataExtractor-Apache-2.0.txt`。
 - 传递依赖 [XmpCore 6.1.10.1](https://github.com/drewnoakes/xmp-core-dotnet)，Adobe XMPCore 的 .NET 移植，BSD-3-Clause。`licenses/XmpCore-NOTICE.txt` 保留移植作者及 Adobe 署名，`licenses/XmpCore-BSD-3-Clause.txt` 保留上游 Adobe XMP SDK 许可原文。
 
 上述依赖从实际恢复的 NuGet 包核对版本；JPEG/EXIF 仅在本机读取，未修改这些依赖的源码。Linux GIO 和 macOS Foundation 使用系统 API，不将系统库复制或重新授权为本项目代码；实际发行仍需针对所用系统和二进制核查依赖。
+
+## Avalonia 桌面依赖（v2.0.0-alpha.4）
+
+新桌面入口使用开源 Avalonia **12.1.5**，包括 Desktop、Win32、X11、Native、Skia、HarfBuzz、Fluent、FreeDesktop/AtSpi、Remote.Protocol。Avalonia 许可为 MIT，原文为 `licenses/Avalonia-MIT.txt`，来自实际包记录的源码提交 `5825bf8c66fba0c11e67c980d8ece6444576bffa`。不引入 Avalonia XPF 或商业控件。Headless 12.1.5 仅用于检查，同样采用 MIT。
+
+除上面的 SkiaSharp 等共享依赖外，本次恢复的新增运行依赖为：
+
+| 组件 | 固定版本 | 原始许可/署名 |
+| --- | --- | --- |
+| Avalonia.Angle.Windows.Natives | 2.1.27548.20260419 | 原包完整 `LICENSE` 保存在 `licenses/Avalonia-ANGLE-LICENSE.txt`，保留 ANGLE 和所列子组件声明 |
+| HarfBuzzSharp 与 Windows/macOS/Linux NativeAssets | 8.3.1.3 | MIT 主许可及每个平台完整第三方声明保存在 `licenses/HarfBuzzSharp-MIT.txt`、`HarfBuzzSharp-ThirdPartyNotices-*.txt` |
+| MicroCom.Runtime | 0.11.6 | MIT，`licenses/MicroCom-MIT.txt`；对应源提交 `76785efcafd91b5902fd19dd11145f6dd655b7b4` |
+| Tmds.DBus.Protocol | 0.94.1 | MIT，`licenses/TmdsDBus-MIT.txt`；对应源提交 `b4a7fed0b878f74cb54f7cca84d2889af4e596ba` |
+
+版本和源提交按实际 NuGet 恢复记录核对，HarfBuzz/ANGLE 原生声明从所用包逐字复制；源项目的 MIT 许可从对应提交取得。构建期 Avalonia.BuildServices 11.3.2 使用 MIT，不作为产品功能。浏览器/WebAssembly 依赖在 NuGet 图中出现不表示本应用支持浏览器发布；本次只配置桌面入口，最终发布应核对目标 RID 的实际成员。
+
+Linux 图像和界面统一使用支持 Fontconfig 的标准 Skia 原生包，避免同时引入两个同名、不同构建的 libSkiaSharp.so；Ubuntu 主机需要 Fontconfig 和可用中文字体。
+
+界面使用系统可用中文字体，不随程序收集或分发系统字体。Linux/macOS 下的系统窗口、字体和输入法依赖仍需目标主机验证。
 
 ## YOLOv10n ONNX 模型
 
@@ -97,13 +116,13 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-## .NET 8 与 Windows Presentation Foundation
+## .NET 10 与 Windows Presentation Foundation
 
 本应用自包含发布时携带 Microsoft .NET Windows Desktop 运行库。
 
 - [.NET Runtime 源码和许可](https://github.com/dotnet/runtime)
 - [WPF 源码和许可](https://github.com/dotnet/wpf)
-- 本次 Windows x64 发布运行库版本为 8.0.33，随附以下 NuGet 运行库包的原始声明：
+- v2.0 开发分支使用 SDK 10.0.403、运行库 10.0.14；Windows x64 自包含发行对应运行库版本为 10.0.14，随附以下 NuGet 运行库包的原始声明：
   - `licenses/DotNetRuntime-LICENSE.txt`：`Microsoft.NETCore.App.Runtime.win-x64` 的 MIT 许可。
   - `licenses/DotNetRuntime-ThirdPartyNotices.txt`：同包完整第三方声明。
   - `licenses/WindowsDesktopRuntime-LICENSE.txt`：`Microsoft.WindowsDesktop.App.Runtime.win-x64` 的 MIT 许可。该版本的 WindowsDesktop 运行库包未另外提供第三方声明文件。

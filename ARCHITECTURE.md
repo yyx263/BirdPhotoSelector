@@ -1,21 +1,21 @@
 # v2.0 跨平台架构与迁移计划
 
 本文件是持续维护的工程说明，提交到 `dev`；`docs/` 只存放本地临时输出，不进入 Git。
-当前里程碑：**2.0.0-alpha.3，跨平台图像、名称检索与系统文件适配**。现有 WPF 程序继续作为功能对照；尚未提供 macOS/Ubuntu 桌面应用，也尚未在这两个系统执行实际验收。
+当前里程碑：**2.0.0-alpha.4，.NET 10 与 Avalonia 挑片主界面**。保留 WPF 完整功能对照入口；新宿主本阶段实现导入、双预览、导航评级、背景分组、工程和自动保存。鸟种识别编辑与导出对话框继续在下一小步迁移，尚未宣称三平台功能对齐或提供正式安装包。
 
 ## 版本与分支
 
 - Gitea `main` 保持稳定，不为迁移执行合并、变基、重置或推送；`dev` 接收小步、可验证的 v2.0 提交。
 - `2.0.0-alpha.N` 表示迁移中，功能对齐后进入 beta，三平台验收后再考虑正式版。
 - 迁移不覆盖已有发布目录、ZIP 或用户原照片；本阶段不生成正式安装包。
-- 迁移暂用 .NET 8 保持原 Windows 对照可运行。正式版本前升级 .NET 10 LTS；.NET 8 支持于 2026-11-10 结束，因此运行时升级应在下一界面阶段优先安排。
+- 所有源码项目和验证项目统一升级到 .NET 10，SDK 以 `global.json` 固定为 10.0.403、允许同一功能带的补丁更新。下载地址和官方 SHA-512 在 `scripts/DotNetSdk.json`，项目内安装保留已有工具且不修改系统。WPF 对照宿主也使用 net10.0-windows。
 
 ## 依赖方向与实施阶段
 
 继续使用 C#，最终桌面界面采用 Avalonia。领域和用例不依赖 UI、WPF 位图或直接系统调用。
 
 ```text
-Desktop.Wpf（当前） / Desktop.Avalonia（下一阶段）
+Desktop.Wpf（完整功能对照） / Desktop.Avalonia（当前迁移宿主）
   ├─> Application ─> Domain ─> Imaging / Foundation
   │       └─> Recognition ─> Domain / Imaging
   ├─> Catalog ─> Domain
@@ -27,7 +27,7 @@ Desktop.Wpf（当前） / Desktop.Avalonia（下一阶段）
 1. **图像层，alpha.1 已完成**：独立图像契约、像素接口和有界缓存，隔离 Windows 实现，算法与缩略图使用不可变图像帧。
 2. **领域与用例，alpha.2 已完成**：拆出 Domain/Application/Recognition；统一依赖组装、照片会话、人工编辑、撤销、工程和推理生命周期。
 3. **后端与系统适配，alpha.3 已实现并通过 Windows 验证**：固定 JPEG/EXIF 依赖、统一缩放规则、UTF-8 RAW C ABI/CMake、文件路径/身份/回收站、离线简繁检索及独立验证入口。macOS/Ubuntu 原生编译、文件行为和像素对照仍待目标机器验收。
-4. **Avalonia 界面，下一阶段**：优先升级运行时并建立新宿主，逐步迁移双预览、缓存显示、选区、快捷键、结果、对话框与会话操作。目标项目不引用 WPF 适配器，继续复用同一套业务规则。
+4. **Avalonia 界面，分两步推进**：alpha.4 升级 .NET 10，完成独立新宿主、照片导入/列表、无闪烁双预览、缩放边界、选中同步、导航、评级、背景分组、拆组/移除/清空、工程及自动保存、异步关闭。下一小步继续识别命令、手动选区/鸟种编辑/撤销、导出和冲突等对话框，之后再做逐项功能对照。新宿主不引用 WPF，不复制识别或导出业务规则。
 5. **发布**：win-x64、osx-arm64、linux-x64 实机验收，osx-x64 根据设备追加；分别产出 Windows 目录包、macOS .app 和 Ubuntu 包，核查依赖、性能、签名、公证与安装体验，再决定合并稳定分支。
 
 ## 当前目录和职责
@@ -45,9 +45,10 @@ Desktop.Wpf（当前） / Desktop.Avalonia（下一阶段）
 | `src/BirdPhotoSelector.Platform` | 原生句柄文件身份、Windows/GIO/Foundation 回收站策略 |
 | `src/BirdPhotoSelector.Catalog` | 鸟种名称、固定拼音索引、OpenCC 单字简繁搜索折叠 |
 | `native/` | UTF-8 C ABI、LibRaw/系统桥接、CMake 和固定依赖清单 |
+| `src/BirdPhotoSelector.Desktop` | Avalonia 独立入口、协调器、双预览绘制、主题、文件选择与对话框 |
 | `Infrastructure/DesktopComposition.cs` | 当前宿主唯一默认组装点，选择 Portable 图像和 SystemFileOperations |
 | `Infrastructure/Wpf/` | 窗口预览缓存、冻结位图转换等显示边界 |
-| `Tests/Imaging.Core`、`Application.Core`、`PortableAdapters` | 普通 net8.0 检查，不引用或启动 WPF |
+| `Tests/Imaging.Core`、`Application.Core`、`PortableAdapters` | 普通 net10.0 检查，不引用或启动 WPF |
 
 各项目暂保留现有公共命名空间，避免迁移同时改变 JSON 和绑定字段。工程仍写 v3，继续读取 v1/v2/v3；像素、缓存和原生句柄不序列化。
 
@@ -76,6 +77,17 @@ Desktop.Wpf（当前） / Desktop.Avalonia（下一阶段）
 `PreviewImageCache` 保持前台优先、共享解码、JPG 前后各两张、RAW 仅前台、邻居保护、LRU 淘汰、文件版本失效及独立等待者取消。窗口预算 512 MiB，核心默认 256 MiB；超大前台可显示但不保留，超大后台不预取。
 
 预算只约束**保留帧**，至少按四字节/像素计费；解码工作内存、显示中引用、缩略图、模型/裁切/张量及 UI 资源另计。缓存淘汰只移除引用，不能释放仍被显示或算法共享的像素。
+
+## 新桌面宿主（alpha.4）
+
+`DesktopController` 只管理宿主异步流程、预览与工程路径；挑选状态来自 `PhotoSelectionSession`，导入、分组、JSON 和自动保存仍调用 Application。源模型与鸟种结果只有一份，打开原 v3 工程不会丢弃暂未迁移编辑界面的字段。
+
+- `AvaloniaImageFrame` 在缓存入口转为单份不可变 BGRA 显示像素，两个预览共享 `IImage`；缩略图单独使用弱键显示缓存。保留帧按四字节/像素计费，临时 RGB/BGRA 转换及 UI 显示引用另计。
+- `DetailViewTransform` 将适应画面到 200%、70% 鸟视图、鼠标锚点、中心钳制与白框归一化提取到 Imaging，可脱离任何 UI 检查。新画布只绘制共享图像，不在每次缩放时重解码。
+- 当前选择与实际已显示照片分开记录。慢图期间保留旧帧、禁用交互；取消与递增版本校验确保迟到结果不覆盖新选择。
+- 列表显式同步组/照片选择，忽略重建产生的空选择；保留 Ctrl/Shift 多选。滚轮只滚列表，每格约两张；方向键/WASD 连续跨组，Page Up/Down 单独切组，1..4 评级。
+- 保存/打开共用写入门，自动保存复用五分钟服务与修订号；恢复文件打开为未命名会话。关闭事件先取消当前关闭并排队异步确认，任务取消回滚与保存结束后再最终关闭，避免在 Closing 调用栈内显示新窗口。
+- Avalonia 使用 12.1.5 正式包，不引入商业控件；主窗口及数据模板启用带类型的编译绑定，属性重命名可在构建时发现。Linux 与图像后端统一使用支持 Fontconfig 的标准 Skia 原生包，避免同名库冲突。中文优先使用系统字体，Linux 主机需提供合适的中文字体；实际字体、输入法、文件选择器和缩放在目标桌面验收。
 
 ## RAW 与原生组件
 
@@ -109,14 +121,26 @@ Desktop.Wpf（当前） / Desktop.Avalonia（下一阶段）
 
 ## 构建和验证入口
 
-Windows 需要 .NET SDK、Visual Studio C++ x64 构建工具和 CMake 组件；普通构建自动运行 `Build-RawDecoder.ps1`，只下载并校验固定 SDK，不更改系统安装。
+Windows 需要固定的 .NET 10 SDK、Visual Studio C++ x64 构建工具和 CMake 组件；普通构建自动运行 `Build-RawDecoder.ps1`，只下载并校验固定 SDK，不更改系统安装。
 
 ```powershell
 .\.tools\dotnet\dotnet.exe build BirdPhotoSelector.csproj -c Release
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/Test.ps1 -IncludeModel
 ```
 
-Linux/macOS 后端开发需要 .NET SDK、Python 3.9+、CMake、C++ 编译器、make 及适用的 LibRaw 编译依赖；macOS 需 Xcode 命令行工具。GIO 用于 Ubuntu 桌面回收站。以下入口不构建 WPF：
+新跨平台入口（从工程根目录启动，不覆盖 `publish/`）：
+
+```sh
+# 已有受支持 Python 时，在项目内安装固定 SDK；Unix 安装入口要求 Python 3.12+
+python scripts/Setup-Dotnet.py
+python scripts/Run-Desktop.py
+python scripts/Run-Desktop.py --build-only
+python scripts/Run-Desktop.py --check
+```
+
+也可按 `global.json` 安装官方 SDK；Windows 下使用 `python`，Linux/macOS 通常使用 `python3`。启动入口支持传入 JSON 工程或本地照片路径。完整 WPF 对照入口仍为根目录项目，旧发布目录继续使用原发布版本。
+
+Linux/macOS 后端开发需要 .NET 10 SDK、Python 3.9+、CMake、C++ 编译器、make 及适用的 LibRaw 编译依赖；macOS 需 Xcode 命令行工具。GIO 用于 Ubuntu 桌面回收站。以下入口不构建 WPF：
 
 ```sh
 python3 scripts/Build-Native.py
@@ -129,9 +153,17 @@ python3 scripts/Build-Native.py --libraw-prefix /path/to/libraw-0.22.3
 
 工具缓存和输出位于 `.tools/`，不会安装到系统目录。Unix 默认校验源码包、拒绝越界和链接成员，再构建 LibRaw 与桥接；macOS 调整桥接对 LibRaw 的相对加载路径。其他库的完整依赖收集、签名、公证、发行目录结构属于发布阶段，不能把开发输出直接当作可分发安装包。
 
-`Test.ps1` 先构建原生组件，再执行三套普通 net8.0 检查及 Windows 回归。真实 RAW/BioCLIP 参考资源仍通过环境变量准备，验证入口不会自动下载模型。日志写入忽略的 `artifacts/`；正式发布仍用原 Windows 发布脚本，并保留新增依赖和许可文件检查。
+`Test.ps1` 先构建原生组件，再执行三套普通 net10.0 检查、新 Avalonia 无窗口真实渲染/输入检查及完整 Windows 回归。真实 RAW/BioCLIP 参考资源仍通过环境变量准备，验证入口不会自动下载模型。日志写入忽略的 `artifacts/`；正式发布仍用原 Windows 发布脚本，并保留新增依赖和许可文件检查。
 
-## 本次验证记录（alpha.3）
+## 当前验证记录（alpha.4）
+
+- 所有项目统一 .NET 10；Windows 真实完整回归 **1,451 项**、图像核心 **33 项**、业务核心 **50 项**和实际后端 **176 项**通过。
+- Avalonia 新界面 **38 项**检查通过：真实 Skia 像素、键盘、缩放/拖拽、列表滚动不切图、跨组选中、旧帧保留和迟到结果、分组/评级、JSON 往返、正常及最小窗口四条结果，以及未保存关闭的返回/放弃选择。
+- 独立真实 Windows 窗口探针通过，最小化运行时可导入、显示实际 JPEG 并完成异步关闭；不只依靠无窗口测试证明入口可启动。
+- 完整回归继续包含真实 RAW 47 项、YOLO/BioCLIP 数值与模型对照、原件保护、导出及 WPF 界面。日志为 `artifacts/regression-2.0-alpha4.log`、`desktop-native-2.0-alpha4.log`、`desktop-2.0-alpha4-launcher.log`，新界面图像为 `artifacts/desktop-2.0-alpha4/main-normal.png` 和 `main-minimum.png`。
+- 当前实际平台仍只有 Windows；无窗口检查不是 macOS/Linux 桌面、文件选择器、中文输入法、系统回收站与原生库发布验收。新宿主尚未完成识别编辑和导出 UI，不能替代完整功能稳定版。
+
+## 上阶段验证记录（alpha.3，.NET 8）
 
 - Windows 构建零编译警告、零错误；CMake 成功编译两个原生桥接。
 - **33 项图像核心、50 项业务核心、176 项实际适配、1,451 项完整 Windows UI/服务/真实模型检查通过**。搜索与窗口目标检查另有 525 项通过，与完整检查存在交集，不叠加宣传。

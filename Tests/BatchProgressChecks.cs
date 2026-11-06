@@ -56,7 +56,7 @@ internal static class BatchProgressChecks
             Check(exportProgress.Any(p => p.FilePath == second && p.Stage == "正在复制" && p.Completed == 2) &&
                   exportProgress.Any(p => p.FilePath == second && p.Stage == "正在校验" && p.Completed == 2) &&
                   exportProgress.Last() is { Completed: 3, FileCompleted: true } &&
-                  (await File.ReadAllBytesAsync(Path.Combine(destination, "second.jpg"))).SequenceEqual(await File.ReadAllBytesAsync(second)),
+                  (await File.ReadAllBytesAsync(Path.Combine(destination, "second.jpg"))).AsEnumerable().SequenceEqual(await File.ReadAllBytesAsync(second)),
                 "export exposes copy and verification stages for the current file before reporting it complete");
 
             string canceledDestination = Directory.CreateDirectory(Path.Combine(root, "canceled-export")).FullName;

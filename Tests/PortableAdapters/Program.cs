@@ -140,7 +140,7 @@ internal static class Program
         var decoder=new PortablePhotoImageDecoder();var info=decoder.ReadInfo(path);var frame=decoder.Decode(path,320);
         Check(frame.PixelWidth==320&&frame.PixelHeight>0&&info.PixelWidth>frame.PixelWidth&&info.Metadata.Camera!="—","true RAW decoding and metadata work through UTF-8 without a WPF dependency");
         Check(frame.CopyRgb24().Distinct().Count()>16,"portable RAW returns actual nonuniform sensor-derived pixels");
-        Check(hash.SequenceEqual(SHA256.HashData(await File.ReadAllBytesAsync(original)))&&hash.SequenceEqual(SHA256.HashData(await File.ReadAllBytesAsync(path))),"RAW metadata and pixel operations preserve sample and Unicode-copy bytes");
+        Check(hash.AsEnumerable().SequenceEqual(SHA256.HashData(await File.ReadAllBytesAsync(original)))&&hash.AsEnumerable().SequenceEqual(SHA256.HashData(await File.ReadAllBytesAsync(path))),"RAW metadata and pixel operations preserve sample and Unicode-copy bytes");
     }
     /// <summary>构造独立的小端 EXIF APP1，偏移均相对 TIFF 起点，包含拍摄参数与方向。</summary>
     private static byte[] Exif(byte[] jpeg,int orientation,int? bias)

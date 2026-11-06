@@ -195,7 +195,7 @@ internal static class Program
         var platform = new Files(root); var service = new ExportService(platform);
         string source = await Write(dir, "bird.jpg", "generated-original"); var photo = new PhotoItem { FilePath = source };
         var copied = await service.ExportAsync(new[] { photo }, output, false);
-        Check(copied.VerifiedCopyCount == 1 && File.Exists(source) && (await File.ReadAllBytesAsync(source)).SequenceEqual(await File.ReadAllBytesAsync(Path.Combine(output, "bird.jpg"))),
+        Check(copied.VerifiedCopyCount == 1 && File.Exists(source) && (await File.ReadAllBytesAsync(source)).AsEnumerable().SequenceEqual(await File.ReadAllBytesAsync(Path.Combine(output, "bird.jpg"))),
             "portable export still verifies an exact copy and preserves the source by default");
         var identical = await service.ExportAsync(new[] { photo }, output, true);
         Check(identical.SkippedFileCount == 1 && identical.RemovedFileCount == 0 && File.Exists(source) && platform.Removed.Count == 0,

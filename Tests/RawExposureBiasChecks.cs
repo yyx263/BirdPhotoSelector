@@ -36,7 +36,7 @@ internal static class RawExposureBiasChecks
                 var info = RawImageDecoder.ReadInfo(path);
                 Check(info.Metadata.ExposureBias == test.Expected,
                     $"{(bigEndian ? "big" : "little")}-endian TIFF/DNG {test.Name} reads shooting EV as {test.Expected}");
-                Check(before.SequenceEqual(SHA256.HashData(await File.ReadAllBytesAsync(path))),
+                Check(before.AsEnumerable().SequenceEqual(SHA256.HashData(await File.ReadAllBytesAsync(path))),
                     "metadata-only inspection leaves the generated TIFF/DNG unchanged");
             }
 
@@ -79,7 +79,7 @@ internal static class RawExposureBiasChecks
                     Check(RawImageDecoder.ReadInfo(path).Metadata.ExposureBias == test.Expected,
                         $"real CR3 private {test.Name} metadata fixture reads {test.Expected} without guessing missing EV");
                 }
-                Check(originalHash.SequenceEqual(SHA256.HashData(await File.ReadAllBytesAsync(original))),
+                Check(originalHash.AsEnumerable().SequenceEqual(SHA256.HashData(await File.ReadAllBytesAsync(original))),
                     "all CR3 metadata edits stay inside private generated copies; original SHA-256 is unchanged");
             }
             else Console.WriteLine("SKIP: CR3 exposure integration requires BIRD_RAW_SAMPLES/Canon_EOS_R7_CRAW.CR3.");

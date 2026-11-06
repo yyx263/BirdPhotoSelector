@@ -12,3 +12,10 @@
 # Preserve upstream license bytes, including their original whitespace.
 /licenses/SkiaSharp*.txt -text whitespace=-blank-at-eol,-blank-at-eof
 /licenses/OpenCC-Apache-2.0.txt -text whitespace=-blank-at-eof
+
+/licenses/Avalonia-*.txt -text whitespace=-blank-at-eol,-blank-at-eof
+/licenses/HarfBuzzSharp*.txt -text whitespace=-blank-at-eol,-blank-at-eof
+/licenses/MicroCom-MIT.txt -text
+/licenses/TmdsDBus-MIT.txt -text
+/licenses/DotNetRuntime-*.txt -text whitespace=-blank-at-eol,-blank-at-eof
+/licenses/WindowsDesktopRuntime-LICENSE.txt -text whitespace=-blank-at-eol,-blank-at-eof

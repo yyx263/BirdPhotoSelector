@@ -1,8 +1,10 @@
 # 羽选 · BirdPhotoSelector
 
-一个用于拍摄后本机筛选鸟类 JPG / RAW 照片的 Windows 桌面应用，`main` 保留稳定版本，`dev` 已开始 **2.0.0-alpha.3** 跨平台架构迁移。当前可运行界面仍采用 C#、.NET 8、WPF，输出普通 EXE 加运行库、模型和说明文件目录，便于维护和后续扩展。
+一个用于拍摄后本机筛选鸟类 JPG / RAW 照片的 Windows 桌面应用，`main` 保留稳定版本，`dev` 已开始 **2.0.0-alpha.4** 跨平台架构迁移。现有完整功能对照界面采用 C#、.NET 10、WPF，输出普通 EXE 加运行库、模型和说明文件目录，便于维护和后续扩展。
 
-**v2.0 开发中**：整体规划和阶段验收见 [架构说明](ARCHITECTURE.md)。已拆出图像、领域、用例、识别、名称检索和系统适配项目。当前宿主已接入统一 JPEG/EXIF 后端与 UTF-8 RAW 桥接，补充三平台文件身份/回收站和构建入口；Windows 完整回归通过。macOS/Ubuntu 实机验证和 Avalonia 界面仍待后续完成。
+**v2.0 开发中**：整体规划见 [架构说明](ARCHITECTURE.md)。本阶段升级 .NET 10，并增加 Avalonia 挑片主界面：导入、双预览、导航评级、自动分组、工程与自动保存已接入共享业务。新界面的识别编辑和导出对话框按下一小步迁移；完整功能继续由 WPF 入口提供对照，macOS/Ubuntu 尚待实机验证。
+
+新入口：`python scripts/Run-Desktop.py`；只构建使用 `--build-only`，无窗口真实渲染检查使用 `--check`。首次安装项目 SDK 可执行 `python scripts/Setup-Dotnet.py`，版本和下载校验值已固定；已有官方 .NET 10 SDK 时按 `global.json` 选择版本。
 
 **1.8.3 调整参数栏的均分与余量分配，重新识别本张改为点击即运行，成功后直接替换结果，正常零检出直接清空，均可撤销。** 继续保留清空识别结果、离线拼音与简繁搜索、结果排序及导出同名处理；主窗口至少完整显示四条结果，更多结果继续滚动。
 
@@ -40,7 +42,9 @@
 
 `docs/` 仅用于本地临时开发记录，已从 Git、项目内容项、发布文件清单和 ZIP 中排除；使用和构建程序不依赖该目录。
 
-本次 **2.0.0-alpha.3** 通过 33 项图像核心、50 项业务核心、176 项实际适配与 1451 项完整 Windows UI/服务/模型检查；构建零警告、零错误。当前仍为 WPF 迁移宿主，未生成新的正式发布包。Linux/macOS 后端开发可运行 `python3 scripts/Build-Native.py` 和 `python3 scripts/Test-Portable.py`，所需环境、已验证范围及待验收事项见 [架构说明](ARCHITECTURE.md#构建和验证入口)。
+当前 **2.0.0-alpha.4** 已在 .NET 10 下通过 33 项图像、50 项业务、176 项后端、38 项 Avalonia 和 1451 项原界面/服务/模型检查，真实 Windows 新窗口启动检查通过。详细已完成与待迁移功能见 [架构说明](ARCHITECTURE.md)。
+
+上阶段 **2.0.0-alpha.3** 通过 33 项图像核心、50 项业务核心、176 项实际适配与 1451 项完整 Windows UI/服务/模型检查；构建零警告、零错误。当前仍为 WPF 迁移宿主，未生成新的正式发布包。Linux/macOS 后端开发可运行 `python3 scripts/Build-Native.py` 和 `python3 scripts/Test-Portable.py`，所需环境、已验证范围及待验收事项见 [架构说明](ARCHITECTURE.md#构建和验证入口)。
 
 2026-10-31 的 **1.8.3 完整回归通过 1430 项检查**，包含参数栏均分、长字段借宽、窄窗口换行与文字完整显示，以及免确认重新识别、零检出直接清空、撤销、失败与取消保护；真实 RAW / YOLO / BioCLIP 2 及既有工程和导出功能一并通过。日志为 `artifacts/regression-1.8.3-native.log`，原生记录为 `artifacts/raw-1.8.3/summary.json` 与 `artifacts/species-native-1.8.3-validation.json`。发布包为 `publish/BirdPhotoSelector-1.8.3-win-x64.zip`，由发布脚本检查版本、模型和逐文件 SHA-256。以下记录属于历史版本。
 
@@ -50,7 +54,7 @@
 
 2026-10-31 的 1.8.0 完整回归通过 **1133 项检查**，覆盖人工鸟种编辑与撤销、搜索与最近选择、v1 / v2 / v3 工程及自动恢复、分类多目标副本和原件保护、主窗口交互与真实 RAW / YOLO / BioCLIP 2。七份公开 RAW 样本（含一份预期不支持的压缩模式）、官方 PyTorch 向量对照及五类置信度对照一并通过。记录位于本机 `artifacts/regression-1.8.0-native.log`、`artifacts/raw-1.8.0/summary.json` 和 `artifacts/species-native-1.8.0-validation.json`。发布包的版本、模型和逐文件 SHA-256 由打包脚本校验。
 
-需要 Windows x64 和 **.NET 8 SDK**。脚本优先使用项目内 `.tools/dotnet/dotnet.exe`，否则使用 `PATH` 中的 `dotnet`；不会自动安装或修改全局 SDK。初次恢复 NuGet 包、获取运行库包和下载模型需要联网，日常查看与分析可离线使用。
+完整 WPF 对照入口需要 Windows x64 和 **.NET 10 SDK**。脚本优先使用项目内 `.tools/dotnet/dotnet.exe`，否则使用 `PATH` 中的 `dotnet`；不会自动安装或修改全局 SDK。初次恢复 NuGet 包、获取运行库包和下载模型需要联网，日常查看与分析可离线使用。
 
 本分支另需安装 **Visual Studio C++ x64 构建工具及其 CMake 组件**。普通 `dotnet build` 会调用 `scripts/Build-RawDecoder.ps1`，下载并校验固定 LibRaw 0.22.3 SDK、编译桥接 DLL，并复制 LibRaw 和三个实际 C++ 运行库依赖；开发缓存与二进制不入库。使用完整程序目录的最终用户无需安装 Visual Studio。许可与固定来源见 [第三方说明](THIRD_PARTY_NOTICES.md)。
 
@@ -145,6 +149,7 @@ NuGet 包缓存放在 `.tools/packages`。项目不使用单文件发布和裁�
 
 | 位置 | 职责 |
 | --- | --- |
+| `src/BirdPhotoSelector.Desktop/` | Avalonia 新入口、会话协调、双预览、列表和平台对话框 |
 | `src/BirdPhotoSelector.Domain/` | 照片、原件、组、评级、鸟框、鸟种证据与不变量 |
 | `src/BirdPhotoSelector.Application/` | 挑选会话、导入、分组、识别工作流、人工编辑/撤销、工程/自动保存、导出 |
 | `src/BirdPhotoSelector.Recognition/` | YOLO/BioCLIP 推理、固定预处理、候选与置信度，只处理已解码图像 |

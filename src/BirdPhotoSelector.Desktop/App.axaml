@@ -1,0 +1,41 @@
+<Application xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="BirdPhotoSelector.Desktop.App" RequestedThemeVariant="Dark">
+  <Application.Styles>
+    <FluentTheme />
+    <Style Selector="Window">
+      <Setter Property="Background" Value="#10171D" />
+      <Setter Property="Foreground" Value="#E5EDF1" />
+      <Setter Property="FontFamily" Value="Microsoft YaHei UI, PingFang SC, Noto Sans CJK SC, sans-serif" />
+      <Setter Property="FontSize" Value="13" />
+    </Style>
+    <Style Selector="Button">
+      <Setter Property="CornerRadius" Value="7" /><Setter Property="Padding" Value="14,9" />
+      <Setter Property="Background" Value="#26343F" /><Setter Property="BorderThickness" Value="0" />
+    </Style>
+    <Style Selector="Button.primary"><Setter Property="Background" Value="#9EDCC5" /><Setter Property="Foreground" Value="#102C25" /></Style>
+    <Style Selector="TextBlock.muted"><Setter Property="Foreground" Value="#91A4AF" /><Setter Property="FontSize" Value="12" /></Style>
+    <Style Selector="ListBox">
+      <Setter Property="Background" Value="Transparent" /><Setter Property="BorderThickness" Value="0" />
+      <Setter Property="Padding" Value="0" />
+    </Style>
+    <Style Selector="ListBoxItem"><Setter Property="Padding" Value="0" /><Setter Property="Margin" Value="0,0,0,8" /></Style>
+    <Style Selector="ListBoxItem:selected /template/ ContentPresenter">
+      <Setter Property="Background" Value="#2C403D" /><Setter Property="BorderBrush" Value="#9EDCC5" />
+      <Setter Property="BorderThickness" Value="1" /><Setter Property="CornerRadius" Value="8" />
+    </Style>
+    <Style Selector="ToggleButton.rating">
+      <Setter Property="Background" Value="#24323D" /><Setter Property="BorderBrush" Value="#415765" />
+      <Setter Property="BorderThickness" Value="1" /><Setter Property="HorizontalContentAlignment" Value="Center" />
+      <Setter Property="VerticalContentAlignment" Value="Center" />
+      <Setter Property="Template"><ControlTemplate><Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="8" Padding="10"><ContentPresenter Content="{TemplateBinding Content}" HorizontalAlignment="Center" VerticalAlignment="Center" /></Border></ControlTemplate></Setter>
+    </Style>
+    <Style Selector="ToggleButton.rating:checked"><Setter Property="BorderThickness" Value="2" /></Style>
+    <Style Selector="ToggleButton.unmarked:checked"><Setter Property="Background" Value="#455565" /><Setter Property="BorderBrush" Value="#A5B5C5" /></Style>
+    <Style Selector="ToggleButton.reject"><Setter Property="Foreground" Value="#FA8C8C" /></Style>
+    <Style Selector="ToggleButton.reject:checked"><Setter Property="Background" Value="#633D43" /><Setter Property="BorderBrush" Value="#FA8C8C" /></Style>
+    <Style Selector="ToggleButton.keep"><Setter Property="Foreground" Value="#9EDCC5" /></Style>
+    <Style Selector="ToggleButton.keep:checked"><Setter Property="Background" Value="#34594F" /><Setter Property="BorderBrush" Value="#9EDCC5" /></Style>
+    <Style Selector="ToggleButton.favorite"><Setter Property="Foreground" Value="#F2CD74" /></Style>
+    <Style Selector="ToggleButton.favorite:checked"><Setter Property="Background" Value="#F2CD74" /><Setter Property="Foreground" Value="#3C3014" /><Setter Property="BorderBrush" Value="#FFF0B2" /></Style>
+  </Application.Styles>
+</Application>

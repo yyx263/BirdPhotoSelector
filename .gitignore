@@ -17,6 +17,9 @@ Tests/*
 !Tests/PortableAdapters/
 !Tests/PortableAdapters/*.cs
 !Tests/PortableAdapters/*.csproj
+!Tests/Desktop/
+!Tests/Desktop/*.cs
+!Tests/Desktop/*.csproj
 artifacts/
 # Local release archives belong in GitHub Releases.
 /*.zip

@@ -229,7 +229,7 @@ internal static class Program
             Check(exported.Succeeded.Count == 1 && exported.Succeeded[0].Id == p2.Id, "export reports actual copied photo");
             Check(exported.Skipped.Count == 1 && exported.Errors.Count == 0, "destination name collision is reported");
             Check((await File.ReadAllBytesAsync(collision)).SequenceEqual(sentinel), "existing destination is never overwritten");
-            Check((await File.ReadAllBytesAsync(Path.Combine(destination, p2.FileName))).SequenceEqual(await File.ReadAllBytesAsync(second)),
+            Check((await File.ReadAllBytesAsync(Path.Combine(destination, p2.FileName))).AsEnumerable().SequenceEqual(await File.ReadAllBytesAsync(second)),
                 "exported photo bytes match source");
             Check(File.Exists(first) && File.Exists(second) && exported.SourceRemoved.Count == 0,
                 "export without removal leaves both sources intact");
