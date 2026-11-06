@@ -26,7 +26,7 @@ Desktop (Avalonia)
 | Catalog | 离线名称、拼音/首字母及 OpenCC 简繁搜索折叠 |
 | Desktop | 依赖组装、Avalonia 控件、对话框和异步显示协调 |
 
-根 `BirdPhotoSelector.slnx` 是唯一解决方案入口；`Directory.Build.props` 统一版本和原生 RID 路径。没有 `UseWPF`、旧根项目或 `Imaging.Windows`。新宿主程序集名为 `BirdPhotoSelector`，命名空间仍按职责保留 `Desktop`。
+根 `BirdPhotoSelector.slnx` 是唯一解决方案入口；`Directory.Build.props` 统一版本和原生 RID 路径。没有 `UseWPF`、旧根项目或 `Imaging.Windows`。设置 `DisableTransitiveFrameworkReferenceDownloads`，避免 SDK 为未使用的潜在传递引用预取 WPF/ASP.NET 定位包或运行包；保留显式 .NET Core 所需下载。新宿主程序集名为 `BirdPhotoSelector`，命名空间仍按职责保留 `Desktop`。
 
 ## 边界与维护约定
 
