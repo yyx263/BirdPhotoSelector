@@ -1,7 +1,4 @@
 using System.IO;
-using System.Windows;
-using System.Windows.Media;
-using System.Windows.Media.Imaging;
 using Microsoft.ML.OnnxRuntime.Tensors;
 
 namespace BirdPhotoSelector;
@@ -13,14 +10,15 @@ namespace BirdPhotoSelector;
 /// The bicubic kernel uses a=-0.5,
 /// antialiases downsampling, and rounds each RGB8 resize pass as Pillow does.
 /// </summary>
-public static class SpeciesImagePreprocessor
+public static partial class SpeciesImagePreprocessor
 {
     public const int InputSize = 224;
     public const string CropPolicy = "SquareContext20-v1";
     private static readonly float[] Mean = { .48145466f, .4578275f, .40821073f };
     private static readonly float[] Std = { .26862954f, .26130258f, .27577711f };
 
-    public static DenseTensor<float> CreateInput(BitmapSource orientedImage, BirdBox box,
+    /// <summary>从显示方向的鸟框裁切 RGB 像素，保留固定的上下文、补边、双三次采样和 NCHW 归一化。</summary>
+    public static DenseTensor<float> CreateInput(ImageFrame orientedImage, BirdBox box,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(orientedImage);
@@ -34,10 +32,7 @@ public static class SpeciesImagePreprocessor
         int left = Math.Max(0, virtualLeft), top = Math.Max(0, virtualTop);
         int right = Math.Min(width, virtualLeft + side), bottom = Math.Min(height, virtualTop + side);
         int cropWidth = right - left, cropHeight = bottom - top;
-        int stride = checked(cropWidth * 3);
-        var pixels = new byte[checked(stride * cropHeight)];
-        var rgb = new FormatConvertedBitmap(orientedImage, PixelFormats.Rgb24, null, 0);
-        rgb.CopyPixels(new Int32Rect(left, top, cropWidth, cropHeight), pixels, stride, 0);
+        var pixels = orientedImage.CopyRgb24(new PixelRect(left, top, cropWidth, cropHeight), cancellationToken);
         byte[] resized = ResizeSquareBicubic(pixels, cropWidth, cropHeight, side,
             virtualLeft - left, virtualTop - top, cancellationToken);
         int plane = InputSize * InputSize;
@@ -55,10 +50,12 @@ public static class SpeciesImagePreprocessor
         return new DenseTensor<float>(result, new[] { 1, 3, InputSize, InputSize });
     }
 
+    /// <summary>计算虚拟正方形起点；鸟框靠近边缘时移动裁切，大于整图时使用对称边缘扩展。</summary>
     private static int CropOrigin(double center, int side, int extent) => side <= extent
         ? Math.Clamp((int)Math.Floor(center - side / 2.0), 0, extent - side)
         : (int)Math.Floor((extent - side) / 2.0);
 
+    /// <summary>执行两遍固定点双三次缩放；逐遍取整与 Pillow 金样一致，不得随 UI 后端改变。</summary>
     private static byte[] ResizeSquareBicubic(byte[] source, int width, int height, int side,
         int offsetX, int offsetY, CancellationToken cancellationToken)
     {
@@ -97,6 +94,7 @@ public static class SpeciesImagePreprocessor
         return result;
     }
 
+    /// <summary>计算归一化的抗混叠滤波系数，使用 22 位定点数保留现有模型预处理结果。</summary>
     private static ResampleWeights[] Coefficients(int input, int output)
     {
         var result = new ResampleWeights[output];
@@ -119,11 +117,13 @@ public static class SpeciesImagePreprocessor
         }
         return result;
     }
+    /// <summary>Catmull-Rom 双三次核（a=-0.5），支持半径为两个源像素。</summary>
     private static double Cubic(double distance)
     {
         double x = Math.Abs(distance);
         if (x < 1) return ((1.5 * x - 2.5) * x) * x + 1;
         return x < 2 ? ((-.5 * x + 2.5) * x - 4) * x + 2 : 0;
     }
+    /// <summary>某个输出像素在源轴上的起点与定点权重。</summary>
     private sealed record ResampleWeights(int Start, int[] Values);
 }

@@ -54,8 +54,8 @@ internal static class PhotoAssetChecks
 
             var photo = new PhotoItem { FilePath = jpgPath, Rating = PhotoRating.Favorite, PixelWidth = 6000, PixelHeight = 4000,
                 ViewZoom = 2.4, ViewCenterX = .6, ViewCenterY = .45 };
-            var thumbnail = BitmapSource.Create(1, 1, 96, 96, PixelFormats.Rgb24, null, new byte[] { 1, 2, 3 }, 3);
-            thumbnail.Freeze(); photo.Thumbnail = thumbnail;
+            var bitmapThumbnail = BitmapSource.Create(1, 1, 96, 96, PixelFormats.Rgb24, null, new byte[] { 1, 2, 3 }, 3);
+            bitmapThumbnail.Freeze(); var thumbnail = BirdPhotoSelector.Imaging.Windows.WpfImageBridge.FromBitmap(bitmapThumbnail); photo.Thumbnail = thumbnail;
             var bird = new DetectedBird { Number = 7, Box = new() { X = .2, Y = .3, Width = .2, Height = .25, Confidence = .9 },
                 Species = new("大山雀", "Parus major", .6, Confidence: .9), RecognitionStatus = "原有识别结果" };
             photo.SetBirds(new[] { bird }, nextBirdNumber: 20);

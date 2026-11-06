@@ -1,5 +1,4 @@
 using System.IO;
-using System.Windows.Media.Imaging;
 
 namespace BirdPhotoSelector;
 
@@ -54,6 +53,10 @@ public sealed class PhotoImportUpdate
 
 public sealed class PhotoImportService
 {
+    private readonly IPhotoImageDecoder _images;
+    /// <summary>由宿主提供图像后端，导入流程只负责原件关联和业务记录。</summary>
+    public PhotoImportService(IPhotoImageDecoder? images = null) => _images = images ?? PhotoImaging.Decoder;
+
     /// <summary>RAW-aware import snapshots existing records before starting background work.</summary>
     public Task<ImportResult> ImportAsync(IEnumerable<string> paths, IReadOnlyList<PhotoItem> existingPhotos,
         bool includeRaw = true, CancellationToken cancellationToken = default,
@@ -92,7 +95,7 @@ public sealed class PhotoImportService
                     { result.SkippedUnsupported++; stage = "已跳过不支持的格式"; continue; }
                     if (names.Contains(Path.GetFileName(path)))
                     { result.SkippedDuplicate++; stage = "已跳过同名照片"; continue; }
-                    var item = LoadPhoto(path);
+                    var item = LoadPhoto(path, cancellationToken, _images);
                     result.Added.Add(item);
                     names.Add(item.FileName);
                 }
@@ -105,7 +108,7 @@ public sealed class PhotoImportService
         }, cancellationToken);
     }
 
-    private static ImportResult ImportWithRaw(string[] inputs, ExistingPhoto[] existingPhotos,
+    private ImportResult ImportWithRaw(string[] inputs, ExistingPhoto[] existingPhotos,
         CancellationToken cancellationToken, IProgress<PhotoOperationProgress>? progress)
     {
         var result = new ImportResult();
@@ -179,7 +182,7 @@ public sealed class PhotoImportService
                 {
                     progress?.Report(new(index, inputs.Length, index + 1, active.CanonicalPath,
                         active.Kind == PhotoAssetKind.Raw ? "正在解码 RAW 缩略图" : "正在读取 JPG 缩略图"));
-                    try { preview = LoadSourcePhoto(active.CanonicalPath, cancellationToken); }
+                    try { preview = LoadSourcePhoto(active.CanonicalPath, cancellationToken, _images); }
                     catch (Exception ex) when (ex is not OperationCanceledException and not OutOfMemoryException)
                     {
                         var fallback = assets.FirstOrDefault(asset => asset.Id != active.Id && File.Exists(asset.CanonicalPath));
@@ -187,7 +190,7 @@ public sealed class PhotoImportService
                         result.Errors.Add($"{active.CanonicalPath}：无法读取首选预览，保留原件并尝试另一成员：{ex.Message}");
                         active = fallback;
                         progress?.Report(new(index, inputs.Length, index + 1, active.CanonicalPath, "正在解码备用原件缩略图"));
-                        preview = LoadSourcePhoto(active.CanonicalPath, cancellationToken);
+                        preview = LoadSourcePhoto(active.CanonicalPath, cancellationToken, _images);
                     }
                 }
                 cancellationToken.ThrowIfCancellationRequested();
@@ -238,12 +241,13 @@ public sealed class PhotoImportService
 
     private sealed record ExistingPhoto(string Id, PhotoAsset[] Assets, string? PreferredId, string? ActiveId);
 
-    internal static PhotoItem LoadSourcePhoto(string path, CancellationToken cancellationToken = default)
+    /// <summary>读取一个原件的显示尺寸、拍摄参数与小缩略图，不把 UI 位图写入领域对象。</summary>
+    internal static PhotoItem LoadSourcePhoto(string path, CancellationToken cancellationToken = default,
+        IPhotoImageDecoder? images = null)
     {
-        cancellationToken.ThrowIfCancellationRequested();
-        if (IsJpegExtension(path)) return LoadPhoto(path, cancellationToken);
-        var info = RawImageDecoder.ReadInfo(path, cancellationToken);
-        var thumbnail = ImageLoader.Load(path, 160, cancellationToken);
+        var decoder = images ?? PhotoImaging.Decoder;
+        var info = decoder.ReadInfo(path, cancellationToken);
+        var thumbnail = decoder.Decode(path, 160, cancellationToken);
         cancellationToken.ThrowIfCancellationRequested();
         return new PhotoItem { FilePath = Path.GetFullPath(path), Metadata = info.Metadata,
             PixelWidth = info.PixelWidth, PixelHeight = info.PixelHeight, Thumbnail = thumbnail };
@@ -256,29 +260,10 @@ public sealed class PhotoImportService
         photo.Thumbnail = preview.Thumbnail;
     }
 
-    public static bool IsJpegExtension(string path) =>
-        Path.GetExtension(path).Equals(".jpg", StringComparison.OrdinalIgnoreCase) ||
-        Path.GetExtension(path).Equals(".jpeg", StringComparison.OrdinalIgnoreCase);
+    /// <summary>使用图像层统一的 JPG 扩展名规则。</summary>
+    public static bool IsJpegExtension(string path) => PhotoImageFormats.IsJpeg(path);
 
-    internal static PhotoItem LoadPhoto(string path, CancellationToken cancellationToken = default)
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-        using var stream = File.OpenRead(path);
-        if (stream.ReadByte() != 0xff || stream.ReadByte() != 0xd8)
-            throw new InvalidDataException("文件内容不是有效的 JPEG 图片。");
-        stream.Position = 0;
-        var decoder = new JpegBitmapDecoder(stream, BitmapCreateOptions.DelayCreation, BitmapCacheOption.None);
-        var frame = decoder.Frames[0];
-        var metadata = frame.Metadata as BitmapMetadata;
-        int orientation = ImageLoader.GetOrientation(metadata);
-        var item = new PhotoItem
-        {
-            FilePath = Path.GetFullPath(path),
-            PixelWidth = orientation is >= 5 and <= 8 ? frame.PixelHeight : frame.PixelWidth,
-            PixelHeight = orientation is >= 5 and <= 8 ? frame.PixelWidth : frame.PixelHeight,
-            Metadata = MetadataService.Read(metadata),
-            Thumbnail = ImageLoader.Load(path, 160, cancellationToken)
-        };
-        return item;
-    }
+    /// <summary>兼容现有工程读取的 JPG 入口；格式内容验证和方向处理交由图像后端。</summary>
+    internal static PhotoItem LoadPhoto(string path, CancellationToken cancellationToken = default,
+        IPhotoImageDecoder? images = null) => LoadSourcePhoto(path, cancellationToken, images);
 }

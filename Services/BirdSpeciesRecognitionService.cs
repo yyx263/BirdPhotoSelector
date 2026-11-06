@@ -1,5 +1,4 @@
 using System.IO;
-using System.Windows.Media.Imaging;
 using Microsoft.ML.OnnxRuntime;
 using Microsoft.ML.OnnxRuntime.Tensors;
 
@@ -34,14 +33,17 @@ public sealed class BirdSpeciesRecognitionService : IDisposable
     private InferenceSession? _session;
     private SpeciesCandidateCatalog? _catalog;
     private string? _inputName, _outputName, _loadError, _lastAssetStamp;
+    private readonly IPhotoImageDecoder _images;
     private bool _disposed;
 
     /// <param name="encoderOverride">Optional deterministic encoder for tests or a compatible adapter. Output is a 768-dimensional embedding.</param>
+    /// <summary>创建延迟加载的鸟种识别服务；图像解码由宿主注入，模型和候选表仍由本服务管理生命周期。</summary>
     public BirdSpeciesRecognitionService(string? assetsDirectory = null,
-        Func<DenseTensor<float>, CancellationToken, float[]>? encoderOverride = null)
+        Func<DenseTensor<float>, CancellationToken, float[]>? encoderOverride = null, IPhotoImageDecoder? images = null)
     {
         _directory = Path.GetFullPath(assetsDirectory ?? Path.Combine(AppContext.BaseDirectory, "models", "bioclip2"));
         _encoderOverride = encoderOverride;
+        _images = images ?? PhotoImaging.Decoder;
     }
 
     public string AssetsDirectory => _directory;
@@ -51,7 +53,7 @@ public sealed class BirdSpeciesRecognitionService : IDisposable
     private static readonly string[] RequiredFiles = { "metadata.json", "candidates.json", "embeddings.f32" };
 
     /// <summary>A blocking CPU operation; UI callers should use RecognizeAsync for the complete list.</summary>
-    public SpeciesRecognitionResult Recognize(BitmapSource orientedImage, BirdBox box, bool chinaOnly = true,
+    public SpeciesRecognitionResult Recognize(ImageFrame orientedImage, BirdBox box, bool chinaOnly = true,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(orientedImage);
@@ -140,7 +142,7 @@ public sealed class BirdSpeciesRecognitionService : IDisposable
             {
                 // One full-resolution image at a time preserves small-bird detail without retaining
                 // the whole batch in memory. Every crop uses the EXIF-oriented coordinates.
-                var image = ImageLoader.Load(job.Path, cancellationToken: cancellationToken);
+                var image = _images.Decode(job.Path, cancellationToken: cancellationToken);
                 foreach (var bird in job.Birds)
                 {
                     cancellationToken.ThrowIfCancellationRequested();

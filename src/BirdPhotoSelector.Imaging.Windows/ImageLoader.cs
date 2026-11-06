@@ -1,3 +1,4 @@
+using BirdPhotoSelector.Imaging;
 using System.IO;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
@@ -7,10 +8,11 @@ namespace BirdPhotoSelector;
 /// <summary>Loads oriented JPG or true RAW pixels without retaining a file lock.</summary>
 public static class ImageLoader
 {
+    /// <summary>Windows 位图兼容入口。OnLoad 保证解码结束后关闭输入流；RAW 始终走真实像素解码。</summary>
     public static BitmapSource Load(string path, int maxWidth = 0, CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        if (PhotoAsset.TryGetKind(path, out var kind) && kind == PhotoAssetKind.Raw)
+        if (PhotoImageFormats.IsRaw(path))
             return RawImageDecoder.Decode(path, maxWidth, cancellationToken);
         using var stream = File.OpenRead(path);
         var decoder = new JpegBitmapDecoder(stream, BitmapCreateOptions.DelayCreation, BitmapCacheOption.None);
@@ -29,12 +31,14 @@ public static class ImageLoader
         return result;
     }
 
-    internal static int GetOrientation(BitmapMetadata? metadata)
+    /// <summary>读取 EXIF 274 方向标记；缺失或不可读取时按普通方向处理。</summary>
+    public static int GetOrientation(BitmapMetadata? metadata)
     {
         try { return Convert.ToInt32(metadata?.GetQuery("/app1/ifd/{ushort=274}") ?? 1); }
         catch { return 1; }
     }
 
+    /// <summary>覆盖 EXIF 的全部八种旋转/镜像组合，统一预览、缩略图与 AI 的坐标。</summary>
     private static BitmapSource ApplyOrientation(BitmapSource bitmap, int orientation)
     {
         Transform? transform = orientation switch

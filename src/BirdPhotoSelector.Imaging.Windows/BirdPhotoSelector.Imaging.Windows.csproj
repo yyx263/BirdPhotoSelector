@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <Nullable>enable</Nullable>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RestorePackagesPath>$(MSBuildThisFileDirectory)../../.tools/packages</RestorePackagesPath>
+  </PropertyGroup>
+  <ItemGroup><ProjectReference Include="../BirdPhotoSelector.Imaging/BirdPhotoSelector.Imaging.csproj" /></ItemGroup>
+</Project>

@@ -36,7 +36,7 @@ internal static class RawImportChecks
                 progress: new InlineProgress(forwardProgress.Add));
             var paired = forward.Added.Single();
             Check(paired.Assets.Count == 2 && paired.FormatLabel == "JPG + RAW" &&
-                  paired.ActivePreviewAsset?.Kind == PhotoAssetKind.Jpg && paired.Thumbnail is { IsFrozen: true },
+                  paired.ActivePreviewAsset?.Kind == PhotoAssetKind.Jpg && paired.Thumbnail is BirdPhotoSelector.Imaging.Windows.WpfImageFrame { Bitmap.IsFrozen: true },
                 "JPG and RAW become one logical photo with real JPG pixels and a frozen thumbnail");
             Check(forward.Errors.Count == 0 && forward.SkippedDuplicate == 0 && forward.PairedInputs == 1 &&
                   forwardProgress.Where(item => item.FileCompleted).Select(item => item.Completed).SequenceEqual(new[] { 1, 2 }) &&

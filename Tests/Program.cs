@@ -26,6 +26,12 @@ internal static class Program
             foreach (var operation in startupOperations) operation.Abort();
             app.InitializeComponent();
             app.ShutdownMode = System.Windows.ShutdownMode.OnExplicitShutdown;
+            if (args.Contains("--imaging-only", StringComparer.Ordinal))
+            {
+                _assertions += ImagingIntegrationChecks.RunAsync().GetAwaiter().GetResult();
+                Console.WriteLine($"PASS: {_assertions} image-layer integration assertions.");
+                return 0;
+            }
             if (args.Contains("--workflow-updates-only", StringComparer.Ordinal))
             {
                 _assertions += RecognitionResetChecks.RunAsync().GetAwaiter().GetResult();
@@ -87,6 +93,7 @@ internal static class Program
                 Console.WriteLine($"PASS: {_assertions} targeted file-operation assertions.");
                 return 0;
             }
+            _assertions += ImagingIntegrationChecks.RunAsync().GetAwaiter().GetResult();
             _assertions += RecognitionResetChecks.RunAsync().GetAwaiter().GetResult();
             _assertions += ExportConflictChecks.RunAsync().GetAwaiter().GetResult();
             _assertions += MainWorkflowUpdateChecks.Run();
@@ -162,7 +169,7 @@ internal static class Program
             Check(imported.SkippedUnsupported == 1, "unsupported extension skips automatically");
             Check(imported.Errors.Count == 1, "JPEG extension with invalid magic is rejected");
             Check(imported.Added[0].FilePath == first && imported.Added[1].FilePath == second, "selection order is retained");
-            Check(imported.Added[0].Thumbnail?.IsFrozen == true, "thumbnail is safe for cross-thread UI use");
+            Check(imported.Added[0].Thumbnail is BirdPhotoSelector.Imaging.Windows.WpfImageFrame { Bitmap.IsFrozen: true }, "thumbnail is safe for cross-thread UI use");
             Check(imported.Added[0].PixelWidth == 64 && imported.Added[0].PixelHeight == 40, "original photo dimensions retained");
             var existing = await importer.ImportAsync(new[] { duplicate }, new[] { "BIRD.JPG" });
             Check(existing.Added.Count == 0 && existing.SkippedDuplicate == 1, "dedupe includes previously imported filenames");

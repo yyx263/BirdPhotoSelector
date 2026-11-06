@@ -1,3 +1,4 @@
+using BirdPhotoSelector.Imaging;
 using System.IO;
 using System.Globalization;
 using System.Runtime.InteropServices;
@@ -17,6 +18,7 @@ public static class RawImageDecoder
     private static readonly SemaphoreSlim DecoderGate = new(1, 1);
     private const string Library = "BirdPhotoSelector.Raw.dll";
 
+    /// <summary>通过共享串行门读取 LibRaw 元数据；拍摄时间保留相机本地文本，曝光补偿保留真实零值。</summary>
     public static RawImageInfo ReadInfo(string path, CancellationToken cancellationToken = default)
     {
         string fullPath = ValidatePath(path, cancellationToken);
@@ -52,6 +54,7 @@ public static class RawImageDecoder
         finally { DecoderGate.Release(); }
     }
 
+    /// <summary>可取消的真实 RAW 解码。复制原生像素后冻结位图；无论成功、异常或取消都释放原生句柄。</summary>
     public static BitmapSource Decode(string path, int maxWidth = 0, CancellationToken cancellationToken = default)
     {
         if (maxWidth < 0) throw new ArgumentOutOfRangeException(nameof(maxWidth));
@@ -84,20 +87,23 @@ public static class RawImageDecoder
         }
     }
 
+    /// <summary>先检查取消、扩展名与文件存在性，原件不会被修改。</summary>
     private static string ValidatePath(string path, CancellationToken token)
     {
         token.ThrowIfCancellationRequested();
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
-        if (!PhotoAsset.TryGetKind(path, out var kind) || kind != PhotoAssetKind.Raw)
+        if (!PhotoImageFormats.IsRaw(path))
             throw new ArgumentException("请选择受支持扩展名的 RAW 文件。", nameof(path));
         string fullPath = Path.GetFullPath(path);
         if (!File.Exists(fullPath)) throw new FileNotFoundException("RAW 原文件不存在。", fullPath);
         return fullPath;
     }
 
+    /// <summary>将桥接库缺失、架构不符或入口版本错误转成可读的组件错误。</summary>
     private static InvalidOperationException MissingDecoder(Exception exception) =>
         new("RAW 解码组件未能加载，请重新构建或保留程序目录中的 BirdPhotoSelector.Raw.dll、libraw.dll 和相关运行库。", exception);
 
+    /// <summary>把原生状态转换为取消或解码异常；不把不支持的 RAW 伪装为成功。</summary>
     private static void CheckStatus(int status, CancellationToken token)
     {
         token.ThrowIfCancellationRequested();
@@ -114,7 +120,9 @@ public static class RawImageDecoder
         throw new InvalidDataException($"{message}（{status}: {detail}）");
     }
 
+    /// <summary>由原生解码器轮询的取消回调，调用期间由托管代码保持存活。</summary>
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)] private delegate int CancelCallback();
+    /// <summary>与 bpr_read_info_v2 严格对应的元数据 ABI，修改顺序或字段时必须同步原生桥接。</summary>
     [StructLayout(LayoutKind.Sequential)] private struct NativeInfo
     {
         public int Width, Height, Orientation;
@@ -125,15 +133,20 @@ public static class RawImageDecoder
         public double ExposureBias;
         public int HasExposureBias;
     }
+    /// <summary>由原生桥接拥有的像素及释放句柄；只能由 bpr_release 释放。</summary>
     [StructLayout(LayoutKind.Sequential)] private struct NativeImage
     {
         public IntPtr Handle, Pixels;
         public int Width, Height, Stride, Bytes;
     }
+    /// <summary>当前 Windows UTF-16 元数据入口；跨平台阶段将迁移到显式 UTF-8 C ABI。</summary>
     [DllImport(Library, EntryPoint = "bpr_read_info_v2", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Unicode, ExactSpelling = true)]
     private static extern int NativeReadInfo(string path, CancelCallback cancel, out NativeInfo info);
+    /// <summary>原生解码入口；输出句柄及像素始终由本桥接拥有，托管方只负责复制和最终释放。</summary>
     [DllImport(Library, EntryPoint = "bpr_decode", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Unicode, ExactSpelling = true)]
     private static extern int NativeDecode(string path, int maxWidth, CancelCallback cancel, out NativeImage image);
+    /// <summary>释放同一桥接分配的所有者，不能对像素指针调用其他分配器的释放函数。</summary>
     [DllImport(Library, EntryPoint = "bpr_release", CallingConvention = CallingConvention.Cdecl)] private static extern void NativeRelease(IntPtr handle);
+    /// <summary>读取桥接静态错误说明；返回值不归托管方拥有。</summary>
     [DllImport(Library, EntryPoint = "bpr_error", CallingConvention = CallingConvention.Cdecl)] private static extern IntPtr NativeError(int status);
 }

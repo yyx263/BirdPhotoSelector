@@ -1,11 +1,14 @@
+using BirdPhotoSelector.Imaging;
 using System.Globalization;
 using System.IO;
 using System.Windows.Media.Imaging;
 
 namespace BirdPhotoSelector;
 
+/// <summary>Windows/WIC EXIF 转换器，仅读取元数据并生成与 UI 无关的显示文本。</summary>
 public sealed class MetadataService
 {
+    /// <summary>打开 JPG 头读取拍摄参数，返回前关闭流，不持有原文件。</summary>
     public PhotoMetadata Read(string path)
     {
         using var stream = File.OpenRead(path);
@@ -13,7 +16,8 @@ public sealed class MetadataService
         return Read(decoder.Frames[0].Metadata as BitmapMetadata);
     }
 
-    internal static PhotoMetadata Read(BitmapMetadata? metadata)
+    /// <summary>依次尝试标准 EXIF 查询路径；缺项使用破折号，不制造拍摄参数。</summary>
+    public static PhotoMetadata Read(BitmapMetadata? metadata)
     {
         object? Query(params string[] queries)
         {
@@ -50,6 +54,7 @@ public sealed class MetadataService
         };
     }
 
+    /// <summary>解释 EXIF 打包有理数；曝光补偿按有符号数解析，分母为零或类型错误视为缺失。</summary>
     private static double? Rational(object? value, bool signed = false)
     {
         if (value is null) return null;

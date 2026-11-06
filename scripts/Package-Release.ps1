@@ -9,7 +9,11 @@ $Source = Join-Path $ProjectRoot 'publish/BirdPhotoSelector'
 $Version = [string]$Project.Project.PropertyGroup.Version
 [xml]$ApplicationManifest = Get-Content -LiteralPath (Join-Path $ProjectRoot 'app.manifest') -Raw
 $Identity = $ApplicationManifest.SelectSingleNode("/*[local-name()='assembly']/*[local-name()='assemblyIdentity']")
-$VersionParts = [Version]$Version
+# File/manifest identities are numeric; the package name and ProductVersion retain the prerelease suffix.
+if ($Version -notmatch '^(?<Numeric>\d+\.\d+\.\d+)(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$') {
+    throw "Unsupported project release version: $Version"
+}
+$VersionParts = [Version]$Matches['Numeric']
 $ExpectedIdentityVersion = ([Version]::new($VersionParts.Major, $VersionParts.Minor, $VersionParts.Build, 0)).ToString()
 if ($null -eq $Identity -or $Identity.GetAttribute('version') -ne $ExpectedIdentityVersion) {
     throw "Application manifest version must match project version: $ExpectedIdentityVersion"
@@ -29,7 +33,7 @@ function Write-Json($Value, [string]$Path) {
     [IO.File]::WriteAllText($Path, ($Value | ConvertTo-Json -Depth 8), [Text.UTF8Encoding]::new($false))
 }
 
-$Required = @('BirdPhotoSelector.exe', 'BirdPhotoSelector.dll', 'BirdPhotoSelector.Raw.dll', 'libraw.dll',
+$Required = @('BirdPhotoSelector.exe', 'BirdPhotoSelector.dll', 'BirdPhotoSelector.Imaging.dll', 'BirdPhotoSelector.Imaging.Windows.dll', 'BirdPhotoSelector.Raw.dll', 'libraw.dll',
     'msvcp140.dll', 'vcruntime140.dll', 'vcruntime140_1.dll', 'coreclr.dll', 'hostfxr.dll', 'PresentationFramework.dll',
     'models/yolov10n.onnx', 'models/bioclip2/vision.onnx', 'models/bioclip2/asset-hashes.json',
     'licenses/LibRaw-CDDL-1.0.txt', 'licenses/LibRaw-COPYRIGHT.txt', 'licenses/LibRaw-ComponentNotices.txt',

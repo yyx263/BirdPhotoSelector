@@ -1,6 +1,4 @@
 using System.IO;
-using System.Windows.Media;
-using System.Windows.Media.Imaging;
 using Microsoft.ML.OnnxRuntime;
 using Microsoft.ML.OnnxRuntime.Tensors;
 
@@ -30,7 +28,8 @@ public sealed class BirdDetectionService : IDisposable
     public bool IsModelMissing => !File.Exists(_modelPath);
     public double ConfidenceThreshold { get; set; } = 0.25;
 
-    public BirdDetectionResult Detect(BitmapSource image, CancellationToken cancellationToken = default)
+    /// <summary>读取与 UI 无关的显示方向图像，返回全部有效鸟框；推理不修改原照片或工程。</summary>
+    public BirdDetectionResult Detect(ImageFrame image, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(image);
         lock (_sync)
@@ -145,24 +144,22 @@ public sealed class BirdDetectionService : IDisposable
         }
     }
 
+    /// <summary>按后端采样后进行 114 灰边填充，生成 RGB/NCHW 输入并记录反映射所需的真实尺寸。</summary>
     private (DenseTensor<float> Input, int Width, int Height, int PadX, int PadY) CreateInput(
-        BitmapSource image, CancellationToken cancellationToken)
+        ImageFrame image, CancellationToken cancellationToken)
     {
         double ratio = Math.Min((double)_inputWidth / image.PixelWidth, (double)_inputHeight / image.PixelHeight);
         int contentWidth = Math.Clamp((int)Math.Round(image.PixelWidth * ratio), 1, _inputWidth);
         int contentHeight = Math.Clamp((int)Math.Round(image.PixelHeight * ratio), 1, _inputHeight);
         int padX = (_inputWidth - contentWidth) / 2, padY = (_inputHeight - contentHeight) / 2;
-        var transformed = new TransformedBitmap(image, new ScaleTransform(
-            (double)contentWidth / image.PixelWidth, (double)contentHeight / image.PixelHeight));
-        var rgb = new FormatConvertedBitmap(transformed, PixelFormats.Bgr24, null, 0);
-        // Use the actual WIC result size to account for floating point rounding in transforms.
+        var rgb = image.Resize(contentWidth, contentHeight, cancellationToken);
+        // 后端可能存在像素取整；回映鸟框必须使用实际输出尺寸。
         contentWidth = rgb.PixelWidth;
         contentHeight = rgb.PixelHeight;
         padX = (_inputWidth - contentWidth) / 2;
         padY = (_inputHeight - contentHeight) / 2;
         int stride = contentWidth * 3;
-        var pixels = new byte[stride * contentHeight];
-        rgb.CopyPixels(pixels, stride, 0);
+        var pixels = rgb.CopyRgb24(cancellationToken);
         var buffer = new float[3 * _inputWidth * _inputHeight];
         Array.Fill(buffer, 114f / 255);
         int plane = _inputWidth * _inputHeight;
@@ -172,9 +169,9 @@ public sealed class BirdDetectionService : IDisposable
             for (int x = 0; x < contentWidth; x++)
             {
                 int pixel = y * stride + x * 3, target = (y + padY) * _inputWidth + x + padX;
-                buffer[target] = pixels[pixel + 2] / 255f;
+                buffer[target] = pixels[pixel] / 255f;
                 buffer[plane + target] = pixels[pixel + 1] / 255f;
-                buffer[plane * 2 + target] = pixels[pixel] / 255f;
+                buffer[plane * 2 + target] = pixels[pixel + 2] / 255f;
             }
         }
         return (new DenseTensor<float>(buffer, new[] { 1, 3, _inputHeight, _inputWidth }),

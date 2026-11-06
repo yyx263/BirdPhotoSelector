@@ -107,7 +107,7 @@ public partial class MainWindow : Window
             if (_isClosed || version != _previewVersion) return;
             if (rawInfo is not null) photo.Metadata = rawInfo.Metadata;
             photo.PixelWidth = bitmap.PixelWidth; photo.PixelHeight = bitmap.PixelHeight;
-            if (photo.Thumbnail is null) photo.Thumbnail = CreatePreviewThumbnail(bitmap);
+            if (photo.Thumbnail is null) photo.Thumbnail = WpfImageBridge.FromBitmap(CreatePreviewThumbnail(bitmap));
             Viewer.ShowPhoto(photo, bitmap);
             _vm.IsPreviewReady = true;
             QueuePhotoSelection(photo, version, scrollVersion);

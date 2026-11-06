@@ -102,7 +102,7 @@ internal static class SinglePhotoRecognitionChecks
                 if (stage == "before") cancellation.Cancel();
                 using var service = new SinglePhotoRecognitionService(
                     loaderOverride: (source, token) =>
-                    { if (stage == "decode") cancellation.Cancel(); token.ThrowIfCancellationRequested(); return ImageLoader.Load(source); },
+                    { if (stage == "decode") cancellation.Cancel(); token.ThrowIfCancellationRequested(); return BirdPhotoSelector.Imaging.Windows.WpfImageBridge.FromBitmap(ImageLoader.Load(source)); },
                     detectorOverride: (_, token) =>
                     { if (stage == "detect") cancellation.Cancel(); token.ThrowIfCancellationRequested(); return Detected(); },
                     recognizerOverride: (_, _, _, token) =>
@@ -142,7 +142,7 @@ internal static class SinglePhotoRecognitionChecks
             sourceSwitch.AddAsset(raw); sourceSwitch.RemoveAsset(oldJpg.Id);
             Check(sourceSwitch.GeometryStatus == PhotoGeometryStatus.NeedsReview && sourceSwitch.GeometryReference?.AssetId == oldJpg.Id,
                 "the rebuild fixture starts with the old JPG frame requiring review on its new RAW source");
-            using (var service = new SinglePhotoRecognitionService(loaderOverride: (_, _) => image,
+            using (var service = new SinglePhotoRecognitionService(loaderOverride: (_, _) => BirdPhotoSelector.Imaging.Windows.WpfImageBridge.FromBitmap(image),
                 detectorOverride: (_, _) => Detected(), recognizerOverride: (_, _, china, _) =>
                 { Check(china, "single-photo rebuilding retains the selected China candidate scope"); return new(match, "new RAW evidence"); }))
             {

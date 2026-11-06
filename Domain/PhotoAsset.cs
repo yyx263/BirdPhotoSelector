@@ -8,10 +8,6 @@ public enum PhotoAssetKind { Jpg, Raw }
 /// <summary>An immutable original file belonging to one logical photo; it need not currently exist.</summary>
 public sealed record PhotoAsset
 {
-    private static readonly HashSet<string> RawExtensions = new(StringComparer.OrdinalIgnoreCase)
-    { ".crw", ".cr2", ".cr3", ".nef", ".nrw", ".arw", ".sr2", ".srf", ".dng", ".raf", ".rw2", ".orf", ".pef", ".srw",
-        ".raw", ".rwl", ".3fr", ".fff", ".iiq", ".mos", ".mrw", ".x3f" };
-
     public PhotoAsset(string filePath, PhotoAssetKind kind, string? id = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(filePath);
@@ -42,10 +38,8 @@ public sealed record PhotoAsset
     {
         kind = PhotoAssetKind.Jpg;
         if (string.IsNullOrWhiteSpace(filePath)) return false;
-        string extension = Path.GetExtension(filePath);
-        if (extension.Equals(".jpg", StringComparison.OrdinalIgnoreCase) ||
-            extension.Equals(".jpeg", StringComparison.OrdinalIgnoreCase)) return true;
-        if (!RawExtensions.Contains(extension)) return false;
+        if (PhotoImageFormats.IsJpeg(filePath)) return true;
+        if (!PhotoImageFormats.IsRaw(filePath)) return false;
         kind = PhotoAssetKind.Raw;
         return true;
     }

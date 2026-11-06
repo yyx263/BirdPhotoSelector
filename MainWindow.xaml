@@ -1,5 +1,6 @@
 <Window Style="{StaticResource {x:Type Window}}" x:Class="BirdPhotoSelector.MainWindow" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:local="clr-namespace:BirdPhotoSelector" xmlns:controls="clr-namespace:BirdPhotoSelector.Controls" Title="{Binding WindowTitle}" Width="1560" Height="960" MinWidth="1160" MinHeight="760" WindowStartupLocation="CenterScreen" AllowDrop="True" Drop="Window_Drop" PreviewKeyDown="Window_PreviewKeyDown" Closing="Window_Closing">
   <Window.Resources>
+    <local:ImageFrameConverter x:Key="ImageFrame"/>
     <local:RatingGlyphConverter x:Key="RatingGlyph"/><local:RatingColorConverter x:Key="RatingColor"/>
     <local:RatingEqualsConverter x:Key="RatingEquals"/>
     <BooleanToVisibilityConverter x:Key="BoolVisibility"/>
@@ -15,7 +16,7 @@
             </ContextMenu>
           </Border.ContextMenu>
           <Grid>
-            <Image Source="{Binding Thumbnail}" Stretch="Uniform"/>
+            <Image Source="{Binding Thumbnail,Converter={StaticResource ImageFrame}}" Stretch="Uniform"/>
             <Border Background="#E91C252D" CornerRadius="3" Padding="5,2" HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="4">
               <TextBlock x:Name="PhotoFormatBadge" Text="{Binding CompactFormatLabel}" FontSize="10" Foreground="#B8D6C9"/>
             </Border>
@@ -57,7 +58,7 @@
                 <MenuItem x:Name="GroupRatingFavoriteMenu" Header="★ 精选" Tag="Favorite" Click="GroupRatingMenu_Click"/>
               </ContextMenu>
             </Border.ContextMenu>
-            <Grid><Image Source="{Binding Cover.Thumbnail}" Stretch="Uniform"/>
+            <Grid><Image Source="{Binding Cover.Thumbnail,Converter={StaticResource ImageFrame}}" Stretch="Uniform"/>
               <Border Background="#E91C252D" CornerRadius="3" Padding="5,2" HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="4">
                 <TextBlock x:Name="GroupCoverFormatBadge" Text="{Binding Cover.CompactFormatLabel}" FontSize="10" Foreground="#B8D6C9"/>
               </Border>

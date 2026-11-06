@@ -1,6 +1,5 @@
 using System.IO;
 using System.Security.Cryptography;
-using System.Windows.Media.Imaging;
 
 namespace BirdPhotoSelector;
 
@@ -33,7 +32,7 @@ public sealed class SinglePhotoRecognitionResult
     public string DetectionStatus { get; }
     public string PhotoId => _snapshot.Id;
 
-    /// <summary>Called on the UI thread. An empty result requires the caller's second confirmation.</summary>
+    /// <summary>Called on the UI thread. For an empty proposal the caller explicitly passes allowEmpty; the current UI applies it immediately and records undo.</summary>
     public void ApplyTo(PhotoItem photo, bool allowEmpty = false, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(photo);
@@ -67,20 +66,23 @@ public sealed class SinglePhotoRecognitionService : IDisposable
 {
     private readonly BirdDetectionService _detector;
     private readonly BirdSpeciesRecognitionService _recognizer;
-    private readonly Func<BitmapSource, CancellationToken, BirdDetectionResult>? _detectOverride;
-    private readonly Func<BitmapSource, BirdBox, bool, CancellationToken, SpeciesRecognitionResult>? _recognizeOverride;
-    private readonly Func<string, CancellationToken, BitmapSource> _loader;
+    private readonly Func<ImageFrame, CancellationToken, BirdDetectionResult>? _detectOverride;
+    private readonly Func<ImageFrame, BirdBox, bool, CancellationToken, SpeciesRecognitionResult>? _recognizeOverride;
+    private readonly Func<string, CancellationToken, ImageFrame> _loader;
     private readonly SemaphoreSlim _gate = new(1, 1);
+    private readonly IPhotoImageDecoder _images;
     private bool _disposed;
 
+    /// <summary>创建单张重建用例；宿主可注入图像后端，测试钩子只替换像素读取或推理，不绕过来源一致性检查。</summary>
     public SinglePhotoRecognitionService(string? detectionModelPath = null, string? speciesAssetsDirectory = null,
-        Func<BitmapSource, CancellationToken, BirdDetectionResult>? detectorOverride = null,
-        Func<BitmapSource, BirdBox, bool, CancellationToken, SpeciesRecognitionResult>? recognizerOverride = null,
-        Func<string, CancellationToken, BitmapSource>? loaderOverride = null)
+        Func<ImageFrame, CancellationToken, BirdDetectionResult>? detectorOverride = null,
+        Func<ImageFrame, BirdBox, bool, CancellationToken, SpeciesRecognitionResult>? recognizerOverride = null,
+        Func<string, CancellationToken, ImageFrame>? loaderOverride = null, IPhotoImageDecoder? images = null)
     {
-        _detector = new(detectionModelPath); _recognizer = new(speciesAssetsDirectory);
+        _images = images ?? PhotoImaging.Decoder;
+        _detector = new(detectionModelPath); _recognizer = new(speciesAssetsDirectory, images: _images);
         _detectOverride = detectorOverride; _recognizeOverride = recognizerOverride;
-        _loader = loaderOverride ?? ((path, token) => ImageLoader.Load(path, cancellationToken: token));
+        _loader = loaderOverride ?? ((path, token) => _images.Decode(path, cancellationToken: token));
     }
 
     public async Task<SinglePhotoRecognitionResult> RebuildAsync(PhotoItem photo, bool chinaOnly = true,

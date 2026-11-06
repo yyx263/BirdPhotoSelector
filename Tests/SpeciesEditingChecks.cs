@@ -123,7 +123,7 @@ internal static class SpeciesEditingChecks
             var rebuildPhoto = new PhotoItem { FilePath = path };
             history.Add(rebuildPhoto, sparrow);
             using (var rebuild = new SinglePhotoRecognitionService(detectorOverride: (_, _) => new(Box(), "定位完成"),
-                recognizerOverride: (_, _, _, _) => new(Match(), "识别完成"), loaderOverride: (_, _) => bitmap))
+                recognizerOverride: (_, _, _, _) => new(Match(), "识别完成"), loaderOverride: (_, _) => BirdPhotoSelector.Imaging.Windows.WpfImageBridge.FromBitmap(bitmap)))
             {
                 var beforeRebuild = history.Capture(rebuildPhoto, "重新识别本张");
                 var result = await rebuild.RebuildAsync(rebuildPhoto);
@@ -137,7 +137,7 @@ internal static class SpeciesEditingChecks
                     "undoing an explicit rebuild restores the manual species and its batch protection");
             }
             using (var failed = new SinglePhotoRecognitionService(detectorOverride: (_, _) => new(null, "失败", Error: "fixture failure"),
-                loaderOverride: (_, _) => bitmap))
+                loaderOverride: (_, _) => BirdPhotoSelector.Imaging.Windows.WpfImageBridge.FromBitmap(bitmap)))
             {
                 var result = await failed.RebuildAsync(rebuildPhoto);
                 Check(!result.Success && rebuildPhoto.HasManualSpeciesEdits && rebuildPhoto.Birds[0].ManualSpecies == sparrow,

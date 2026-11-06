@@ -4,7 +4,7 @@ using System.Collections.Specialized;
 using System.IO;
 using System.Globalization;
 using System.Runtime.CompilerServices;
-using System.Windows.Media.Imaging;
+using BirdPhotoSelector.Imaging;
 
 namespace BirdPhotoSelector;
 
@@ -101,17 +101,6 @@ public sealed class DetectedBird : INotifyPropertyChanged
     private void Notify([CallerMemberName] string? name = null) => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
 }
 
-public sealed class PhotoMetadata
-{
-    public string CapturedAt { get; set; } = "—";
-    public string Camera { get; set; } = "—";
-    public string FocalLength { get; set; } = "—";
-    public string Aperture { get; set; } = "—";
-    public string Shutter { get; set; } = "—";
-    public string Iso { get; set; } = "—";
-    public string ExposureBias { get; set; } = "—";
-}
-
 public sealed class PhotoItem : INotifyPropertyChanged
 {
     private string _id = Guid.NewGuid().ToString("N");
@@ -131,7 +120,7 @@ public sealed class PhotoItem : INotifyPropertyChanged
     private string _detectionStatus = "尚未分析";
     private double? _viewZoom, _viewCenterX, _viewCenterY;
     private PhotoMetadata _metadata = new();
-    private BitmapSource? _thumbnail;
+    private ImageFrame? _thumbnail;
     private int _pixelWidth, _pixelHeight;
 
     public PhotoItem()
@@ -516,7 +505,7 @@ public sealed class PhotoItem : INotifyPropertyChanged
     public double? ViewCenterX { get => _viewCenterX; set => Set(ref _viewCenterX, value); }
     public double? ViewCenterY { get => _viewCenterY; set => Set(ref _viewCenterY, value); }
     public PhotoMetadata Metadata { get => _metadata; set => Set(ref _metadata, value); }
-    public BitmapSource? Thumbnail { get => _thumbnail; set => Set(ref _thumbnail, value); }
+    public ImageFrame? Thumbnail { get => _thumbnail; set => Set(ref _thumbnail, value); }
     public int PixelWidth { get => _pixelWidth; set { if (Set(ref _pixelWidth, value)) CompleteGeometryDimensions(); } }
     public int PixelHeight { get => _pixelHeight; set { if (Set(ref _pixelHeight, value)) CompleteGeometryDimensions(); } }
     public event PropertyChangedEventHandler? PropertyChanged;

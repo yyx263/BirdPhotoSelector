@@ -1,5 +1,4 @@
 using System.IO;
-using System.Windows.Media.Imaging;
 
 namespace BirdPhotoSelector;
 
@@ -79,17 +78,21 @@ public sealed class BirdRecognitionWorkflow : IDisposable
 {
     private readonly BirdDetectionService _detector;
     private readonly BirdSpeciesRecognitionService _recognizer;
-    private readonly Func<BitmapSource, CancellationToken, BirdDetectionResult>? _detectOverride;
-    private readonly Func<BitmapSource, BirdBox, bool, CancellationToken, SpeciesRecognitionResult>? _recognizeOverride;
+    private readonly Func<ImageFrame, CancellationToken, BirdDetectionResult>? _detectOverride;
+    private readonly Func<ImageFrame, BirdBox, bool, CancellationToken, SpeciesRecognitionResult>? _recognizeOverride;
     private readonly SemaphoreSlim _gate = new(1, 1);
+    private readonly IPhotoImageDecoder _images;
     private bool _disposed;
 
+    /// <summary>组装定位与鸟种识别流程；共享同一图像后端，返回脱离 UI 的结果，由调用方决定何时应用。</summary>
     public BirdRecognitionWorkflow(string? detectionModelPath = null, string? speciesAssetsDirectory = null,
-        Func<BitmapSource, CancellationToken, BirdDetectionResult>? detectorOverride = null,
-        Func<BitmapSource, BirdBox, bool, CancellationToken, SpeciesRecognitionResult>? recognizerOverride = null)
+        Func<ImageFrame, CancellationToken, BirdDetectionResult>? detectorOverride = null,
+        Func<ImageFrame, BirdBox, bool, CancellationToken, SpeciesRecognitionResult>? recognizerOverride = null,
+        IPhotoImageDecoder? images = null)
     {
+        _images = images ?? PhotoImaging.Decoder;
         _detector = new(detectionModelPath);
-        _recognizer = new(speciesAssetsDirectory);
+        _recognizer = new(speciesAssetsDirectory, images: _images);
         _detectOverride = detectorOverride;
         _recognizeOverride = recognizerOverride;
     }
@@ -139,7 +142,7 @@ public sealed class BirdRecognitionWorkflow : IDisposable
             progress?.Report(new(index, jobs.Length, $"正在定位鸟类 {label}"));
             try
             {
-                var image = ImageLoader.Load(job.Path, cancellationToken: cancellationToken);
+                var image = _images.Decode(job.Path, cancellationToken: cancellationToken);
                 BirdDetectionResult detection;
                 try
                 {

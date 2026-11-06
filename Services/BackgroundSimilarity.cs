@@ -1,5 +1,3 @@
-using System.Windows.Media;
-using System.Windows.Media.Imaging;
 
 namespace BirdPhotoSelector;
 
@@ -8,25 +6,24 @@ namespace BirdPhotoSelector;
 /// The detected bird (plus a small margin) is excluded so a moving bird does not split a burst.
 /// This deliberately does not depend on filenames, EXIF time, or the bird's own appearance.
 /// </summary>
-public static class BackgroundSimilarity
+public static partial class BackgroundSimilarity
 {
     private const int Columns = 8;
     private const int Rows = 6;
     private const int SampleWidth = 160;
     private const int SampleHeight = 120;
 
-    public static BackgroundDescriptor Describe(BitmapSource source, BirdBox? bird = null) =>
+    /// <summary>为单鸟场景计算背景描述，鸟框使用显示图像的归一化坐标。</summary>
+    public static BackgroundDescriptor Describe(ImageFrame source, BirdBox? bird = null) =>
         DescribeAll(source, bird is null ? Array.Empty<BirdBox>() : new[] { bird });
 
-    public static BackgroundDescriptor DescribeAll(BitmapSource source, IEnumerable<BirdBox> birds)
+    /// <summary>缩小图像并排除全部有效鸟框，输出颜色布局、颜色直方图和纹理特征。</summary>
+    public static BackgroundDescriptor DescribeAll(ImageFrame source, IEnumerable<BirdBox> birds)
     {
         ArgumentNullException.ThrowIfNull(source);
-        var scaled = new TransformedBitmap(source, new ScaleTransform(
-            (double)SampleWidth / source.PixelWidth, (double)SampleHeight / source.PixelHeight));
-        var rgb = new FormatConvertedBitmap(scaled, PixelFormats.Bgr24, null, 0);
+        var rgb = source.Resize(SampleWidth, SampleHeight);
         int width = rgb.PixelWidth, height = rgb.PixelHeight, stride = width * 3;
-        var pixels = new byte[stride * height];
-        rgb.CopyPixels(pixels, stride, 0);
+        var pixels = rgb.CopyRgb24();
 
         var means = new double[Columns * Rows * 3];
         var texture = new double[Columns * Rows];
@@ -43,7 +40,7 @@ public static class BackgroundSimilarity
                 double nx = (x + 0.5) / width, ny = (y + 0.5) / height;
                 if (excluded.Any(box => nx >= box.Left && nx <= box.Right && ny >= box.Top && ny <= box.Bottom)) continue;
                 int index = y * stride + x * 3;
-                double b = pixels[index] / 255.0, g = pixels[index + 1] / 255.0, r = pixels[index + 2] / 255.0;
+                double r = pixels[index] / 255.0, g = pixels[index + 1] / 255.0, b = pixels[index + 2] / 255.0;
                 int cell = Math.Min(Rows - 1, y * Rows / height) * Columns + Math.Min(Columns - 1, x * Columns / width);
                 counts[cell]++;
                 means[cell * 3] += r;

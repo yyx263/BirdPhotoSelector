@@ -1,5 +1,4 @@
 using System.IO;
-using System.Windows.Media.Imaging;
 
 namespace BirdPhotoSelector;
 
@@ -33,10 +32,13 @@ public sealed class AnalyzeResult
 public sealed class AnalysisService : IDisposable
 {
     private readonly SemaphoreSlim _analysisLock = new(1, 1);
+    private readonly IPhotoImageDecoder _images;
     private bool _disposed;
 
     // Retained for source compatibility; grouping no longer reads or loads this model.
-    public AnalysisService(string? modelPath = null) { }
+    /// <summary>注入图像后端；保留旧参数只为调用兼容，背景分组不加载定位模型。</summary>
+    public AnalysisService(string? modelPath = null, IPhotoImageDecoder? images = null) =>
+        _images = images ?? PhotoImaging.Decoder;
 
     public async Task<AnalyzeResult> AnalyzeAsync(IReadOnlyList<PhotoItem> photos, double similarityThreshold,
         IProgress<AnalyzeProgress>? progress = null, CancellationToken cancellationToken = default)
@@ -57,7 +59,7 @@ public sealed class AnalysisService : IDisposable
         finally { _analysisLock.Release(); }
     }
 
-    private static AnalyzeResult Analyze(AnalysisJob[] jobs, double threshold, IProgress<AnalyzeProgress>? progress,
+    private AnalyzeResult Analyze(AnalysisJob[] jobs, double threshold, IProgress<AnalyzeProgress>? progress,
         CancellationToken cancellationToken)
     {
         var result = new AnalyzeResult();
@@ -72,7 +74,7 @@ public sealed class AnalysisService : IDisposable
             progress?.Report(new(i, jobs.Length, $"正在背景分组 {i + 1} / {jobs.Length} · {job.Path}"));
             try
             {
-                var image = ImageLoader.Load(job.Path, maxWidth: 1280, cancellationToken: cancellationToken);
+                var image = _images.Decode(job.Path, maxWidth: 1280, cancellationToken: cancellationToken);
                 // Previously found automatic and manual boxes can improve background comparison,
                 // but grouping never reruns localization or rewrites the existing bird collection.
                 var descriptor = BackgroundSimilarity.DescribeAll(image,
@@ -116,20 +118,13 @@ public sealed class AnalysisService : IDisposable
         return result;
     }
 
-    private static (int Width, int Height) ReadDimensions(string path, BitmapSource fallback, CancellationToken cancellationToken)
+    /// <summary>优先读取完整显示尺寸，头信息失败时只使用已解码帧的尺寸，不猜测旧来源。</summary>
+    private (int Width, int Height) ReadDimensions(string path, ImageFrame fallback, CancellationToken cancellationToken)
     {
         try
         {
-            if (PhotoAsset.TryGetKind(path, out var kind) && kind == PhotoAssetKind.Raw)
-            {
-                var info = RawImageDecoder.ReadInfo(path, cancellationToken);
-                return (info.PixelWidth, info.PixelHeight);
-            }
-            using var stream = File.OpenRead(path);
-            var decoder = new JpegBitmapDecoder(stream, BitmapCreateOptions.DelayCreation, BitmapCacheOption.None);
-            var frame = decoder.Frames[0];
-            int orientation = ImageLoader.GetOrientation(frame.Metadata as BitmapMetadata);
-            return orientation is >= 5 and <= 8 ? (frame.PixelHeight, frame.PixelWidth) : (frame.PixelWidth, frame.PixelHeight);
+            var info = _images.ReadInfo(path, cancellationToken);
+            return (info.PixelWidth, info.PixelHeight);
         }
         catch (OperationCanceledException) { throw; }
         catch { return (fallback.PixelWidth, fallback.PixelHeight); }

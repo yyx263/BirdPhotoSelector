@@ -194,8 +194,8 @@ internal static class RawNativeChecks
                 outcome.Info = RawImageDecoder.ReadInfo(original);
                 outcome.PreviewWidth = photo.Thumbnail?.PixelWidth; outcome.PreviewHeight = photo.Thumbnail?.PixelHeight;
                 Check(result.Errors.Count == 0 && photo.Assets.Count == 1 && photo.ActivePreviewAsset?.Kind == PhotoAssetKind.Raw &&
-                      photo.Thumbnail is { IsFrozen: true } thumbnail && thumbnail.PixelWidth <= 160 &&
-                      HasColorVariation(thumbnail) && photo.PixelWidth > 160 && photo.PixelHeight > 160 && photo.Metadata.Camera != "—",
+                      photo.Thumbnail is BirdPhotoSelector.Imaging.Windows.WpfImageFrame { Bitmap.IsFrozen: true } thumbnail && thumbnail.PixelWidth <= 160 &&
+                      HasColorVariation(thumbnail.Bitmap) && photo.PixelWidth > 160 && photo.PixelHeight > 160 && photo.Metadata.Camera != "—",
                     "RAW-only import supplies its own real demosaiced thumbnail, camera metadata and full display dimensions");
                 outcome.Sha256After = await Hash(original);
                 Check(outcome.Sha256Before == outcome.Sha256After, "real RAW-only import never rewrites the original");

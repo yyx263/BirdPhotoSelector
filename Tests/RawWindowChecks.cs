@@ -86,7 +86,7 @@ internal static class RawWindowChecks
             var viewer = (DualPhotoViewer)window.FindName("Viewer");
             Check(viewer.CurrentImage is BitmapSource { IsFrozen: true } image &&
                   image.PixelWidth == info.PixelWidth && image.PixelHeight == info.PixelHeight && !viewer.IsLoading &&
-                  photo.PixelWidth == info.PixelWidth && photo.PixelHeight == info.PixelHeight && photo.Thumbnail is { IsFrozen: true },
+                  photo.PixelWidth == info.PixelWidth && photo.PixelHeight == info.PixelHeight && photo.Thumbnail is BirdPhotoSelector.Imaging.Windows.WpfImageFrame { Bitmap.IsFrozen: true },
                 "the production cache/viewer receives a frozen full-resolution RAW image and creates its own thumbnail");
             Check(((TextBlock)window.FindName("MetadataFormat")).Text is { } format && format.Contains("RAW", StringComparison.Ordinal) &&
                   format.Contains(".CR2", StringComparison.Ordinal) && !format.Contains("JPG", StringComparison.Ordinal) &&
