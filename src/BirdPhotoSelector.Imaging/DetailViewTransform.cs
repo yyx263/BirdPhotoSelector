@@ -92,6 +92,25 @@ public sealed class DetailViewTransform
         if (!double.IsFinite(dx + dy)) return;
         CenterX -= dx / (ImageWidth * PixelScale); CenterY -= dy / (ImageHeight * PixelScale); Clamp();
     }
+    /// <summary>
+    /// 将细节视口的拖拽端点转为归一化选区。起点必须在实际可见照片内，终点裁切到可见边界；
+    /// 拒绝小于 8 个显示像素或 4 个原图像素的选区，不接受 NaN，也不修改当前视图。
+    /// </summary>
+    public bool TryMapRegion(double startX, double startY, double endX, double endY, out ViewRectangle region)
+    {
+        region = default;
+        if (!double.IsFinite(startX + startY + endX + endY)) return false;
+        var image = ImageRectangle;
+        double left = Math.Max(0, image.X), top = Math.Max(0, image.Y);
+        double right = Math.Min(ViewportWidth, image.X + image.Width), bottom = Math.Min(ViewportHeight, image.Y + image.Height);
+        if (startX < left || startX > right || startY < top || startY > bottom) return false;
+        double x = Math.Max(left, Math.Min(startX, endX)), y = Math.Max(top, Math.Min(startY, endY));
+        double width = Math.Min(right, Math.Max(startX, endX)) - x, height = Math.Min(bottom, Math.Max(startY, endY)) - y;
+        if (width < 8 || height < 8 || width / PixelScale < 4 || height / PixelScale < 4) return false;
+        double nx = Math.Clamp((x - image.X) / image.Width, 0, 1), ny = Math.Clamp((y - image.Y) / image.Height, 0, 1);
+        region = new(nx, ny, Math.Min(1 - nx, width / image.Width), Math.Min(1 - ny, height / image.Height));
+        return true;
+    }
     /// <summary>将倍率与归一化中心限制到有效范围，保证白框始终留在照片内部。</summary>
     private void Clamp()
     {

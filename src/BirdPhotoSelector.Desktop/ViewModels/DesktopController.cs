@@ -8,7 +8,7 @@ namespace BirdPhotoSelector.Desktop.ViewModels;
 /// 新桌面宿主的会话协调器。复用 Application 用例，只管理异步操作、预览生命周期和保存路径。
 /// 公开操作由 UI 线程调用；后台返回独立结果后在 UI 应用，所有过期预览和关闭后回调均丢弃。
 /// </summary>
-public sealed class DesktopController : IDisposable
+public sealed partial class DesktopController : IDisposable
 {
     private readonly ApplicationServices _services;
     private readonly PreviewImageCache _cache;
@@ -230,6 +230,6 @@ public sealed class DesktopController : IDisposable
     {
         if (_disposed) return; _disposed = true; ++_previewVersion;
         State.PhotoChanged -= OnPhotoChanged; _lifetime.Cancel(); _previewRequest?.Cancel(); _cache.Dispose();
-        PreviewChanged = null;
+        PreviewChanged = null; ResultsChanged = null;
     }
 }

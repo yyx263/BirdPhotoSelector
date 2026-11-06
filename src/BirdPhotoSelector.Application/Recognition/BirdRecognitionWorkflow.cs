@@ -36,7 +36,10 @@ public sealed class PhotoRecognitionOutcome
             return bird;
         }).ToArray();
         int selected = Array.FindIndex(applied, bird => bird.Number == SelectedBirdNumber);
-        photo.SetBirds(applied, Math.Max(0, selected), NextBirdNumber);
+        // 首次定位不依赖模型返回顺序，明确默认查看面积最大的鸟；已有有效选择继续保留。
+        if (selected < 0) selected = Enumerable.Range(0, applied.Length).Where(index => applied[index].HasRegion)
+            .OrderByDescending(index => applied[index].Box.Width * applied[index].Box.Height).FirstOrDefault(0);
+        photo.SetBirds(applied, selected, NextBirdNumber);
         photo.DetectionStatus = DetectionStatus;
         if (PixelWidth > 0 && PixelHeight > 0)
         {

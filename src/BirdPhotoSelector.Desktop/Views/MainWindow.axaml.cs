@@ -37,6 +37,11 @@ public sealed partial class MainWindow : Window
         InitializeComponent(); DataContext = controller.State;
         Controller.State.PropertyChanged += StateChanged; Controller.PreviewChanged += UpdatePreview;
         FullPane.BirdSelected += SelectBird;
+        Controller.ResultsChanged += ResultsChanged;
+        Controller.State.SpeciesEdits.PropertyChanged += HistoryChanged;
+        FullPane.DeleteRegionRequested += (photo, bird) => Controller.DeleteResult(photo, bird);
+        DetailPane.ManualRegionSelected += async (photo, box) => await GuardUi(() => Execute(() => Controller.RecognizeRegionAsync(photo, box)));
+        DetailPane.ManualModeChanged += () => { ManualRegionButton.IsChecked = DetailPane.IsManualMode; ManualRegionButton.Content = DetailPane.IsManualMode ? "取消选区" : "手动选区"; };
         DetailPane.ViewChanged += user =>
         {
             FullPane.VisibleRegion = DetailPane.VisibleRegion; FullPane.InvalidateVisual(); ZoomText.Text = DetailPane.ScaleText;
@@ -57,11 +62,11 @@ public sealed partial class MainWindow : Window
         Closed += (_, _) =>
         {
             _closed = true; _autoSaveTimer.Stop(); Controller.State.PropertyChanged -= StateChanged;
-            Controller.PreviewChanged -= UpdatePreview; Controller.Dispose();
+            Controller.PreviewChanged -= UpdatePreview; Controller.ResultsChanged -= ResultsChanged; Controller.State.SpeciesEdits.PropertyChanged -= HistoryChanged; Controller.Dispose();
         };
         var icon = Path.Combine(AppContext.BaseDirectory, "Assets/App.ico");
         if (File.Exists(icon)) Icon = new WindowIcon(icon);
-        UpdateRatings();
+        UpdateRatings(); UpdateSpeciesControls();
     }
     /// <summary>同步组/照片选择先于滚动；空的 SelectionChanged 不得把会话已选照片清空。</summary>
     private void StateChanged(object? sender, PropertyChangedEventArgs e)
@@ -69,7 +74,7 @@ public sealed partial class MainWindow : Window
         if (_closed) return;
         if (e.PropertyName is nameof(PhotoSelectionSession.CurrentGroup) or nameof(PhotoSelectionSession.CurrentPhoto)) SyncSelection();
         if (e.PropertyName is nameof(PhotoSelectionSession.CurrentRating) or nameof(PhotoSelectionSession.CanRate)) UpdateRatings();
-        if (e.PropertyName is nameof(PhotoSelectionSession.CanRate) or nameof(PhotoSelectionSession.IsBusy)) UpdateInteraction();
+        if (e.PropertyName is nameof(PhotoSelectionSession.CanRate) or nameof(PhotoSelectionSession.IsBusy)) { UpdateInteraction(); UpdateSpeciesControls(); }
     }
     /// <summary>保留 Ctrl/Shift 多选；只有新的当前项未在选择中时才替换选择。</summary>
     private void SyncSelection()
@@ -93,7 +98,7 @@ public sealed partial class MainWindow : Window
         finally { _syncing = false; }
     }
     /// <summary>忙碌与加载状态分别控制列表和画布，旧帧只能查看不能编辑。</summary>
-    private void UpdateInteraction() { FullPane.IsInteractive = DetailPane.IsInteractive = Controller.State.CanRate; }
+    private void UpdateInteraction() { FullPane.IsInteractive = DetailPane.IsInteractive = Controller.State.CanRate; if (!Controller.State.CanRate) DetailPane.CancelManualRegion(); }
     /// <summary>只有实际帧/照片变更才重置画布，加载通知本身保留原图和位置。</summary>
     private void UpdatePreview()
     {
@@ -227,7 +232,8 @@ public sealed partial class MainWindow : Window
         if (FocusManager?.GetFocusedElement() is TextBox || _closed) return;
         if ((e.KeyModifiers & (KeyModifiers.Control | KeyModifiers.Meta)) != 0)
         {
-            if (e.Key == Key.S) { e.Handled = true; await SaveProjectAsync(); }
+            if (e.Key == Key.Z) { e.Handled = true; Controller.UndoResults(); }
+            else if (e.Key == Key.S) { e.Handled = true; await SaveProjectAsync(); }
             else if (e.Key == Key.O) { e.Handled = true; OpenProject(this, new RoutedEventArgs()); }
             return;
         }
@@ -243,7 +249,7 @@ public sealed partial class MainWindow : Window
             case Key.D3: case Key.NumPad3: Controller.State.CurrentRating = PhotoRating.Keep; break;
             case Key.D4: case Key.NumPad4: Controller.State.CurrentRating = PhotoRating.Favorite; break;
             case Key.R: DetailPane.FocusBird(); break;
-            case Key.Escape: Controller.Cancel(); break;
+            case Key.Escape: if (!DetailPane.CancelManualRegion()) Controller.Cancel(); break;
             default: return;
         }
         e.Handled = true;
@@ -277,7 +283,7 @@ public sealed partial class MainWindow : Window
     /// <summary>帮助包含真实快捷键及可访问的项目来源。</summary>
     private async void ShowHelp(object? sender, RoutedEventArgs e) => await GuardUi(async () =>
     {
-        var result = await PromptDialog.AskAsync(this, "羽选 v2.0.0-alpha.4", "添加本地 JPG / RAW 照片，或打开已有 JSON 工程。\n\n方向键 / WASD：连续切图（到组首尾自动跨组）\nPage Up / Down：切换组\n1 / 2 / 3 / 4：未标记 / 舍弃 / 保留 / 精选\n右侧滚轮：缩放；左键拖动：平移\nR：还原鸟类视图\nCtrl / Command + S：保存工程\n\n每五分钟自动保存有变更的工程。未命名工程保存在本机恢复目录。\n\nhttps://github.com/yyx263/BirdPhotoSelector", ("关闭", PromptResult.Cancel), ("打开 GitHub", PromptResult.Continue));
+        var result = await PromptDialog.AskAsync(this, "羽选 v2.0.0-alpha.5", "添加本地 JPG / RAW 照片，或打开已有 JSON 工程。\n\n方向键 / WASD：连续切图（到组首尾自动跨组）\nPage Up / Down：切换组\n1 / 2 / 3 / 4：未标记 / 舍弃 / 保留 / 精选\n右侧滚轮：缩放；左键拖动：平移\nR：还原鸟类视图\nCtrl / Command + Z：撤销鸟种/选区编辑\nCtrl / Command + S：保存工程\n\n每五分钟自动保存有变更的工程。未命名工程保存在本机恢复目录。\n\nhttps://github.com/yyx263/BirdPhotoSelector", ("关闭", PromptResult.Cancel), ("打开 GitHub", PromptResult.Continue));
         if (result == PromptResult.Continue && !_closed) await Launcher.LaunchUriAsync(new Uri("https://github.com/yyx263/BirdPhotoSelector"));
     });
     /// <summary>先结束当前 Closing 回调，再异步确认；禁止在关闭过程直接打开模态窗口。</summary>
