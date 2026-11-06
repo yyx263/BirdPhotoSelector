@@ -352,8 +352,7 @@ public sealed class PreviewImageCache : IDisposable
     }
     // Windows retains v1 case-insensitive keys. Unix keeps case, so distinct files never collapse.
     /// <summary>按当前平台构造缓存键；Unix 不将大小写不同的路径合并。</summary>
-    private static string CanonicalPath(string path) => OperatingSystem.IsWindows()
-        ? Path.GetFullPath(path).ToUpperInvariant() : Path.GetFullPath(path);
+    private static string CanonicalPath(string path) => FilePaths.Key(path);
     /// <summary>路径、长度、UTC 修改时间共同组成文件版本，不跨版本复用像素。</summary>
     private static FileKey ReadKey(string path)
     {

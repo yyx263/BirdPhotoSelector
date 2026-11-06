@@ -2,7 +2,7 @@ namespace BirdPhotoSelector.Imaging;
 
 /// <summary>
 /// 完全托管的 RGB24 图像实现，供不依赖 UI 的算法、跨平台适配器和验证程序使用。
-/// 构造时复制输入像素，读取时也只返回副本，因此缓存可安全地跨线程共享。
+/// 公共构造时复制输入像素，读取时也只返回副本；可信内部适配器可移交私有数组所有权。
 /// </summary>
 public sealed class Rgb24ImageFrame : ImageFrame
 {
@@ -22,7 +22,7 @@ public sealed class Rgb24ImageFrame : ImageFrame
     }
 
     /// <summary>内部创建路径接管刚分配的私有数组，避免缩放后再复制一次；外部不能访问数组。</summary>
-    private Rgb24ImageFrame(int width, int height, byte[] pixels)
+    internal Rgb24ImageFrame(int width, int height, byte[] pixels)
     {
         ValidateSize(width, height, pixels.Length);
         PixelWidth = width; PixelHeight = height; _pixels = pixels;
@@ -55,32 +55,9 @@ public sealed class Rgb24ImageFrame : ImageFrame
     /// 使用像素中心对齐的双线性采样，边界钳制到最近有效像素。
     /// 这是托管实现的明确采样策略，不能用于替换 BioCLIP 的固定双三次预处理。
     /// </summary>
-    public override ImageFrame Resize(int width, int height, CancellationToken cancellationToken = default)
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-        if (width <= 0) throw new ArgumentOutOfRangeException(nameof(width));
-        if (height <= 0) throw new ArgumentOutOfRangeException(nameof(height));
-        if (width == PixelWidth && height == PixelHeight) return this;
-        var result = new byte[checked(width * height * 3)];
-        for (int y = 0; y < height; y++)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            double sy = Math.Clamp((y + .5) * PixelHeight / height - .5, 0, PixelHeight - 1);
-            int y0 = (int)sy, y1 = Math.Min(y0 + 1, PixelHeight - 1);
-            double fy = sy - y0;
-            for (int x = 0; x < width; x++)
-            {
-                double sx = Math.Clamp((x + .5) * PixelWidth / width - .5, 0, PixelWidth - 1);
-                int x0 = (int)sx, x1 = Math.Min(x0 + 1, PixelWidth - 1);
-                double fx = sx - x0;
-                for (int c = 0; c < 3; c++)
-                {
-                    double top = _pixels[(y0 * PixelWidth + x0) * 3 + c] * (1 - fx) + _pixels[(y0 * PixelWidth + x1) * 3 + c] * fx;
-                    double bottom = _pixels[(y1 * PixelWidth + x0) * 3 + c] * (1 - fx) + _pixels[(y1 * PixelWidth + x1) * 3 + c] * fx;
-                    result[(y * width + x) * 3 + c] = (byte)Math.Clamp(Math.Round(top * (1 - fy) + bottom * fy), 0, 255);
-                }
-            }
-        }
-        return new Rgb24ImageFrame(width, height, result);
-    }
+    public override ImageFrame Resize(int width, int height, CancellationToken cancellationToken = default) =>
+        ImageResampling.Resize(this, width, height, cancellationToken);
+
+    /// <summary>仅供可信适配器复制读取；不得修改或保留为可写共享数据，公共入口仍始终返回独立副本。</summary>
+    internal byte[] ReadOnlyPixels => _pixels;
 }

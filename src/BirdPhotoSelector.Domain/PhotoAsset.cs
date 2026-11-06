@@ -33,7 +33,7 @@ public sealed record PhotoAsset
     public bool CanPairWith(PhotoAsset other)
     {
         ArgumentNullException.ThrowIfNull(other);
-        return Kind != other.Kind && StringComparer.OrdinalIgnoreCase.Equals(PairKey, other.PairKey);
+        return Kind != other.Kind && FilePaths.Comparer.Equals(PairKey, other.PairKey);
     }
 
     /// <summary>使用共用格式表识别 JPG/RAW 扩展名，不以此替代实际解码校验。</summary>
@@ -47,6 +47,6 @@ public sealed record PhotoAsset
         return true;
     }
 
-    /// <summary>按当前工作目录解析完整原件路径；大小写语义仍在后续平台阶段统一。</summary>
-    public static string Canonicalize(string filePath) => Path.GetFullPath(filePath).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+    /// <summary>按当前工作目录解析完整原件路径，保留根目录；路径比较采用宿主的保守大小写规则。</summary>
+    public static string Canonicalize(string filePath) => FilePaths.Canonicalize(filePath);
 }

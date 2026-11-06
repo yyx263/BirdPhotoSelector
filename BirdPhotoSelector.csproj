@@ -7,7 +7,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <AssemblyName>BirdPhotoSelector</AssemblyName>
     <RootNamespace>BirdPhotoSelector</RootNamespace>
-    <Version>2.0.0-alpha.2</Version>
+    <Version>2.0.0-alpha.3</Version>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>Assets/App.ico</ApplicationIcon>
     <PlatformTarget>x64</PlatformTarget>
@@ -19,7 +19,9 @@
     <ProjectReference Include="src/BirdPhotoSelector.Imaging.Windows/BirdPhotoSelector.Imaging.Windows.csproj" />
     <ProjectReference Include="src/BirdPhotoSelector.Application/BirdPhotoSelector.Application.csproj" />
     <Resource Include="Assets/App.ico" />
-    <EmbeddedResource Include="Assets/SpeciesSearchData.json" LogicalName="BirdPhotoSelector.SpeciesSearchData.json" />
+    <ProjectReference Include="src/BirdPhotoSelector.Imaging.Portable/BirdPhotoSelector.Imaging.Portable.csproj" />
+    <ProjectReference Include="src/BirdPhotoSelector.Platform/BirdPhotoSelector.Platform.csproj" />
+    <ProjectReference Include="src/BirdPhotoSelector.Catalog/BirdPhotoSelector.Catalog.csproj" />
     <None Update="models/yolov10n.onnx" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <None Update="models/bioclip2/**" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <None Update="THIRD_PARTY_NOTICES.md" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
@@ -28,6 +30,7 @@
     <None Update="远程兼容启动.cmd" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <None Update="licenses/**" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <None Include=".tools/raw-decoder/BirdPhotoSelector.Raw.dll" Link="BirdPhotoSelector.Raw.dll" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <None Include=".tools/raw-decoder/BirdPhotoSelector.Platform.Native.dll" Link="BirdPhotoSelector.Platform.Native.dll" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <None Include=".tools/raw-decoder/libraw.dll" Link="libraw.dll" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <None Include=".tools/raw-decoder/msvcp140.dll;.tools/raw-decoder/vcruntime140.dll;.tools/raw-decoder/vcruntime140_1.dll" Link="%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>

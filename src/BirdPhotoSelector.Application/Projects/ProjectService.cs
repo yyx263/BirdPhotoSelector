@@ -86,7 +86,7 @@ public sealed class ProjectService
         document.RecentSpecies = recent.Items.ToList();
         var photoIds = new HashSet<string>(StringComparer.Ordinal);
         var assetIds = new HashSet<string>(StringComparer.Ordinal);
-        var assetPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var assetPaths = new HashSet<string>(FilePaths.Comparer);
         foreach (var group in groups)
         {
             ct.ThrowIfCancellationRequested();
@@ -204,10 +204,10 @@ public sealed class ProjectService
             recent.Replace((document.RecentSpecies ?? new()).Where(species => species is { IsValid: true }));
             result.RecentSpecies = recent.Items.ToArray();
             string baseDirectory = Path.GetDirectoryName(projectPath)!;
-            var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var names = new HashSet<string>(FilePaths.Comparer);
             var photoIds = new HashSet<string>(StringComparer.Ordinal);
             var assetIds = new HashSet<string>(StringComparer.Ordinal);
-            var assetPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var assetPaths = new HashSet<string>(FilePaths.Comparer);
             foreach (var groupRecord in document.Groups)
             {
                 cancellationToken.ThrowIfCancellationRequested();
@@ -273,7 +273,7 @@ public sealed class ProjectService
             throw new InvalidDataException("v2 照片没有明确记录的文件成员。");
         var assets = new List<PhotoAsset>();
         var localIds = new HashSet<string>(StringComparer.Ordinal);
-        var localPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var localPaths = new HashSet<string>(FilePaths.Comparer);
         var localKinds = new HashSet<PhotoAssetKind>();
         int duplicatesBefore = result.DuplicateAssetCount;
         int invalidBefore = result.InvalidAssetCount;
@@ -429,9 +429,9 @@ public sealed class ProjectService
         }
     }
 
-    /// <summary>沿用现有 Windows 路径比较，后续平台阶段与路径身份策略一起迁移。</summary>
+    /// <summary>按当前宿主的保守文件路径规则比较；实体别名另外通过句柄身份判断。</summary>
     private static bool SamePath(string first, string second) =>
-        string.Equals(Path.GetFullPath(first), Path.GetFullPath(second), StringComparison.OrdinalIgnoreCase);
+        FilePaths.Equal(first, second);
 
     /// <summary>只接受已定义的枚举名称，拒绝未知字符串或数字冒充有效状态。</summary>
     private static bool TryParseNamedEnum<T>(string? value, out T result) where T : struct, Enum

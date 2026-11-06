@@ -17,8 +17,11 @@ if ($IncludeModel) {
 }
 Push-Location $ProjectRoot
 try {
+    & powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $ProjectRoot 'scripts/Build-RawDecoder.ps1')
+    if ($LASTEXITCODE -ne 0) { throw 'Native build failed.' }
     foreach ($PortableProject in @('Tests/Imaging.Core/BirdPhotoSelector.Imaging.Checks.csproj',
-            'Tests/Application.Core/BirdPhotoSelector.Application.Checks.csproj')) {
+            'Tests/Application.Core/BirdPhotoSelector.Application.Checks.csproj',
+            'Tests/PortableAdapters/BirdPhotoSelector.PortableAdapters.Checks.csproj')) {
         & $Dotnet run --project $PortableProject -c Release
         if ($LASTEXITCODE -ne 0) { throw "Portable verification failed: $PortableProject" }
     }

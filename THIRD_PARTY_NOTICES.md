@@ -9,11 +9,20 @@
 - SDK SHA-256：`4e2213a0b10e32199a30b9114a61376cdb40f94df861262b4a6dca659701276b`，是从官方 HTTPS 下载记录的指纹，不是上游签名。
 - 运行文件 `libraw.dll` SHA-256：`2c4df36d9011267fd3ffd5c23e80d69d5f42c3d503f03ac02448f5c8a7fe0fa2`。
 - 原始版权与许可副本：`licenses/LibRaw-COPYRIGHT.txt`、`licenses/LibRaw-CDDL-1.0.txt`、`licenses/LibRaw-LGPL-2.1.txt`。保留 LibRaw 所包含的 dcraw、DCB/FBDD、X3F、Adobe DNG 相关署名；DCB/X3F 的 BSD 条款原文另保存在 `licenses/LibRaw-ComponentNotices.txt`。
-- 本项目的 ABI 桥接源码位于 `native/raw-decoder.cpp`，构建脚本为 `scripts/Build-RawDecoder.ps1`。桥接只调用官方库，不复制或改变库内部算法。
+- 本项目的 UTF-8 ABI 3 桥接源码位于 `native/raw-decoder.cpp`，使用 `native/CMakeLists.txt`。Windows 构建入口为 `scripts/Build-RawDecoder.ps1`，Linux/macOS 为 `scripts/Build-Native.py`；桥接只调用官方库，不复制或改变库内部算法。
+- Unix 固定源码包：[LibRaw-0.22.3.tar.gz](https://www.libraw.org/data/LibRaw-0.22.3.tar.gz)，SHA-256：`789f3c33466210a1a0907f747a97c715d21bbf4af712f257fcbbd90111b227e4`。下载源和指纹统一记录于 `native/dependencies.json`；Unix 本机编译二进制的哈希不能套用 Windows DLL 哈希。
 
 显示流程使用传感器 RAW 解码、适用的解拜耳、相机白平衡及 sRGB 输出；不将内嵌 JPEG 作为 RAW 解码结果。格式扩展名能被识别不代表所有机型或压缩模式都受支持。
 
 原生 DLL 所需的 Microsoft C++ 运行库为 `msvcp140.dll`、`vcruntime140.dll`、`vcruntime140_1.dll`。构建时从已安装 Visual Studio 的 x64 CRT 可再分发目录复制到程序目录，不从系统目录任意收集 DLL；它们仍受 Microsoft 原始条款约束。分发规则与应用目录部署方式见 [Microsoft C++ 运行库分发文档](https://learn.microsoft.com/en-us/cpp/windows/redistributing-visual-cpp-files)。这三个运行库不按本项目或 LibRaw 的开源许可重新授权。
+
+## 跨平台 JPEG 与 EXIF 依赖（v2.0.0-alpha.3）
+
+- [SkiaSharp 3.119.4](https://www.nuget.org/packages/SkiaSharp/3.119.4)，MIT；同时固定 `SkiaSharp.NativeAssets.Win32`、`SkiaSharp.NativeAssets.macOS` 和 `SkiaSharp.NativeAssets.Linux.NoDependencies` 为 3.119.4。许可在 `licenses/SkiaSharp-MIT.txt`，各实际原生包自带的第三方声明完整保留于 `licenses/SkiaSharp-ThirdPartyNotices-Windows.txt`、`SkiaSharp-ThirdPartyNotices-macOS.txt`、`SkiaSharp-ThirdPartyNotices-Linux.txt`；发布时随适用库一并保留，不能仅附主包 MIT 文本。
+- [MetadataExtractor 2.9.3](https://github.com/drewnoakes/metadata-extractor-dotnet/tree/2.9.3)，Apache-2.0，许可在 `licenses/MetadataExtractor-Apache-2.0.txt`。
+- 传递依赖 [XmpCore 6.1.10.1](https://github.com/drewnoakes/xmp-core-dotnet)，Adobe XMPCore 的 .NET 移植，BSD-3-Clause。`licenses/XmpCore-NOTICE.txt` 保留移植作者及 Adobe 署名，`licenses/XmpCore-BSD-3-Clause.txt` 保留上游 Adobe XMP SDK 许可原文。
+
+上述依赖从实际恢复的 NuGet 包核对版本；JPEG/EXIF 仅在本机读取，未修改这些依赖的源码。Linux GIO 和 macOS Foundation 使用系统 API，不将系统库复制或重新授权为本项目代码；实际发行仍需针对所用系统和二进制核查依赖。
 
 ## YOLOv10n ONNX 模型
 
@@ -54,7 +63,7 @@ BioCLIP 2 文本向量和分类标签来自 [Imageomics / TreeOfLife-200M](https
 
 - 拼音工具：[pypinyin 0.55.0](https://pypi.org/project/pypinyin/0.55.0/)，使用 MIT License，本地原文为 `licenses/Pypinyin-MIT.txt`。固定官方 wheel SHA-256：`d53b1e8ad2cdb815fb2cb604ed3123372f5a28c6f447571244aca36fc62a286f`。该工具仅在生成索引时放入项目内 `.tools/search-python`，不作为程序运行依赖。
 - 拼音数据：[pinyin-data](https://github.com/mozillazg/pinyin-data) v0.15.0 与 [phrase-pinyin-data](https://github.com/mozillazg/phrase-pinyin-data) v0.19.0，均使用 MIT License；原始许可分别为 `licenses/Pypinyin-Data-MIT.txt` 和 `licenses/Pypinyin-Phrase-Data-MIT.txt`。
-- 简繁折叠使用 Windows 自带的语言转换接口及少量显式罕见字变体，不使用 OpenCC。该转换仅作用于搜索比较键。
+- 简繁折叠自 v2.0.0-alpha.3 改用 [OpenCC 1.1.9](https://github.com/BYVoid/OpenCC/tree/ver.1.1.9) 原始 `TSCharacters.txt` 单字表，Apache-2.0；本地为 `Assets/OpenCC/TSCharacters.txt`，SHA-256：`6b5a0a799bea2bb22c001f635eaa3fc2904310f0c08addbff275477a80ecf09a`。程序取单字首选映射并保留少量既有罕见鸟名字形别名，仅生成比较键，不改写原名称。许可及来源为 `licenses/OpenCC-Apache-2.0.txt`、`licenses/OpenCC-NOTICE.txt`，运行时不调用 OpenCC 原生库或 Windows NLS。
 
 索引中鸟种名称仍来自上述中国候选资料，相关署名及 CC BY-NC 4.0 条件继续适用，不能因拼音工具采用 MIT 而将名称资料重新标为 MIT。索引重建不应修改 `models/bioclip2` 中的模型、候选表或原哈希清单。
 

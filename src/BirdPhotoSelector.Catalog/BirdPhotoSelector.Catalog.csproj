@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <NuGetAudit>false</NuGetAudit>
+    <RestorePackagesPath>$(MSBuildThisFileDirectory)../../.tools/packages</RestorePackagesPath>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../BirdPhotoSelector.Domain/BirdPhotoSelector.Domain.csproj" />
+
+    <EmbeddedResource Include="../../Assets/SpeciesSearchData.json" LogicalName="BirdPhotoSelector.SpeciesSearchData.json" />
+    <EmbeddedResource Include="../../Assets/OpenCC/TSCharacters.txt" LogicalName="BirdPhotoSelector.TSCharacters.txt" />
+  </ItemGroup>
+</Project>

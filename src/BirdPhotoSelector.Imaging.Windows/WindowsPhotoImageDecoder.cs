@@ -5,7 +5,7 @@ using BirdPhotoSelector.Imaging;
 namespace BirdPhotoSelector.Imaging.Windows;
 
 /// <summary>
-/// 现有 Windows 行为的图像后端：JPG 使用 WIC，RAW 使用固定版本 LibRaw 桥接。
+/// 保留的 Windows/WIC 对照后端，供旧入口与显示适配验证；当前宿主默认使用 Portable 后端。
 /// 所有入口关闭输入文件后才返回；类本身无会话状态，可以在导入、预览、AI 间共享。
 /// RAW 的串行门和取消回调由 RawImageDecoder 统一管理。
 /// </summary>

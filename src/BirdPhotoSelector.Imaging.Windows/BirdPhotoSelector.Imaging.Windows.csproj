@@ -8,5 +8,6 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <RestorePackagesPath>$(MSBuildThisFileDirectory)../../.tools/packages</RestorePackagesPath>
   </PropertyGroup>
-  <ItemGroup><ProjectReference Include="../BirdPhotoSelector.Imaging/BirdPhotoSelector.Imaging.csproj" /></ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../BirdPhotoSelector.Imaging.Native/BirdPhotoSelector.Imaging.Native.csproj" /><ProjectReference Include="../BirdPhotoSelector.Imaging/BirdPhotoSelector.Imaging.csproj" /></ItemGroup>
 </Project>

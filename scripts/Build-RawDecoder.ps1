@@ -1,4 +1,4 @@
-[CmdletBinding()]
+﻿[CmdletBinding()]
 param()
 
 Set-StrictMode -Version Latest
@@ -13,8 +13,10 @@ function Get-Sha256([string]$Path) {
     finally { $Stream.Dispose(); $Hasher.Dispose() }
 }
 $ProjectRoot = Split-Path -Parent $PSScriptRoot
-$Version = '0.22.3'
-$ArchiveHash = '4e2213a0b10e32199a30b9114a61376cdb40f94df861262b4a6dca659701276b'
+# 与 Unix 源码构建共用固定版本清单，避免下载源和校验值在多个入口漂移。
+$Dependencies = Get-Content -LiteralPath (Join-Path $ProjectRoot 'native/dependencies.json') -Raw | ConvertFrom-Json
+$Version = $Dependencies.LibRawVersion
+$ArchiveHash = $Dependencies.WindowsSdkSha256
 $Cache = Join-Path $ProjectRoot ".tools/libraw/$Version"
 $SdkRoot = Join-Path $Cache "LibRaw-$Version"
 $Archive = Join-Path $Cache "LibRaw-$Version-Win64.zip"
@@ -26,7 +28,7 @@ $Source = Join-Path $ProjectRoot 'native/raw-decoder.cpp'
 
 if (-not (Test-Path -LiteralPath $Archive -PathType Leaf)) {
     $Partial = $Archive + '.partial'
-    $Uri = [Uri]"https://www.libraw.org/data/LibRaw-$Version-Win64.zip"
+    $Uri = [Uri]$Dependencies.WindowsSdkUrl
     $Proxy = [Net.WebRequest]::DefaultWebProxy.GetProxy($Uri)
     $ProxyArguments = @()
     if ($null -ne $Proxy -and $Proxy -ne $Uri) { $ProxyArguments = @('--proxy', $Proxy.AbsoluteUri) }
@@ -51,21 +53,21 @@ if (-not (Test-Path -LiteralPath $Vswhere)) { throw 'Install Visual Studio C++ x
 $VsRoot = & $Vswhere -latest -products '*' -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
 if ([string]::IsNullOrWhiteSpace($VsRoot)) { throw 'Visual Studio C++ x64 build tools were not found.' }
 $Vcvars = Join-Path $VsRoot 'VC/Auxiliary/Build/vcvars64.bat'
-$Fingerprint = (Get-Sha256 $Source) + ':' + (Get-Sha256 $PSCommandPath) + ':' + $ArchiveHash
+$Cmake = Join-Path $VsRoot 'Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/bin/cmake.exe'
+if (-not (Test-Path -LiteralPath $Cmake)) { throw 'Install the Visual Studio CMake tools component.' }
+$BuildRoot = Join-Path $ProjectRoot '.tools/native-build/win-x64'
+$PlatformOutput = Join-Path $OutputRoot 'BirdPhotoSelector.Platform.Native.dll'
+$NativeInputs = @('native/raw-decoder.cpp', 'native/platform.cpp', 'native/bridge-api.h', 'native/CMakeLists.txt', 'native/dependencies.json')
+$Fingerprint = (($NativeInputs | ForEach-Object { Get-Sha256 (Join-Path $ProjectRoot $_) }) -join ':') + ':' + (Get-Sha256 $PSCommandPath) + ':' + $ArchiveHash
 $Stamp = Join-Path $OutputRoot 'build-fingerprint.txt'
-if (-not (Test-Path -LiteralPath $Output) -or -not (Test-Path -LiteralPath $Stamp) -or
-    (Get-Content -LiteralPath $Stamp -Raw).Trim() -ne $Fingerprint) {
-    $Object = Join-Path $OutputRoot 'RawDecoder.obj'
-    $Implib = Join-Path $OutputRoot 'BirdPhotoSelector.Raw.lib'
-    # Only fixed, quoted build paths are passed to cmd to initialize MSVC.
-    $Command = 'call "{0}" >nul && cl.exe /nologo /EHsc /std:c++17 /utf-8 /O2 /MD /LD /I"{1}" "{2}" /Fo"{3}" /link /OUT:"{4}" /IMPLIB:"{5}" "{6}" && dumpbin.exe /nologo /dependents "{4}" "{7}"' -f
-        $Vcvars, $SdkRoot, $Source, $Object, $Output, $Implib, $ImportLibrary, $LibRawDll
+if (-not (Test-Path -LiteralPath $Output) -or -not (Test-Path -LiteralPath $PlatformOutput) -or
+    -not (Test-Path -LiteralPath $Stamp) -or (Get-Content -LiteralPath $Stamp -Raw).Trim() -ne $Fingerprint) {
+    # Fixed quoted build paths only; no user filenames are interpolated into a shell command.
+    $Command = 'call "{0}" >nul && "{1}" -S "{2}" -B "{3}" -G "NMake Makefiles" -DCMAKE_BUILD_TYPE=Release -DLIBRAW_ROOT="{4}" -DCMAKE_INSTALL_PREFIX="{5}" && "{1}" --build "{3}" --target install' -f
+        $Vcvars, $Cmake, (Join-Path $ProjectRoot 'native'), $BuildRoot, $SdkRoot, $OutputRoot
     $Log = Join-Path $OutputRoot 'native-build.log'
     & cmd.exe /d /s /c $Command > $Log 2>&1
-    if ($LASTEXITCODE -ne 0) {
-        Get-Content -LiteralPath $Log -Tail 35
-        throw 'Native RAW decoder compilation failed.'
-    }
+    if ($LASTEXITCODE -ne 0) { Get-Content -LiteralPath $Log -Tail 45; throw 'CMake native compilation failed.' }
     [IO.File]::WriteAllText($Stamp, $Fingerprint)
 }
 Copy-Item -LiteralPath $LibRawDll -Destination (Join-Path $OutputRoot 'libraw.dll') -Force

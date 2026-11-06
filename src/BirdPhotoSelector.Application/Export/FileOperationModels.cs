@@ -100,7 +100,7 @@ public sealed class FileOperationResult
             {
                 var member = photo.Assets.FirstOrDefault(asset => asset.Id == file.AssetId);
                 if (member is null) continue;
-                if (!StringComparer.OrdinalIgnoreCase.Equals(member.CanonicalPath, file.SourcePath))
+                if (!FilePaths.Comparer.Equals(member.CanonicalPath, file.SourcePath))
                     throw new InvalidOperationException("照片成员路径已变化，不能把旧处理结果应用到新的原件。");
                 photo.RemoveAsset(member.Id);
             }

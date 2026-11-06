@@ -29,7 +29,7 @@ public sealed class ExportService
         var result = new List<PhotoFilePlan>();
         var photoIds = new HashSet<string>(StringComparer.Ordinal);
         var ids = new HashSet<string>(StringComparer.Ordinal);
-        var paths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var paths = new HashSet<string>(FilePaths.Comparer);
         foreach (var photo in photos)
         {
             ArgumentNullException.ThrowIfNull(photo);
@@ -391,7 +391,7 @@ public sealed class ExportService
             token.ThrowIfCancellationRequested();
             session.InitializeProtectedSources();
             file.TargetPath = Path.Combine(destination, Path.GetFileName(asset.FilePath));
-            if (StringComparer.OrdinalIgnoreCase.Equals(asset.FilePath, file.TargetPath))
+            if (FilePaths.Comparer.Equals(asset.FilePath, file.TargetPath))
             { Skip(file, result, "源文件和目标文件相同。", "已跳过相同源文件和目标"); return; }
             EnsureUnchanged(asset);
             byte[]? expectedSourceHash = null;
@@ -575,7 +575,7 @@ public sealed class ExportService
         private readonly Func<ExportConflict, CancellationToken, Task<ExportConflictDecision>>? _resolver;
         private readonly HashSet<string> _originalPaths;
         private readonly HashSet<FileIdentity> _originalIdentities = new();
-        private readonly HashSet<string> _publishedPaths = new(StringComparer.OrdinalIgnoreCase);
+        private readonly HashSet<string> _publishedPaths = new(FilePaths.Comparer);
         private readonly HashSet<FileIdentity> _publishedIdentities = new();
         private ExportConflictDecision? _remembered;
         private bool _initialized, _unidentifiedOriginal;
@@ -588,7 +588,7 @@ public sealed class ExportService
             _platform = platform;
             _resolver = resolver; _cancellation = CancellationTokenSource.CreateLinkedTokenSource(token);
             _originalPaths = new(plan.Photos.SelectMany(photo => photo.AllAssets).Select(asset => asset.FilePath)
-                .Concat(protectedSourcePaths ?? Array.Empty<string>()).Select(Path.GetFullPath), StringComparer.OrdinalIgnoreCase);
+                .Concat(protectedSourcePaths ?? Array.Empty<string>()).Select(Path.GetFullPath), FilePaths.Comparer);
         }
 
         internal CancellationToken Token => _cancellation.Token;

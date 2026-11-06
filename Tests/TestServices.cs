@@ -6,9 +6,11 @@ using BirdPhotoSelector.Imaging.Windows;
 /// <summary>Windows 回归的唯一测试组装点。故障委托只留在验证代码，生产用例只依赖正式接口。</summary>
 internal static class TestServices
 {
-    internal static IPhotoImageDecoder Images { get; } = new WindowsPhotoImageDecoder();
-    internal static IExportFilePlatform Files { get; } = new WindowsFileOperations();
-    internal static PhotoImportService Import(IPhotoImageDecoder? images = null) => new(images ?? Images);
+    internal static IPhotoImageDecoder Images { get; } = new BirdPhotoSelector.Imaging.Portable.PortablePhotoImageDecoder();
+    internal static IExportFilePlatform Files { get; } = new SystemFileOperations();
+    /// <summary>验证图像可跨线程读取，并验证实际 WPF 显示对象已冻结，不要求领域必须存储 WPF 类型。</summary>
+    internal static bool IsSafeThumbnail(ImageFrame? frame) => frame is not null && WpfImageBridge.ToBitmap(frame).IsFrozen;
+    internal static PhotoImportService Import(IPhotoImageDecoder? images = null) => new(images ?? Images, Files);
     internal static ProjectService Projects(IPhotoImageDecoder? images = null) => new(images ?? Images);
     internal static ExportService Export(Action<string>? recycleSource = null, Func<Stream, Stream, CancellationToken, Task>? copyOverride = null) => new(Files, recycleSource, copyOverride);
     internal static AutoSaveService AutoSave(string? recoveryDirectory = null, Func<DateTimeOffset>? clock = null, ProjectService? projects = null) => new(projects ?? Projects(), recoveryDirectory, clock);

@@ -143,7 +143,7 @@ internal sealed class SpeciesEditState
     internal void Restore(PhotoItem photo)
     {
         bool sameSource = photo.ActivePreviewAssetId == _sourceId &&
-            string.Equals(photo.ActivePreviewAsset?.CanonicalPath, _sourcePath, StringComparison.OrdinalIgnoreCase);
+            FilePaths.Equal(photo.ActivePreviewAsset?.CanonicalPath, _sourcePath);
         if (sameSource && _length is not null)
         {
             try

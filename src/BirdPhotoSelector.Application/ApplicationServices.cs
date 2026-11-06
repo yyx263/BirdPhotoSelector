@@ -30,7 +30,7 @@ public sealed class ApplicationServices
         ArgumentNullException.ThrowIfNull(files);
         _detectors = detectors ?? (() => new BirdDetectionService());
         _recognizers = recognizers ?? (() => new BirdSpeciesRecognitionService());
-        Import = new(images); Projects = new(images); Export = new(files);
+        Import = new(images, files); Projects = new(images); Export = new(files);
         AutoSave = new(Projects, recoveryDirectory);
     }
 

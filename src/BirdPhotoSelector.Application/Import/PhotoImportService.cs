@@ -49,9 +49,9 @@ public sealed class PhotoImportUpdate
 
     /// <summary>比较成员稳定身份、格式及路径，确认导入期间原记录没有变化。</summary>
     internal static bool SameAssets(IEnumerable<PhotoAsset> first, IEnumerable<PhotoAsset> second) =>
-        first.Select(asset => (asset.Id, asset.Kind, Path: asset.CanonicalPath.ToUpperInvariant()))
+        first.Select(asset => (asset.Id, asset.Kind, Path: FilePaths.Key(asset.CanonicalPath)))
             .OrderBy(asset => asset.Id, StringComparer.Ordinal)
-            .SequenceEqual(second.Select(asset => (asset.Id, asset.Kind, Path: asset.CanonicalPath.ToUpperInvariant()))
+            .SequenceEqual(second.Select(asset => (asset.Id, asset.Kind, Path: FilePaths.Key(asset.CanonicalPath)))
                 .OrderBy(asset => asset.Id, StringComparer.Ordinal));
 }
 
@@ -59,8 +59,10 @@ public sealed class PhotoImportUpdate
 public sealed class PhotoImportService
 {
     private readonly IPhotoImageDecoder _images;
+    private readonly IFileIdentityProvider? _identities;
     /// <summary>由宿主提供图像后端，导入流程只负责原件关联和业务记录。</summary>
-    public PhotoImportService(IPhotoImageDecoder images) => _images = images ?? throw new ArgumentNullException(nameof(images));
+    public PhotoImportService(IPhotoImageDecoder images, IFileIdentityProvider? identities = null)
+    { _images = images ?? throw new ArgumentNullException(nameof(images)); _identities = identities; }
 
     /// <remarks>RAW-aware import snapshots existing records before starting background work.</remarks>
     /// <summary>快照输入与已有记录后在后台导入；按既定格式/重复规则返回独立提案，取消继续传播。</summary>
@@ -85,7 +87,7 @@ public sealed class PhotoImportService
         CancellationToken cancellationToken = default, IProgress<PhotoOperationProgress>? progress = null)
     {
         var inputs = paths.ToArray();
-        var names = new HashSet<string>(existingFileNames, StringComparer.OrdinalIgnoreCase);
+        var names = new HashSet<string>(existingFileNames, FilePaths.Comparer);
         return Task.Run(() =>
         {
             var result = new ImportResult();
@@ -120,13 +122,16 @@ public sealed class PhotoImportService
         CancellationToken cancellationToken, IProgress<PhotoOperationProgress>? progress)
     {
         var result = new ImportResult();
-        var directories = new Dictionary<string, Dictionary<string, string[]>>(StringComparer.OrdinalIgnoreCase);
-        var seenInputs = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        var handledPairs = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
+        var directories = new Dictionary<string, Dictionary<string, string[]>>(FilePaths.Comparer);
+        var seenInputs = new HashSet<string>(FilePaths.Comparer);
+        var handledPairs = new Dictionary<string, bool>(FilePaths.Comparer);
+        var physical = new Dictionary<FileIdentity, PhotoAsset>();
+        foreach (var asset in existingPhotos.SelectMany(photo => photo.Assets))
+            if (ReadIdentity(asset.CanonicalPath, cancellationToken) is { } identity) physical.TryAdd(identity, asset);
         var existingPairs = existingPhotos.SelectMany(photo => photo.Assets.Select(asset => (asset.PairKey, Photo: photo)))
-            .GroupBy(entry => entry.PairKey, StringComparer.OrdinalIgnoreCase)
+            .GroupBy(entry => entry.PairKey, FilePaths.Comparer)
             .ToDictionary(group => group.Key, group => group.Select(entry => entry.Photo).Distinct().ToArray(),
-                StringComparer.OrdinalIgnoreCase);
+                FilePaths.Comparer);
         for (int index = 0; index < inputs.Length; index++)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -151,6 +156,10 @@ public sealed class PhotoImportService
                     continue;
                 }
                 handledPairs[input.PairKey] = false;
+                // 保留同组成员更新流程；只将不同路径/配对键指向同一实体的输入视为别名重复。
+                if (ReadIdentity(input.CanonicalPath, cancellationToken) is { } identity && physical.TryGetValue(identity, out var alias) &&
+                    !FilePaths.Comparer.Equals(alias.PairKey, input.PairKey))
+                { result.SkippedDuplicate++; stage = "已跳过同一原件的路径别名"; continue; }
                 var owners = existingPairs.GetValueOrDefault(input.PairKey) ?? Array.Empty<ExistingPhoto>();
                 if (owners.Length > 1)
                 {
@@ -170,9 +179,9 @@ public sealed class PhotoImportService
                 var candidatePaths = (candidatesByStem.GetValueOrDefault(stem) ?? Array.Empty<string>())
                     .Concat(owner?.Assets.Select(asset => asset.CanonicalPath) ?? Enumerable.Empty<string>())
                     .Append(path)
-                    .Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(candidate => candidate, StringComparer.OrdinalIgnoreCase).ToArray();
+                    .Distinct(FilePaths.Comparer).OrderBy(candidate => candidate, FilePaths.Comparer).ToArray();
                 var assets = candidatePaths.Select(candidate => owner?.Assets.FirstOrDefault(asset =>
-                        StringComparer.OrdinalIgnoreCase.Equals(asset.CanonicalPath, candidate)) ??
+                        FilePaths.Comparer.Equals(asset.CanonicalPath, candidate)) ??
                     new PhotoAsset(candidate, Kind(candidate))).ToArray();
                 if (assets.GroupBy(asset => asset.Kind).Any(group => group.Count() > 1))
                 {
@@ -218,6 +227,8 @@ public sealed class PhotoImportService
                     stage = "已准备关联原件";
                 }
                 else { result.SkippedDuplicate++; stage = "已跳过重复照片"; }
+                foreach (var asset in assets)
+                    if (ReadIdentity(asset.CanonicalPath, cancellationToken) is { } knownIdentity) physical.TryAdd(knownIdentity, asset);
                 handledPairs[input.PairKey] = true;
             }
             catch (OperationCanceledException)
@@ -230,13 +241,21 @@ public sealed class PhotoImportService
         return result;
     }
 
+    /// <summary>只读取文件身份，避免 macOS 大小写别名或硬链接重复导入；权限/缺失时不伪造身份，正常解码仍会报告错误。</summary>
+    private FileIdentity? ReadIdentity(string path, CancellationToken token)
+    {
+        token.ThrowIfCancellationRequested(); if (_identities is null) return null;
+        try { using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete); return _identities.TryGetIdentity(stream); }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { return null; }
+    }
+
     /// <summary>把受支持扩展名转为原件格式，未知格式作为无效数据报告。</summary>
     private static PhotoAssetKind Kind(string path) => PhotoAsset.TryGetKind(path, out var kind) ? kind :
         throw new InvalidDataException("不支持的照片成员类型。");
 
     private static Dictionary<string, string[]> ReadDirectory(string directory, CancellationToken cancellationToken)
     {
-        var candidates = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
+        var candidates = new Dictionary<string, List<string>>(FilePaths.Comparer);
         foreach (string path in Directory.EnumerateFiles(directory))
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -245,7 +264,7 @@ public sealed class PhotoImportService
             if (!candidates.TryGetValue(stem, out var paths)) candidates[stem] = paths = new();
             paths.Add(path);
         }
-        return candidates.ToDictionary(pair => pair.Key, pair => pair.Value.ToArray(), StringComparer.OrdinalIgnoreCase);
+        return candidates.ToDictionary(pair => pair.Key, pair => pair.Value.ToArray(), FilePaths.Comparer);
     }
 
     /// <summary>只包含导入所需的原件与来源快照，后台不访问可变业务对象。</summary>

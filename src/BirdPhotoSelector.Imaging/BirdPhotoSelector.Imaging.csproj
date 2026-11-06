@@ -7,4 +7,5 @@
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <RestorePackagesPath>$(MSBuildThisFileDirectory)../../.tools/packages</RestorePackagesPath>
   </PropertyGroup>
+  <ItemGroup><ProjectReference Include="../BirdPhotoSelector.Foundation/BirdPhotoSelector.Foundation.csproj" /></ItemGroup>
 </Project>

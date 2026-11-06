@@ -47,7 +47,7 @@ internal static class SpeciesExportFolders
     /// <summary>去除不安全文件名字符、控制字符和保留设备名并限制长度，保留可读鸟种名称。</summary>
     private static string Clean(string value, int maximum)
     {
-        var invalid = Path.GetInvalidFileNameChars().ToHashSet();
+        var invalid = Path.GetInvalidFileNameChars().Concat("<>:\"/\\|?*".ToCharArray()).ToHashSet();
         var chars = value.Trim().Select(character => invalid.Contains(character) || char.IsControl(character) ? '_' : character).ToArray();
         string name = new string(chars).TrimEnd(' ', '.');
         if (name.Length > maximum) name = name[..maximum].TrimEnd(' ', '.');
@@ -66,7 +66,7 @@ internal static class SpeciesExportFolders
             throw new IOException("鸟种分类目录名称无效。");
         string parent = Path.TrimEndingDirectorySeparator(Path.GetFullPath(root));
         string destination = Path.GetFullPath(Path.Combine(parent, folder));
-        if (!string.Equals(Path.GetDirectoryName(destination), parent, StringComparison.OrdinalIgnoreCase))
+        if (!FilePaths.Equal(Path.GetDirectoryName(destination), parent))
             throw new IOException("鸟种分类目录超出所选目标目录。");
         Directory.CreateDirectory(destination);
         // Do not follow a pre-existing junction/symlink out of the selected destination.

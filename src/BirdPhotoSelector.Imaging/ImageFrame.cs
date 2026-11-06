@@ -30,8 +30,8 @@ public abstract class ImageFrame
         CopyRgb24(new PixelRect(0, 0, PixelWidth, PixelHeight), cancellationToken);
 
     /// <summary>
-    /// 返回缩放后的不可变图像。采样算法由后端实现；调用方必须使用返回帧的实际尺寸。
-    /// 第一阶段保留 Windows/WIC 原有采样行为，避免改变分组阈值和定位模型的输入。
+    /// 返回指定像素尺寸的不可变图像，各后端统一采用 BilinearPixelCenter-v1。
+    /// 像素中心对齐、边界钳制和逐通道舍入由 ImageResampling 固定；尺寸必须为正。
     /// BioCLIP 的固定双三次算法不经此入口，其独立金样必须保持字节一致。
     /// </summary>
     public abstract ImageFrame Resize(int width, int height, CancellationToken cancellationToken = default);

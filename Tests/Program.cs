@@ -169,7 +169,7 @@ internal static class Program
             Check(imported.SkippedUnsupported == 1, "unsupported extension skips automatically");
             Check(imported.Errors.Count == 1, "JPEG extension with invalid magic is rejected");
             Check(imported.Added[0].FilePath == first && imported.Added[1].FilePath == second, "selection order is retained");
-            Check(imported.Added[0].Thumbnail is BirdPhotoSelector.Imaging.Windows.WpfImageFrame { Bitmap.IsFrozen: true }, "thumbnail is safe for cross-thread UI use");
+            Check(TestServices.IsSafeThumbnail(imported.Added[0].Thumbnail), "thumbnail is safe for cross-thread UI use");
             Check(imported.Added[0].PixelWidth == 64 && imported.Added[0].PixelHeight == 40, "original photo dimensions retained");
             var existing = await importer.ImportAsync(new[] { duplicate }, new[] { "BIRD.JPG" });
             Check(existing.Added.Count == 0 && existing.SkippedDuplicate == 1, "dedupe includes previously imported filenames");

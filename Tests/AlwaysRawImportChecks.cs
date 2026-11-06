@@ -39,7 +39,7 @@ internal static class AlwaysRawImportChecks
                   pair.Assets.Any(asset => asset.CanonicalPath == raw),
                 "selecting only JPG automatically records its same-directory RAW and reports JPG plus RAW");
             Check(pair.ActivePreviewAsset?.Kind == PhotoAssetKind.Jpg && pair.FilePath == jpg &&
-                  pair.Thumbnail is BirdPhotoSelector.Imaging.Windows.WpfImageFrame { Bitmap.IsFrozen: true, PixelWidth: 64, PixelHeight: 48 },
+                  pair.Thumbnail is { PixelWidth: 64, PixelHeight: 48 } && TestServices.IsSafeThumbnail(pair.Thumbnail),
                 "a valid JPG supplies the preview without decoding its opaque RAW companion");
 
             var rawSelected = await service.ImportAsync(new[] { raw }, Array.Empty<PhotoItem>());

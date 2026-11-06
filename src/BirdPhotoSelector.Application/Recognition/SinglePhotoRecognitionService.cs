@@ -205,7 +205,7 @@ internal sealed class SinglePhotoSnapshot
     public bool Matches(PhotoItem photo) => photo.Id == Id && photo.ActivePreviewAssetId == Source.Id &&
         photo.PreferredPreviewAssetId == _preferredId && photo.Assets.Count == _assets.Length &&
         photo.Assets.Zip(_assets).All(pair => pair.First.Id == pair.Second.Id && pair.First.Kind == pair.Second.Kind &&
-            StringComparer.OrdinalIgnoreCase.Equals(pair.First.CanonicalPath, pair.Second.CanonicalPath)) &&
+            FilePaths.Comparer.Equals(pair.First.CanonicalPath, pair.Second.CanonicalPath)) &&
         photo.Birds.Count == _oldObjects.Length && photo.Birds.Zip(_oldObjects).All(pair => ReferenceEquals(pair.First, pair.Second)) &&
         photo.Birds.Zip(_oldValues).All(pair => SameBird(pair.First, pair.Second)) &&
         photo.SelectedBirdIndex == _selectedIndex && photo.NextBirdNumber == NextBirdNumber && photo.Rating == _rating &&

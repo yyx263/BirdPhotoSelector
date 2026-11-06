@@ -7,7 +7,7 @@ using BirdPhotoSelector.Imaging;
 namespace BirdPhotoSelector.Imaging.Windows;
 
 /// <summary>
-/// Windows/WIC 图像帧适配器。只接收已冻结位图，直接共享原始像素存储，预览不会额外复制整图。
+/// Windows/WPF 图像帧适配器。只接收已冻结位图，直接共享原始像素存储，预览不会额外复制整图。
 /// 此类型及 BitmapSource 只能出现在 Windows 适配层或 WPF 显示边界。
 /// </summary>
 public sealed class WpfImageFrame : ImageFrame
@@ -38,18 +38,10 @@ public sealed class WpfImageFrame : ImageFrame
         return pixels;
     }
 
-    /// <summary>保留 v1 的 WIC 缩放方式及其实际输出尺寸，防止模型输入和分组特征在拆层时漂移。</summary>
-    public override ImageFrame Resize(int width, int height, CancellationToken cancellationToken = default)
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-        if (width <= 0) throw new ArgumentOutOfRangeException(nameof(width));
-        if (height <= 0) throw new ArgumentOutOfRangeException(nameof(height));
-        if (width == PixelWidth && height == PixelHeight) return this;
-        var scaled = new TransformedBitmap(Bitmap, new ScaleTransform((double)width / PixelWidth, (double)height / PixelHeight));
-        scaled.Freeze();
-        cancellationToken.ThrowIfCancellationRequested();
-        return WpfImageBridge.FromBitmap(scaled);
-    }
+    /// <summary>使用与跨平台后端相同的固定采样规则，避免框定位和背景特征随显示框架改变。</summary>
+    public override ImageFrame Resize(int width, int height, CancellationToken cancellationToken = default) =>
+        ImageResampling.Resize(this, width, height, cancellationToken);
+
 }
 
 /// <summary>
@@ -80,7 +72,7 @@ public static class WpfImageBridge
         return Rendered.GetValue(frame, static source =>
         {
             var bitmap = BitmapSource.Create(source.PixelWidth, source.PixelHeight, 96, 96, PixelFormats.Rgb24,
-                null, source.CopyRgb24(), checked(source.PixelWidth * 3));
+                null, source is Rgb24ImageFrame managed ? managed.ReadOnlyPixels : source.CopyRgb24(), checked(source.PixelWidth * 3));
             bitmap.Freeze();
             return bitmap;
         });

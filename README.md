@@ -1,8 +1,8 @@
 # 羽选 · BirdPhotoSelector
 
-一个用于拍摄后本机筛选鸟类 JPG / RAW 照片的 Windows 桌面应用，`main` 保留稳定版本，`dev` 已开始 **2.0.0-alpha.2** 跨平台架构迁移。当前可运行界面仍采用 C#、.NET 8、WPF，输出普通 EXE 加运行库、模型和说明文件目录，便于维护和后续扩展。
+一个用于拍摄后本机筛选鸟类 JPG / RAW 照片的 Windows 桌面应用，`main` 保留稳定版本，`dev` 已开始 **2.0.0-alpha.3** 跨平台架构迁移。当前可运行界面仍采用 C#、.NET 8、WPF，输出普通 EXE 加运行库、模型和说明文件目录，便于维护和后续扩展。
 
-**v2.0 开发中**：整体规划和阶段验收见 [架构说明](ARCHITECTURE.md)。图像层之后，现已拆出独立 Domain、Application、Recognition 项目；照片会话、人工编辑、工程与识别流程可以脱离 WPF 验证，Windows 后端统一在宿主组装。macOS/Ubuntu 图像后端、系统能力与 Avalonia 界面按后续阶段推进。
+**v2.0 开发中**：整体规划和阶段验收见 [架构说明](ARCHITECTURE.md)。已拆出图像、领域、用例、识别、名称检索和系统适配项目。当前宿主已接入统一 JPEG/EXIF 后端与 UTF-8 RAW 桥接，补充三平台文件身份/回收站和构建入口；Windows 完整回归通过。macOS/Ubuntu 实机验证和 Avalonia 界面仍待后续完成。
 
 **1.8.3 调整参数栏的均分与余量分配，重新识别本张改为点击即运行，成功后直接替换结果，正常零检出直接清空，均可撤销。** 继续保留清空识别结果、离线拼音与简繁搜索、结果排序及导出同名处理；主窗口至少完整显示四条结果，更多结果继续滚动。
 
@@ -40,6 +40,8 @@
 
 `docs/` 仅用于本地临时开发记录，已从 Git、项目内容项、发布文件清单和 ZIP 中排除；使用和构建程序不依赖该目录。
 
+本次 **2.0.0-alpha.3** 通过 33 项图像核心、50 项业务核心、176 项实际适配与 1451 项完整 Windows UI/服务/模型检查；构建零警告、零错误。当前仍为 WPF 迁移宿主，未生成新的正式发布包。Linux/macOS 后端开发可运行 `python3 scripts/Build-Native.py` 和 `python3 scripts/Test-Portable.py`，所需环境、已验证范围及待验收事项见 [架构说明](ARCHITECTURE.md#构建和验证入口)。
+
 2026-10-31 的 **1.8.3 完整回归通过 1430 项检查**，包含参数栏均分、长字段借宽、窄窗口换行与文字完整显示，以及免确认重新识别、零检出直接清空、撤销、失败与取消保护；真实 RAW / YOLO / BioCLIP 2 及既有工程和导出功能一并通过。日志为 `artifacts/regression-1.8.3-native.log`，原生记录为 `artifacts/raw-1.8.3/summary.json` 与 `artifacts/species-native-1.8.3-validation.json`。发布包为 `publish/BirdPhotoSelector-1.8.3-win-x64.zip`，由发布脚本检查版本、模型和逐文件 SHA-256。以下记录属于历史版本。
 
 2026-10-31 的 **1.8.2 完整回归通过 1353 项检查**，包含清空识别与撤销、空结果重新识别、人工排序、中文及声调拼音的实际字形显示、帮助链接、导出同名处理与原件保护，以及真实 RAW / YOLO / BioCLIP 2。日志为 `artifacts/regression-1.8.2-native.log`，原生验证记录为 `artifacts/raw-1.8.2/summary.json` 与 `artifacts/species-native-1.8.2-validation.json`。该版 ZIP 路径为 `publish/BirdPhotoSelector-1.8.2-win-x64.zip`，由发布脚本检查版本、模型和逐文件 SHA-256。
@@ -50,7 +52,7 @@
 
 需要 Windows x64 和 **.NET 8 SDK**。脚本优先使用项目内 `.tools/dotnet/dotnet.exe`，否则使用 `PATH` 中的 `dotnet`；不会自动安装或修改全局 SDK。初次恢复 NuGet 包、获取运行库包和下载模型需要联网，日常查看与分析可离线使用。
 
-本分支另需安装 **Visual Studio C++ x64 构建工具**。普通 `dotnet build` 会调用 `scripts/Build-RawDecoder.ps1`，下载并校验固定 LibRaw 0.22.3 SDK、编译桥接 DLL，并复制 LibRaw 和三个实际 C++ 运行库依赖；开发缓存与二进制不入库。使用完整程序目录的最终用户无需安装 Visual Studio。许可与固定来源见 [第三方说明](THIRD_PARTY_NOTICES.md)。
+本分支另需安装 **Visual Studio C++ x64 构建工具及其 CMake 组件**。普通 `dotnet build` 会调用 `scripts/Build-RawDecoder.ps1`，下载并校验固定 LibRaw 0.22.3 SDK、编译桥接 DLL，并复制 LibRaw 和三个实际 C++ 运行库依赖；开发缓存与二进制不入库。使用完整程序目录的最终用户无需安装 Visual Studio。许可与固定来源见 [第三方说明](THIRD_PARTY_NOTICES.md)。
 
 在项目根目录执行：
 
@@ -143,37 +145,32 @@ NuGet 包缓存放在 `.tools/packages`。项目不使用单文件发布和裁�
 
 | 位置 | 职责 |
 | --- | --- |
-| `Domain/` | 照片、评级、自动及手动框、无框人工鸟种、显示编号、当前鸟、识别结果、EXIF 与分组数据 |
-| `models/` | 本机鸟类定位模型及 BioCLIP 2 图像模型、候选名录和向量 |
-| `ViewModels/MainViewModel.cs` | 当前选择、列表投影、统计和导航状态 |
-| `MainWindow`、`ExportDialog` | 界面布局、文件选择、命令协调与用户提示 |
-| `Dialogs/SpeciesPickerDialog`、`Services/SpeciesSearchIndex` | 中文、学名、全拼及首字母离线搜索、最近使用和单选确认 |
-| `Controls/DualPhotoViewer` | 双预览、细节缩放、拖拽、手动绘框、编号框选择与删除、自动定位和白框映射 |
-| `Services/ImageLoader`、`MetadataService` | 无持久文件锁的 JPEG 解码、EXIF 方向及参数 |
-| `Services/PhotoPreviewCache` | 有限容量的全分辨率缓存、近邻预取、前台优先与取消 |
-| `Services/PhotoImportService` | 批量加载、内容验证、同名去重与逐文件进度 |
-| `Services/BackgroundSimilarity` | 排除鸟区域的背景空间颜色、软直方图和纹理特征 |
-| `Services/GroupingThreshold` | 显示阈值与实际相似度阈值的换算及旧工程兼容 |
-| `Services/BirdDetectionService` | ONNX 会话、RGB letterbox 预处理和检测框还原 |
-| `Services/AnalysisService` | 可取消的背景分组、逐图容错，保留已有定位和识别状态 |
-| `Services/BirdRecognitionWorkflow` | 逐张定位识别、人工编辑保护、单张重建与逐照片进度 |
-| `Services/SpeciesNameCatalog`、`SpeciesEditHistory` | 名称检索、最近使用及会话内人工编辑撤销 |
-| `Services/BirdSpeciesRecognitionService` | 可取消的逐鸟批量识别、后台推理和独立结果 |
-| `Services/SpeciesImagePreprocessor`、`SpeciesCandidateCatalog`、`SpeciesConfidence` | 鸟框裁剪与模型预处理、候选校验、余弦匹配及候选置信度 |
-| `Services/ExportService`、`SpeciesExportReview`、`SpeciesExportFolders` | 分类提醒、目标目录、冲突检查、复制校验与原件移除屏障 |
-| `Services/ProjectService` | 版本化工程读写、原子保存和缺失路径检查 |
-| `Services/AutoSaveService` | 可注入时钟的五分钟自动保存、会话恢复路径与保存版本记录 |
-| `scripts/` | 模型安装、发布和启动 |
+| `src/BirdPhotoSelector.Domain/` | 照片、原件、组、评级、鸟框、鸟种证据与不变量 |
+| `src/BirdPhotoSelector.Application/` | 挑选会话、导入、分组、识别工作流、人工编辑/撤销、工程/自动保存、导出 |
+| `src/BirdPhotoSelector.Recognition/` | YOLO/BioCLIP 推理、固定预处理、候选与置信度，只处理已解码图像 |
+| `src/BirdPhotoSelector.Imaging/` | 不可变帧、统一采样、格式与解码契约、有界缓存与预取 |
+| `src/BirdPhotoSelector.Imaging.Portable/`、`Imaging.Native/` | JPEG/EXIF、UTF-8 LibRaw 与像素所有权 |
+| `src/BirdPhotoSelector.Imaging.Windows/`、`Infrastructure/Wpf/` | 当前 WPF 冻结位图与缓存显示适配、WIC 对照后端 |
+| `src/BirdPhotoSelector.Foundation/`、`Platform/` | 路径语义、文件实体身份与各系统回收站 |
+| `src/BirdPhotoSelector.Catalog/` | 离线名称、拼音、简繁检索 |
+| `Infrastructure/DesktopComposition.cs` | 当前宿主的依赖组装与具体后端选择 |
+| `ViewModels/MainViewModel.cs` | 挑选会话的 WPF 按键映射 |
+| `MainWindow`、`ExportDialog`、`Dialogs/`、`Controls/` | 显示、文件选择、双预览、选区、命令调度与对话框 |
+| `native/`、`scripts/` | 固定原生依赖、CMake/平台构建、验证、模型准备与 Windows 发布 |
+| `Tests/` | 独立核心/实际适配检查及 Windows 界面、服务与真实模型回归 |
+| `models/`、`licenses/` | 本机模型、候选向量、来源清单及许可 |
+
+更细的依赖方向、数据与资源所有权约定见 [架构说明](ARCHITECTURE.md)。
 
 图像处理和文件服务运行在后台，UI 在收到分离的结果后更新绑定对象。预览使用 EXIF 方向校正后的像素，鸟类框与视图中心都存为相对图像的归一化坐标，便于不同分辨率窗口恢复。评级不会改变图像内容。
 
-预览缓存预算只计算保留的解码输出帧，按每像素至少四字节计费，**不是进程总内存上限**。当前显示的图像、最多一个正在解码的图像，以及 WIC、ONNX、WPF 和运行库的额外内存不属于这项预算。单张超出预算的照片仍能作为前台图像查看，但不保留到缓存；近邻预取会按容量和前台任务情况跳过或取消。
+预览缓存预算只计算保留的解码输出帧，按每像素至少四字节计费，**不是进程总内存上限**。当前显示的图像、最多一个正在解码的图像，以及 Skia/LibRaw、ONNX、WPF 和运行库的额外内存不属于这项预算。单张超出预算的照片仍能作为前台图像查看，但不保留到缓存；近邻预取会按容量和前台任务情况跳过或取消。
 
 自动保存与手动保存共用写入门，JSON 使用临时文件完成后原子替换。未命名或原路径不可写时，恢复文件位于 `%LOCALAPPDATA%/BirdPhotoSelector/Autosaves/`；同一会话更新同一恢复文件，新会话使用新文件。只有保存版本仍与当前修改版本一致时，正式工程自动保存才清除未保存状态；恢复文件不会代替用户选择正式工程位置。忙碌任务结束后会补查到期保存，无变更的版本不会重复写入。
 
 背景分组会同时与前一张和组首图片比较，避免缓慢变化的场景被无限串成一组。已有的自动框和手动框区域均可从背景特征中排除；分组过程本身不定位鸟或改写识别状态。1.6 的默认显示阈值 50% 对应旧版实际阈值 95%，阈值范围为 0%～100%；旧工程载入时换算显示值，保留原有实际分组力度。
 
-工程 `schema` 为 `BirdPhotoSelector.Project`，1.8 保存的 `version` 为 `3`，新增无框人工鸟种、人工编辑保护及最近使用记录；仍兼容读取 v1 / v2。旧程序无法打开新 v3，需要继续使用旧程序时请另存工程，保留原版本副本。v2 引入的 JPG / RAW 成员、预览来源、几何参照与待核对状态继续保留；v1 只迁移明确记录的 JPG，不自动发现相邻 RAW。人工视图的 `ViewReference` 须与当前来源标识和文件状态匹配才恢复。迁移与原子读写由 `Services/ProjectService` 负责。
+工程 `schema` 为 `BirdPhotoSelector.Project`，1.8 保存的 `version` 为 `3`，新增无框人工鸟种、人工编辑保护及最近使用记录；仍兼容读取 v1 / v2。旧程序无法打开新 v3，需要继续使用旧程序时请另存工程，保留原版本副本。v2 引入的 JPG / RAW 成员、预览来源、几何参照与待核对状态继续保留；v1 只迁移明确记录的 JPG，不自动发现相邻 RAW。人工视图的 `ViewReference` 须与当前来源标识和文件状态匹配才恢复。迁移与原子读写由 `src/BirdPhotoSelector.Application/Projects/ProjectService.cs` 负责。
 
 既有的框来源、稳定编号、高水位计数、置信度及阈值刻度迁移继续保留。旧结果缺少置信度时显示 `—`；缺少 `GroupingThresholdScaleVersion` 的旧工程按旧刻度换算，保持实际分组力度。删除所有框后仍保存编号计数，避免重开工程复用已删除的编号。
 

@@ -4,7 +4,7 @@ namespace BirdPhotoSelector;
 
 /// <summary>
 /// 现有 WPF 窗口的缓存入口。调度、去重、取消和预算均由独立图像核心实现；
-/// 此处只把 PhotoItem 快照转换为 PreviewSource，并在显示边界取出冻结的 Windows 位图。
+/// 此处把来源转换为快照；跨平台解码结果在入库前转为冻结位图，缓存只保留一份完整显示图。
 /// Avalonia 界面应直接使用 PreviewImageCache，不复用此 WPF 桥接类。
 /// </summary>
 public sealed class PhotoPreviewCache : IDisposable
@@ -21,7 +21,7 @@ public sealed class PhotoPreviewCache : IDisposable
         Func<string, CancellationToken, ImageFrame> decode = cancellableLoader is not null
             ? (path, token) => WpfImageBridge.FromBitmap(cancellableLoader(path, token))
             : loader is not null ? (path, _) => WpfImageBridge.FromBitmap(loader(path))
-            : (path, token) => (images ?? DesktopComposition.Images).Decode(path, cancellationToken: token);
+            : (path, token) => WpfImageBridge.FromBitmap(WpfImageBridge.ToBitmap((images ?? DesktopComposition.Images).Decode(path, cancellationToken: token)));
         _cache = new PreviewImageCache(decode, budgetBytes);
     }
     /// <summary>保留帧预算，解码临时内存和显示资源另计。</summary>
@@ -34,7 +34,7 @@ public sealed class PhotoPreviewCache : IDisposable
     public int InFlightCount => _cache.InFlightCount;
     /// <summary>当前排队及正在处理的请求数。</summary>
     public int PendingCount => _cache.PendingCount;
-    /// <summary>读取并共享核心中的图像；Windows 后端到显示端不复制整幅像素。</summary>
+    /// <summary>读取并共享已经入库的冻结位图；缓存命中到显示端不再复制整幅像素。</summary>
     public async Task<BitmapSource> GetAsync(PhotoItem photo, CancellationToken cancellationToken = default) =>
         WpfImageBridge.ToBitmap(await _cache.GetAsync(Snapshot(photo), cancellationToken).ConfigureAwait(false));
     /// <summary>在调用线程生成不可变来源快照，再交给与 UI 无关的预取调度器。</summary>

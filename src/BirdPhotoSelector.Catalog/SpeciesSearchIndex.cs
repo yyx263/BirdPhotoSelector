@@ -1,7 +1,5 @@
-using System.ComponentModel;
 using System.Globalization;
 using System.IO;
-using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.Json;
 
@@ -14,6 +12,7 @@ public sealed class SpeciesSearchIndex
     private readonly SearchEntry[] _entries;
     private readonly IReadOnlyList<SpeciesIdentity> _all;
 
+    /// <summary>为原始身份建立独立离线别名，显示文字和原记录对象始终不改写。</summary>
     public SpeciesSearchIndex(IEnumerable<SpeciesIdentity> species)
     {
         ArgumentNullException.ThrowIfNull(species);
@@ -27,6 +26,7 @@ public sealed class SpeciesSearchIndex
         _all = Array.AsReadOnly(_entries.Select(item => item.Identity).ToArray());
     }
 
+    /// <summary>支持中文、学名、拼音与首字母；空输入按原始顺序返回全部身份。</summary>
     public IReadOnlyList<SpeciesIdentity> Search(string? query)
     {
         if (string.IsNullOrWhiteSpace(query)) return _all;
@@ -75,17 +75,7 @@ public sealed class SpeciesSearchIndex
     {
         string text = value.Normalize(NormalizationForm.FormKC).Trim().ToLowerInvariant();
         if (text.Length == 0) return text;
-        // Windows NLS folds mixed simplified/traditional input character by character.
-        const uint simplifiedChinese = 0x02000000;
-        int count = LCMapStringEx("zh-CN", simplifiedChinese, text, text.Length, null, 0, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero);
-        if (count == 0) throw new Win32Exception(Marshal.GetLastWin32Error());
-        var buffer = new char[count];
-        int written = LCMapStringEx("zh-CN", simplifiedChinese, text, text.Length, buffer, count,
-            IntPtr.Zero, IntPtr.Zero, IntPtr.Zero);
-        if (written == 0) throw new Win32Exception(Marshal.GetLastWin32Error());
-        // Rare bird-name variants are not consistently covered by Windows language tables.
-        return new string(buffer, 0, written).Replace('鸊', '䴙').Replace('鷿', '䴙')
-            .Replace('鷉', '䴘').Replace('鷈', '䴘').Replace('鴷', '䴕');
+        return ChineseSearchFold.Simplify(text);
     }
 
     private static string NormalizePinyin(string value)
@@ -103,11 +93,6 @@ public sealed class SpeciesSearchIndex
         }
         return result.ToString();
     }
-
-    [DllImport("kernel32.dll", CharSet = CharSet.Unicode, ExactSpelling = true, SetLastError = true)]
-    private static extern int LCMapStringEx(string locale, uint flags, string source, int sourceLength,
-        [Out, MarshalAs(UnmanagedType.LPArray, ArraySubType = UnmanagedType.U2)] char[]? destination,
-        int destinationLength, IntPtr version, IntPtr reserved, IntPtr sortHandle);
 
     private sealed record SearchEntry(SpeciesIdentity Identity, string Chinese, string Scientific, string FullPinyin, string Initials);
     private sealed class SearchData { public PinyinEntry[] Entries { get; set; } = []; }

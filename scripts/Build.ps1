@@ -49,8 +49,8 @@ try {
     if (-not (Test-Path -LiteralPath (Join-Path $OutputDirectory 'BirdPhotoSelector.exe') -PathType Leaf)) {
         throw 'Publish did not produce BirdPhotoSelector.exe.'
     }
-    foreach ($Dependency in @('BirdPhotoSelector.Imaging.dll', 'BirdPhotoSelector.Imaging.Windows.dll', 'BirdPhotoSelector.Domain.dll', 'BirdPhotoSelector.Recognition.dll', 'BirdPhotoSelector.Application.dll', 'BirdPhotoSelector.Raw.dll', 'libraw.dll', 'msvcp140.dll', 'vcruntime140.dll', 'vcruntime140_1.dll',
-            'THIRD_PARTY_NOTICES.md', 'licenses/LibRaw-CDDL-1.0.txt', 'licenses/LibRaw-COPYRIGHT.txt', 'RELEASE_NOTES.md', '远程兼容启动.cmd')) {
+    foreach ($Dependency in @('BirdPhotoSelector.Imaging.dll', 'BirdPhotoSelector.Imaging.Windows.dll', 'BirdPhotoSelector.Domain.dll', 'BirdPhotoSelector.Recognition.dll', 'BirdPhotoSelector.Application.dll', 'BirdPhotoSelector.Foundation.dll', 'BirdPhotoSelector.Catalog.dll', 'BirdPhotoSelector.Imaging.Native.dll', 'BirdPhotoSelector.Imaging.Portable.dll', 'BirdPhotoSelector.Platform.dll', 'BirdPhotoSelector.Platform.Native.dll', 'SkiaSharp.dll', 'libSkiaSharp.dll', 'MetadataExtractor.dll', 'XmpCore.dll', 'BirdPhotoSelector.Raw.dll', 'libraw.dll', 'msvcp140.dll', 'vcruntime140.dll', 'vcruntime140_1.dll',
+            'THIRD_PARTY_NOTICES.md', 'licenses/LibRaw-CDDL-1.0.txt', 'licenses/LibRaw-COPYRIGHT.txt', 'licenses/SkiaSharp-MIT.txt', 'licenses/SkiaSharp-ThirdPartyNotices-Windows.txt', 'licenses/MetadataExtractor-Apache-2.0.txt', 'licenses/XmpCore-BSD-3-Clause.txt', 'licenses/XmpCore-NOTICE.txt', 'licenses/OpenCC-Apache-2.0.txt', 'licenses/OpenCC-NOTICE.txt', 'RELEASE_NOTES.md', '远程兼容启动.cmd')) {
         if (-not (Test-Path -LiteralPath (Join-Path $OutputDirectory $Dependency) -PathType Leaf)) {
             throw "Publish did not include required RAW/runtime/documentation file: $Dependency"
         }

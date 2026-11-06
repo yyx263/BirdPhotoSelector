@@ -62,7 +62,7 @@ public sealed class PhotoItem : INotifyPropertyChanged
             ArgumentException.ThrowIfNullOrWhiteSpace(value);
             if (!PhotoAsset.TryGetKind(value, out var kind)) throw new ArgumentException("不支持的照片成员格式。", nameof(value));
             string canonical = PhotoAsset.Canonicalize(value);
-            var existing = _assets.FirstOrDefault(asset => StringComparer.OrdinalIgnoreCase.Equals(asset.CanonicalPath, canonical));
+            var existing = _assets.FirstOrDefault(asset => FilePaths.Comparer.Equals(asset.CanonicalPath, canonical));
             if (existing is not null)
             {
                 var updated = new PhotoAsset(value, kind, existing.Id);
@@ -139,7 +139,7 @@ public sealed class PhotoItem : INotifyPropertyChanged
     {
         // Validate every candidate before touching collections, preview state or recognition evidence.
         var ids = new HashSet<string>(StringComparer.Ordinal);
-        var paths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var paths = new HashSet<string>(FilePaths.Comparer);
         var kinds = new HashSet<PhotoAssetKind>();
         string? pairKey = null;
         foreach (var asset in snapshot)
@@ -147,7 +147,7 @@ public sealed class PhotoItem : INotifyPropertyChanged
             if (asset is null) throw new ArgumentException("照片成员不能为空。", nameof(snapshot));
             if (!ids.Add(asset.Id) || !paths.Add(asset.CanonicalPath) || !kinds.Add(asset.Kind))
                 throw new ArgumentException("同一张照片不能包含重复的成员 ID、路径或格式候选。", nameof(snapshot));
-            if (pairKey is not null && !StringComparer.OrdinalIgnoreCase.Equals(pairKey, asset.PairKey))
+            if (pairKey is not null && !FilePaths.Comparer.Equals(pairKey, asset.PairKey))
                 throw new ArgumentException("仅允许同目录、同主体文件名的 JPG 与 RAW 配对。", nameof(snapshot));
             pairKey = asset.PairKey;
         }
@@ -158,7 +158,7 @@ public sealed class PhotoItem : INotifyPropertyChanged
         var active = snapshot.FirstOrDefault(asset => asset.Id == activeId) ?? ChooseAvailable(snapshot, preferred);
         var old = ActivePreviewAsset;
         bool sourceChanged = old?.Id != active?.Id ||
-            !StringComparer.OrdinalIgnoreCase.Equals(old?.CanonicalPath, active?.CanonicalPath);
+            !FilePaths.Comparer.Equals(old?.CanonicalPath, active?.CanonicalPath);
         var priorReference = _geometryReference;
         if (sourceChanged && priorReference is null && old is not null && Birds.Any(bird => bird.HasRegion) &&
             _geometryStatus != PhotoGeometryStatus.NeedsReview)
@@ -208,7 +208,7 @@ public sealed class PhotoItem : INotifyPropertyChanged
     /// <summary>比较稳定成员 ID 与原路径，防止不同成员偶然同名而错误复用坐标。</summary>
     private bool ReferenceMatchesActive(PhotoGeometryReference? reference) => reference is not null &&
         ActivePreviewAsset is { } active && active.Id == reference.AssetId &&
-        StringComparer.OrdinalIgnoreCase.Equals(active.CanonicalPath, reference.CanonicalPath);
+        FilePaths.Comparer.Equals(active.CanonicalPath, reference.CanonicalPath);
 
     /// <summary>发布原件、格式、文件名和预览来源相关属性通知。</summary>
     private void NotifyAssets()
