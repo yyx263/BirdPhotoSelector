@@ -6,6 +6,9 @@ from pathlib import Path
 import shutil
 import subprocess
 import sys
+# 项目内嵌式 Python 启用隔离路径，明确只加入本脚本目录以加载公共构建工具。
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from ReleaseSupport import host_runtime
 
 
 def main():
@@ -25,7 +28,7 @@ def main():
     env["DOTNET_CLI_TELEMETRY_OPTOUT"] = "1"
     if local.exists():
         env["DOTNET_ROOT"] = str(local.parent)
-    native = root / ".tools/raw-decoder"
+    native = root / ".tools/native" / host_runtime()
     if sys.platform != "win32" and not any(native.glob("libBirdPhotoSelector.Platform.Native.*")):
         subprocess.run([sys.executable, str(root / "scripts/Build-Native.py")], cwd=root, env=env, check=True)
     project = root / ("Tests/Desktop/BirdPhotoSelector.Desktop.Checks.csproj" if args.check else "src/BirdPhotoSelector.Desktop/BirdPhotoSelector.Desktop.csproj")

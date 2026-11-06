@@ -20,7 +20,7 @@ $ArchiveHash = $Dependencies.WindowsSdkSha256
 $Cache = Join-Path $ProjectRoot ".tools/libraw/$Version"
 $SdkRoot = Join-Path $Cache "LibRaw-$Version"
 $Archive = Join-Path $Cache "LibRaw-$Version-Win64.zip"
-$OutputRoot = Join-Path $ProjectRoot '.tools/raw-decoder'
+$OutputRoot = Join-Path $ProjectRoot '.tools/native/win-x64'
 $Output = Join-Path $OutputRoot 'BirdPhotoSelector.Raw.dll'
 $Source = Join-Path $ProjectRoot 'native/raw-decoder.cpp'
 [IO.Directory]::CreateDirectory($Cache) | Out-Null

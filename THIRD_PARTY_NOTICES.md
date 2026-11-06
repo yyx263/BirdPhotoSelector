@@ -130,3 +130,9 @@ SOFTWARE.
 以上原文随程序一同分发。升级 .NET 运行库时，应从实际发布所用版本的 NuGet 包同步更新这些文件和版本记录。
 
 开发 SDK 和 NuGet 缓存位于 `.tools`，属于本地构建工具，不需要随应用一起分发。
+
+## v2.0-alpha.6 交叉编译运行时
+
+Windows 交叉构建使用固定 [Zig 0.17.1](https://ziglang.org/download/)；官方下载 URL 与 SHA-256 在 `scripts/NativeToolchain.json`。编译器本身只留在忽略的 `.tools/`，不打入程序包。Unix 原生组件中静态链接的 C++/异常运行时保留 LLVM Apache-2.0 with LLVM exception 及其历史许可：`licenses/LLVM-libcxx.txt`、`LLVM-libcxxabi.txt`、`LLVM-libunwind.txt`，Zig compiler-rt 的 MIT 许可在 `licenses/Zig-MIT.txt`。文件直接取自所用、已校验的编译器归档。
+
+`native/macos-imports` 是本项目仅用于交叉链接的公开 API 声明与文本导入表，不包含 Foundation、libobjc 或 Apple SDK 的实现/二进制；Mac 包在运行时加载系统框架。本机 Mac 编译仍可使用 Xcode SDK。旧 WindowsDesktop/WPF 运行时不再作为本程序依赖或随包分发，.NET Core 运行库许可继续保留。

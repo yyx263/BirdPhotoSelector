@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net10.0</TargetFramework><Nullable>enable</Nullable><ImplicitUsings>enable</ImplicitUsings><TreatWarningsAsErrors>true</TreatWarningsAsErrors><NuGetAudit>false</NuGetAudit><RestorePackagesPath>$(MSBuildThisFileDirectory)../../.tools/packages</RestorePackagesPath></PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../src/BirdPhotoSelector.Imaging.Portable/BirdPhotoSelector.Imaging.Portable.csproj" />
+    <ProjectReference Include="../../src/BirdPhotoSelector.Application/BirdPhotoSelector.Application.csproj" />
+    <ProjectReference Include="../../src/BirdPhotoSelector.Platform/BirdPhotoSelector.Platform.csproj" />
+    <None Include="$(BpsNativeDirectory)*.dll;$(BpsNativeDirectory)*.so*;$(BpsNativeDirectory)*.dylib" Link="%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>

@@ -68,7 +68,7 @@ internal static class Program
     private static async Task Desktop(string root)
     {
         string first = Path.Combine(root, "山雀-001.jpg"), slow = Path.Combine(root, "slow.jpg"), third = Path.Combine(root, "山雀-003.jpg");
-        string sample = Path.Combine(Directory.GetCurrentDirectory(), "artifacts/samples/great-tit.jpg");
+        string sample = Path.Combine(Directory.GetCurrentDirectory(), "Tests/Assets/great-tit.jpg");
         if (File.Exists(sample)) File.Copy(sample, first);
         else
         {
@@ -150,7 +150,7 @@ internal static class Program
         controller.State.LocatePhoto(controller.State.AllPhotos.First(p => p.Birds.Count == 4)); await controller.PreviewTask; Dispatcher.UIThread.RunJobs();
         var birds = window.FindControl<ListBox>("BirdList")!;
         Check(birds.Items.Count == 4, "new window displays all four persisted bird results");
-        string visuals = Path.Combine(Directory.GetCurrentDirectory(), "artifacts/desktop-2.0-alpha5"); Directory.CreateDirectory(visuals);
+        string visuals = Path.Combine(Directory.GetCurrentDirectory(), "artifacts/desktop-2.0-alpha6"); Directory.CreateDirectory(visuals);
         foreach (var size in new[] { new Size(1560, 920), new Size(1150, 780) })
         {
             window.Width = size.Width; window.Height = size.Height; Dispatcher.UIThread.RunJobs();
@@ -208,7 +208,7 @@ public sealed class NativeSmokeApp : Application
             {
                 try
                 {
-                    string sample = Path.Combine(Directory.GetCurrentDirectory(), "artifacts/samples/great-tit.jpg");
+                    string sample = Path.Combine(Directory.GetCurrentDirectory(), "Tests/Assets/great-tit.jpg");
                     if (!await controller.ImportAsync([sample])) throw new InvalidOperationException("Native import canceled");
                     await controller.PreviewTask;
                     if (!controller.State.CanRate) throw new InvalidOperationException(controller.State.Status);

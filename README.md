@@ -1,202 +1,50 @@
-# 羽选 · BirdPhotoSelector
+# 羽选 BirdPhotoSelector
 
-一个用于拍摄后本机筛选鸟类 JPG / RAW 照片的 Windows 桌面应用，`main` 保留稳定版本，`dev` 已开始 **2.0.0-alpha.5** 跨平台架构迁移。现有完整功能对照界面采用 C#、.NET 10、WPF，输出普通 EXE 加运行库、模型和说明文件目录，便于维护和后续扩展。
+本地鸟类照片筛选应用，当前开发版 **2.0.0-alpha.6**。仅保留 Avalonia 跨平台工程；旧 WPF 宿主已从 `dev` 移除，历史源码可在 Git 的 alpha.5 及更早提交查看。稳定分支 `main` 不变。
 
-**v2.0 开发中**：整体规划见 [架构说明](ARCHITECTURE.md)。新 Avalonia 窗口已接入导入、双预览、导航评级、自动分组、工程与自动保存，以及中国鸟种识别、单张重识别、手动框选/鸟种编辑/撤销和完整导出交互。所有业务复用共享核心，WPF 完整入口继续作为对照。当前实际验证平台是 Windows；macOS/Ubuntu 的原生、窗口与发布行为仍待实机验收。
+## 使用测试包
 
-新入口：`python scripts/Run-Desktop.py`；只构建使用 `--build-only`，无窗口真实渲染检查使用 `--check`。首次安装项目 SDK 可执行 `python scripts/Setup-Dotnet.py`，版本和下载校验值已固定；已有官方 .NET 10 SDK 时按 `global.json` 选择版本。
+完整测试包位于 `publish/`（不进入 Git），每套包含 .NET、YOLO/BioCLIP 2、中国候选、原生解码器和许可文件，不需要安装 Python、.NET 或 Visual Studio。
 
-**1.8.3 调整参数栏的均分与余量分配，重新识别本张改为点击即运行，成功后直接替换结果，正常零检出直接清空，均可撤销。** 继续保留清空识别结果、离线拼音与简繁搜索、结果排序及导出同名处理；主窗口至少完整显示四条结果，更多结果继续滚动。
+| 目标 | 包 | 启动 |
+| --- | --- | --- |
+| Windows x64 | `BirdPhotoSelector-2.0.0-alpha.6-win-x64.zip` | 解压后运行 `BirdPhotoSelector.exe` |
+| Apple 芯片 Mac | `BirdPhotoSelector-2.0.0-alpha.6-osx-arm64.tar.gz` | 解压后打开 `BirdPhotoSelector.app` |
+| Ubuntu x64 | `BirdPhotoSelector-2.0.0-alpha.6-linux-x64.tar.gz` | 解压后运行 `./start.sh` |
 
-**1.8 新增按鸟种分类导出、搜索添加与更换鸟种，以及人工鸟种和选区编辑的撤销。工程升级为 v3，仍可读取 v1 / v2；旧程序无法打开新保存的 v3，请保留旧工程副本。** 更新内容与兼容边界见 [发布说明](RELEASE_NOTES.md)。
+Mac 目标为 macOS 14+，Ubuntu 目标为 22.04/24.04 图形桌面。Windows 有本机运行检查；Mac/Ubuntu 在 Windows 交叉构建并核对原生架构，仍需目标机器测试，不能把打包成功当作实机验收。本测试版未做 Apple 开发者证书签名与公证。
 
-远程控制查看时若窗口出现全白，可先关闭羽选，再使用发布目录中的 **远程兼容启动.cmd**，或传入 `--software-rendering`。此方式仅对本次羽选进程启用软件渲染；普通启动保持默认设置，也可在该参数前后传入工程文件路径。详见 [使用说明](使用说明.md#远程兼容启动)。
+各包附 `测试说明.txt`、`release-manifest.json`；归档旁有 SHA-256。原生库、模型、每个文件和归档成员均进行校验。测试电脑可直接执行随包程序的 `--self-test 报告路径.json` 和 `--smoke-test 报告路径.json`，前者测试模型/运行库，后者最小化启动真实界面并导入预览后退出。
 
 ## 功能
 
-- 自动关联同目录、同文件名主体的 JPG / RAW，优先显示 JPG；只选择 JPG 也会关联同名 RAW 并显示 JPG + RAW，只有 RAW 时使用 LibRaw 解码原始像素。支持跨目录追加和文件拖入，不同目录同名可以保留；多个同类候选会明确报告配对冲突。
-- 支持列表多选、仅从列表移除和一键清空当前列表。清空保留工程位置，保存后记录空列表，原照片保留；参数栏显示 JPG、RAW 或 JPG + RAW，以及 RAW 扩展名和当前预览来源。左侧缩略图显示 JPG、RAW 或 J+R。
-- 左侧固定全图、右侧可缩放和平移的细节预览；全图白框指示细节位置。右侧支持适应画面至 200% 的实际像素倍率，并提供适应画面按钮。放大后的平移限制在照片边界内，较小方向保持居中，白框及描边也限制在照片范围内。
-- 读取拍摄日期时间、相机、焦距、光圈、快门、ISO 和曝光补偿；参数栏均匀分配列宽，较长字段可借用较短字段的剩余宽度，一行总宽仍不足时自动换行。RAW 曝光补偿取真实 EXIF 拍摄记录，`0 EV` 与缺失的 `—` 分开显示，不借用解码亮度或闪光补偿。
-- **自动分组** 只按列表顺序合并连续背景相似照片，不运行鸟类定位，也不改变已有鸟框、鸟种结果、当前鸟和缩放视图；支持整组拆分和当前照片移出。背景相似阈值范围为 0%～100%，默认 **50%** 相当于旧版的 **95%** 实际阈值，数值越高越严格；打开旧工程时保持原来的实际分组力度。
-- 右上角 **识别鸟种** 逐张先使用本地 YOLOv10n ONNX 模型定位鸟，再使用 BioCLIP 2 逐鸟识别，**无需先自动分组**，也不改变分组或评级。仍有结果且人工编辑过鸟种或选区的整张照片会跳过；评级和缩放不触发保护。删除最后一条或清空全部结果后解除保护，可重新参与批量识别。首次定位默认查看最大的一只；点击全图框或有框结果行恢复约 70% 占框视图，并遵守缩放与图像边界。
-- 点击右侧 **手动选区** 后在细节图拖拽绘框并立即识别新选区。结果行右键 **删除鸟种** 同时删除关联框；**更换鸟种** 经选择确认后删除旧框，生成无框人工鸟种并按新规则排序，不再保留原行位置。全图框右键 **删除选区** 与结果行删除效果相同。有框条目保留相对顺序、排在前方并连续编号；无框人工条目排在后方，按 `zh-CN` 中文名称排序、显示“手动”，选择时保留当前视图。
-- **清空识别结果** 只清空当前照片的全部选区、AI 结果与无框人工鸟种，回到适应全图并解除人工编辑保护，供下次批量重新识别；可用 **撤销 / Ctrl+Z** 恢复，不改变原片、评级、分组或最近选择。
-- **手动添加鸟种** 可按中文、学名、全拼或拼音首字母搜索，支持简繁混输，不区分拉丁字母大小写；拼音兼容声调符号、声调数字以及 `ü` / `v` / `u:`。每次单选一种，可重复添加多种；空输入显示本工程最近使用的 10 种。名称检索离线运行，不加载 AI 模型。人工指定不生成框，也不附加 AI 分数。**撤销 / Ctrl+Z** 保留当前工程会话最近 50 步鸟种和选区编辑，恢复对应结果、选择及相关视图；撤销历史不写入工程，也不撤销原文件导出或删除。
-- 鸟种结果列表在正常窗口和最小窗口中均可完整显示四条；更多结果继续滚动，选到末条时仍保留四条可见区域。手动添加、撤销和评级按钮各自保留空间。
-- 鸟种识别默认使用中国鸟类候选表；结果显示编号、中文名、学名和候选集合内的识别置信度，悬停可查看原始余弦相似度及相近候选。该置信度未经准确率校准，结果供人工核对。
-- 全分辨率预览采用 **512 MiB 解码缓存**，JPG 尽力预取前后各两张，优先最近邻；RAW 仅在当前查看时解码，单通道运行并支持取消。切换时保留旧画面并暂停操作，新图就绪后再替换。来源变化后保留虚框与鸟种，顶部提示“图像来源已变化，请注意核对”，仍可手动增加、选择和删除选区。普通批量 AI 不自动套用待核对旧坐标。首次换源回到全图，在新来源上调整的人工视图可在切图、工程重开和自动恢复后还原；旧待核对工程无视图来源记录时先适应全图一次。
-- 未标记、舍弃、保留、精选四级标记，以中性灰、红、薄荷绿、金色区分并保持选中状态，快捷键依次为 1 / 2 / 3 / 4。组内照片和独立照片组均支持右键评级；组缩略图按未标记、精选、保留、舍弃的优先顺序显示整组状态，底部统计包含未标记数量。
-- 两栏缩略图滚轮每格滚动两项；方向键或 WASD 连续切换照片，到组边缘自动衔接相邻组，Page Up / Page Down 切换组。
-- 导出、删除可独立选择评级与 **全部 / 仅 JPG / 仅 RAW** 文件范围。**按鸟种创建子文件夹** 默认关闭；开启后同张照片复制到每个有效鸟种目录，同种多只只复制一份，没有有效鸟种则进入“未分类”。自动提醒未分类、未识别或失败选区及 AI 置信度低于 80% 的结果，可返回核对或继续；JPG → RAW 后的位置待核对不影响鸟种分类。不提供导出预览或鸟种批量应用。
-- 导出遇到同名目标先核对 SHA-256：内容一致自动跳过并保留原件，内容不同默认逐件询问 **覆盖 / 重命名 / 取消**。可记住选择，仅作用于本次导出；重命名使用 `_1`、`_2` 等后缀，文件名已带数字后缀时继续累加。工程原件、链接及本次已校验导出副本受保护，只能重命名或取消；复制、校验或状态检查失败保留原目标和原件。
-- 导出后移除时，同张全部所选成员在全部目标目录复制、SHA-256 校验并确认副本可用后，才开始移除原件；保留目标只读锁直至该张移除完成。部分成功按成员更新，仍有原件就保留照片记录和评级。导出与删除舍弃前均有未标记提醒和原件删除确认。
-- 鸟种区域提供 **重新识别本张**，点击即开始，定位与所有鸟种识别均成功后直接替换本张自动框、手动选区、无框人工鸟种和原结果；正常零检出直接清空旧结果，两种成功操作均可通过 **撤销 / Ctrl+Z** 恢复。已删框可能重新检出，人工编辑保护随成功清除；失败或取消保留原结果并显示相应状态，错误仍会提示。其他照片、评级和分组不受影响。
-- 导入和鸟种识别显示当前照片序号与文件名；导出、删除同时显示照片与文件序号，区分复制、校验、确认副本及移除原文件阶段。
-- `.json` 工程记录路径、分组、框与鸟种结果、无框人工鸟种、人工编辑保护、最近 10 种、当前选择、视图和评级；自动保存包含相同内容。v3 可读取 v1 / v2 及旧单鸟工程，导入时跳过缺失照片并报告。
-- 每五分钟自动保存有变更的挑选；已命名工程更新原 JSON，未命名或原路径不可写时生成本机恢复文件，可通过 **恢复自动保存** 打开。
+- 直接选择 JPG/RAW，关联同目录同名原件；追加、去重、多选、移除和清空列表均不直接删除原件。
+- 照片组/组内列表、连续导航、四色评级、全图与细节双预览、前后预加载及 512 MiB 保留帧缓存。
+- 可调背景分组；中国候选鸟种识别、多鸟选区、70% 鸟视图、手动框选及鸟种添加/更换/删除/撤销。
+- 中文、拼音/首字母、学名和简繁搜索，最近十种随工程保存。
+- 按评级及 JPG/RAW 范围导出，可选按鸟种分类、多鸟种多份；相同内容跳过、同名不同内容询问覆盖/重命名。
+- 原件移除默认关闭；确认全部目标副本校验完成后才回收原件。删除舍弃同样先确认。
+- JSON 工程、缺失文件报告、五分钟自动保存与恢复。
 
-完整操作参见 [使用说明](使用说明.md)。窗口右上角 **?** 打开可滚动的帮助窗口，内含可点击的 [GitHub 项目地址](https://github.com/yyx263/BirdPhotoSelector)。
+具体操作和平台测试事项见 [使用说明](使用说明.md)。架构、内存边界及剩余验收见 [架构说明](ARCHITECTURE.md)。
 
-## 开发和构建
+## 源码开发
 
-`docs/` 仅用于本地临时开发记录，已从 Git、项目内容项、发布文件清单和 ZIP 中排除；使用和构建程序不依赖该目录。
+需要 Python 3.11+、固定 .NET 10 SDK；Windows 本机原生编译另需 Visual Studio C++ x64/CMake，Unix 本机原生编译需 C++、CMake、make 和开发工具。工程内工具均位于忽略的 `.tools/`，不修改系统 SDK。
 
-当前 **2.0.0-alpha.5** 新桌面 80 项检查通过，包含真实批量和手动框模型识别，以及生成文件的分类导出、冲突与原件更新；33 项图像、50 项业务、176 项后端、1451 项原界面/服务/模型回归与真实 Windows 新窗口探针一并通过。新界面原件移除和分类默认关闭，工程保持 v3；macOS/Ubuntu 实机尚待验收，完整验证范围见架构说明。
-
-上阶段 **2.0.0-alpha.4** 已在 .NET 10 下通过 33 项图像、50 项业务、176 项后端、38 项 Avalonia 和 1451 项原界面/服务/模型检查，真实 Windows 新窗口启动检查通过。详细已完成与待迁移功能见 [架构说明](ARCHITECTURE.md)。
-
-上阶段 **2.0.0-alpha.3** 通过 33 项图像核心、50 项业务核心、176 项实际适配与 1451 项完整 Windows UI/服务/模型检查；构建零警告、零错误。当前仍为 WPF 迁移宿主，未生成新的正式发布包。Linux/macOS 后端开发可运行 `python3 scripts/Build-Native.py` 和 `python3 scripts/Test-Portable.py`，所需环境、已验证范围及待验收事项见 [架构说明](ARCHITECTURE.md#构建和验证入口)。
-
-2026-10-31 的 **1.8.3 完整回归通过 1430 项检查**，包含参数栏均分、长字段借宽、窄窗口换行与文字完整显示，以及免确认重新识别、零检出直接清空、撤销、失败与取消保护；真实 RAW / YOLO / BioCLIP 2 及既有工程和导出功能一并通过。日志为 `artifacts/regression-1.8.3-native.log`，原生记录为 `artifacts/raw-1.8.3/summary.json` 与 `artifacts/species-native-1.8.3-validation.json`。发布包为 `publish/BirdPhotoSelector-1.8.3-win-x64.zip`，由发布脚本检查版本、模型和逐文件 SHA-256。以下记录属于历史版本。
-
-2026-10-31 的 **1.8.2 完整回归通过 1353 项检查**，包含清空识别与撤销、空结果重新识别、人工排序、中文及声调拼音的实际字形显示、帮助链接、导出同名处理与原件保护，以及真实 RAW / YOLO / BioCLIP 2。日志为 `artifacts/regression-1.8.2-native.log`，原生验证记录为 `artifacts/raw-1.8.2/summary.json` 与 `artifacts/species-native-1.8.2-validation.json`。该版 ZIP 路径为 `publish/BirdPhotoSelector-1.8.2-win-x64.zip`，由发布脚本检查版本、模型和逐文件 SHA-256。
-
-2026-10-31 的 **1.8.1 完整回归通过 1247 项检查**，包含拼音、简繁及真实弹窗搜索、正常与最小窗口四行完整显示、既有工程与导出流程，以及真实 RAW / YOLO / BioCLIP 2。日志为 `artifacts/regression-1.8.1-native.log`，原生验证记录为 `artifacts/raw-1.8.1/summary.json` 与 `artifacts/species-native-1.8.1-validation.json`。以下 1.8.0 及更早记录属于历史版本。
-
-2026-10-31 的 1.8.0 完整回归通过 **1133 项检查**，覆盖人工鸟种编辑与撤销、搜索与最近选择、v1 / v2 / v3 工程及自动恢复、分类多目标副本和原件保护、主窗口交互与真实 RAW / YOLO / BioCLIP 2。七份公开 RAW 样本（含一份预期不支持的压缩模式）、官方 PyTorch 向量对照及五类置信度对照一并通过。记录位于本机 `artifacts/regression-1.8.0-native.log`、`artifacts/raw-1.8.0/summary.json` 和 `artifacts/species-native-1.8.0-validation.json`。发布包的版本、模型和逐文件 SHA-256 由打包脚本校验。
-
-完整 WPF 对照入口需要 Windows x64 和 **.NET 10 SDK**。脚本优先使用项目内 `.tools/dotnet/dotnet.exe`，否则使用 `PATH` 中的 `dotnet`；不会自动安装或修改全局 SDK。初次恢复 NuGet 包、获取运行库包和下载模型需要联网，日常查看与分析可离线使用。
-
-本分支另需安装 **Visual Studio C++ x64 构建工具及其 CMake 组件**。普通 `dotnet build` 会调用 `scripts/Build-RawDecoder.ps1`，下载并校验固定 LibRaw 0.22.3 SDK、编译桥接 DLL，并复制 LibRaw 和三个实际 C++ 运行库依赖；开发缓存与二进制不入库。使用完整程序目录的最终用户无需安装 Visual Studio。许可与固定来源见 [第三方说明](THIRD_PARTY_NOTICES.md)。
-
-在项目根目录执行：
-
-```powershell
-# 固定版本下载与 SHA-256 校验
-powershell -ExecutionPolicy Bypass -File .\scripts\Setup-Model.ps1
-
-# 准备 BioCLIP 2 图像模型和中国候选向量（首次需要下载数 GB 资源）
-powershell -ExecutionPolicy Bypass -File .\scripts\Setup-SpeciesModel.ps1
-
-# 发布 self-contained Windows x64 程序
-powershell -ExecutionPolicy Bypass -File .\scripts\Build.ps1
-
-# 对准备好的完整发布目录生成 ZIP、逐文件清单和 SHA-256
-powershell -ExecutionPolicy Bypass -File .\scripts\Package-Release.ps1
-
-# 启动已发布程序；尚无发布版时尝试 dotnet run
-powershell -ExecutionPolicy Bypass -File .\scripts\Run.ps1
+```text
+python scripts/Setup-Dotnet.py
+python scripts/Run-Desktop.py
+python scripts/Test.py --include-model --native-window
+python scripts/Build-Release.py
 ```
 
-完整发布目录是 `publish/BirdPhotoSelector/`，入口为 `BirdPhotoSelector.exe`。将**整个目录**交给使用者，目标电脑无需单独安装 .NET。默认构建会检查定位模型与四个必要鸟种资源文件，缺失时先运行对应准备脚本。按需构建时可使用：
+Windows 已有项目内 Python 时，可用 `.\.tools\species-python\python.exe` 替代 `python`。只发布一个平台时使用 `python scripts/Build-Release.py --runtime win-x64`（另可选 `osx-arm64`、`linux-x64`）。默认生成三套完整包，存在同名输出时停止，不自动覆盖。
 
-| 构建参数 | 资源检查 |
-| --- | --- |
-| 无参数 | 需要 YOLO 定位模型和完整 BioCLIP 2 鸟种资源 |
-| `-SkipSpeciesModel` | 只要求 YOLO；允许尚未准备鸟种资源，仍可定位、分组和筛选 |
-| `-SkipModel` | 只要求 BioCLIP 2；允许尚未准备定位模型，仍可手动查看和背景分组，已有工程中的鸟框可用于鸟种识别 |
-| `-SkipModel -SkipSpeciesModel` | 两类模型均可缺省，支持手动查看、背景分组、评级和导出 |
+首次模型准备可在 Windows 运行 `scripts/Setup-Model.ps1`、`scripts/Setup-SpeciesModel.ps1`；已有完整 `models/` 可跨平台复制，发布时强制核对指纹。重建 BioCLIP 资源的固定 Python 依赖及过程在准备脚本中；最终用户无需这些构建工具。
 
-例如 `powershell -ExecutionPolicy Bypass -File .\scripts\Build.ps1 -SkipSpeciesModel`。这些参数只跳过相应检查，不删除或主动排除已经存在的资源。
+Windows 交叉构建 Unix 原生组件使用项目内固定 Zig 0.17.1 和已校验 LibRaw 0.22.3 源码，首次需要联网。普通运行离线，不上传照片。依赖、模型及中国候选的不同许可条件见 [第三方说明](THIRD_PARTY_NOTICES.md)。
 
-首次准备鸟种资源会下载数 GB 数据，并在 `.tools/species-assets`、`.tools/species-python` 中保留下载缓存和项目内转换工具；缓存、转换后的模型与发布目录同时存在，需要预留更多工作磁盘空间。这是源码构建阶段的准备成本。完整发布目录可直接离线运行，不需要这些构建缓存、Python 或 PyTorch。
+`docs/` 只作本地临时输出，不提交、不参与构建或打包。`.tools/`、`artifacts/`、`bin/obj`、`publish/` 都不上传 Git。
 
-已有完整鸟种资源及哈希清单时，`Setup-SpeciesModel.ps1` 默认只校验 SHA-256，不需要 Python 或联网；需要重新生成时使用 `-Rebuild`。仓库通过 `.gitattributes` 固定模型资源的字节约定（JSON 为 CRLF、许可证文本为 LF、EML 和向量不做行尾转换），避免换机克隆时因自动换行转换导致哈希校验失败。
-
-鸟种拼音搜索使用随源码提供并嵌入程序集的 `Assets/SpeciesSearchData.json`。普通构建直接使用该索引，不调用 Python，也不加载识别模型。需要重建时，先按生成脚本开头的命令准备固定 wheel，并校验指定 SHA-256，再使用项目内 Python 运行下列命令。拼音生成固定使用 **pypinyin 0.55.0**，仅安装到 `.tools/search-python`，不修改系统 Python；生成脚本不会自动安装依赖。依赖及数据许可见 [第三方说明](THIRD_PARTY_NOTICES.md)。
-
-```powershell
-.\.tools\species-python\python.exe -B -X utf8 .\scripts\Generate-SpeciesSearchIndex.py
-# 仅核对已有搜索索引，不写文件
-.\.tools\species-python\python.exe -B -X utf8 .\scripts\Generate-SpeciesSearchIndex.py --check
-```
-
-生成脚本读取现有名称资料，不修改 `models/bioclip2` 下的模型、候选表或哈希清单。简繁查询使用 Windows 自带的语言转换并处理少量罕见字变体；原名称、学名、候选顺序和 AI 识别结果保持原值。发布程序无需 Python、pypinyin 或联网即可检索。
-
-NuGet 包缓存放在 `.tools/packages`。项目不使用单文件发布和裁剪，避免 WPF 和 ONNX 原生库在发布时失效。不要只复制 EXE，也不要遗漏 `models/yolov10n.onnx` 和鸟种资源目录 `models/bioclip2/`。BioCLIP 2 的 Python/PyTorch 转换依赖仅用于准备资源，发布程序使用本机 ONNX Runtime，无需使用者安装 Python。
-
-可运行 `powershell -ExecutionPolicy Bypass -File .\scripts\Test.ps1` 进行验证。检查涵盖真实 WPF 布局、加载与容器回收后的选中绿框、多鸟及手动选区、编号删除与重新识别、鸟种结果置信度、清空列表、列表滚动、评级、导航、关闭、EXIF、分组、工程读写、导出、缓存调度与自动保存；自动保存使用临时恢复目录和模拟时钟，不等待五分钟，也不写入真实 AppData。`-IncludeModel` 还会使用本地已准备的公开鸟图测试真实鸟类定位 ONNX 推理。鸟种服务的候选匹配、预处理和批量流程另有确定性检查；真实 BioCLIP 2 推理需完整鸟种资源。界面渲染结果保存在 `artifacts/test-visuals`。
-
-完整鸟种资源准备后，可将 `BIRD_SPECIES_ASSETS` 环境变量设为 `models/bioclip2` 的绝对路径，再运行 `-IncludeModel`，启用真实鸟种模型检查。将 `BIRD_SPECIES_REFERENCE` 设为准备资源时生成的 `.tools/species-assets` 绝对路径，还可比较 ONNX 输出与官方 PyTorch 视觉编码器的参考向量。预处理另使用独立 Pillow 参考像素校验。
-
-2026-10-30 的 1.7 在最后阶段集中完成 **874 项完整检查**，最终文件保护与紧凑对话框修整另有 **67 项专项检查**通过，包含真实 RAW、YOLO/BioCLIP 2、按成员导出删除和单张重建双次确认。这些历史实现记录仅在本地临时保存，不作为源码或发布依赖。完整 ZIP、SHA-256 与文件清单位于本机 `publish`，源码不提交大包；后续开发默认只做编译和直接相关检查，完整回归留到发布前。
-
-2026-10-27 的 1.6 完整回归通过 **589 项断言**，包括阈值、迁移、逐照片进度、未标记提醒与原片保护，以及真实定位识别后重新分组并保留鸟种、编号和视图。历史记录见 `artifacts/regression-1.6-native.log` 与 `artifacts/species-native-1.6-validation.json`。
-
-2026-10-25 的 1.5 完整回归通过 **513 项断言**，涵盖手动画框后仅新选区立即识别、稳定编号与旧工程迁移、删除框、清空列表与原片校验，并保留真实 YOLO、BioCLIP 2 和 PyTorch 数值对照。清晰大山雀样张的整图与鸟框置信度分别为 **98.5%** 和 **99.6%**；五个模糊、背景、噪声与灰图对照为 **2.6%～18.6%**。这些对照检验候选竞争分数的行为，不构成准确率校准或普遍阈值。见 [1.5 完整回归日志](artifacts/regression-1.5-native.log) 与 [1.5 数值和置信度实测](artifacts/species-native-1.5-validation.json)。
-
-启用上述对照检查时，可将 `BIRD_SPECIES_CONTROLS` 设为已准备的 `artifacts/species-confidence-controls` 绝对路径；`BIRD_SPECIES_REPORT` 可指定 JSON 实测记录的输出位置。原生界面回归还会通过实际框选事件验证追加、当前选区识别及原有结果保持。
-
-2026-10-18 发布前完整验证通过 **438 项断言**，包含真实双鸟检测、BioCLIP 2 整图与鸟框识别，以及官方 PyTorch 输出对照。欧亚大山雀样张的整图和鸟框均匹配 `Parus major`，原始相似度分别约为 `0.7123`、`0.7066`；固定参考输入的 ONNX / PyTorch 向量余弦为 `0.999999999990`，最大绝对误差为 `5.81e-7`。记录见 [完整回归日志](artifacts/regression-1.4-native.log) 与 [数值及样张实测](artifacts/species-native-validation.json)。该样张用于验证链路，总体鸟种准确率仍需更多照片评估。
-
-同一次本机 CPU 验证中，首次加载加整图识别约 3.41 秒，热模型鸟框识别约 0.94 秒，三只鸟批次约 2.21 秒。独立测试进程峰值工作集约 2.43 GiB、专用内存约 3.25 GiB；会话释放并执行垃圾回收后分别约为 83 MiB、34 MiB。这些是该机器与样张的测量值，实际应用还会叠加当前照片、预览缓存和解码等开销，不能作为其他电脑的耗时或内存上限。
-
-模型固定信息：
-
-| 项目 | 值 |
-| --- | --- |
-| 发布者 | [onnx-community / YOLOv10](https://huggingface.co/onnx-community/YOLOv10) |
-| 文件 | `yolov10n.onnx` |
-| Revision | `305deee9272dc7082fbc36e9f424a38d6ef23b8e` |
-| 大小 | 9,386,116 字节 |
-| SHA-256 | `a77dd863933f184a19e84361c64b788228a7c7dacc2c78939239a96ad3efca3b` |
-
-脚本先下载同目录下唯一命名的 `.partial` 文件，检查大小、文件头及完整 SHA-256 后再原子替换正式模型，失败不会替换已有模型。哈希和大小来自[发布者该次提交的 LFS 指针](https://huggingface.co/onnx-community/YOLOv10/commit/305deee9272dc7082fbc36e9f424a38d6ef23b8e)。
-
-鸟种资源由固定版本的 [BioCLIP 2](https://huggingface.co/imageomics/bioclip-2) 图像编码器、官方文本向量与[中国科学院 2023 v1.1 名录](https://doi.org/10.15468/ae6ush)构建，保留完整 `models/bioclip2/` 目录：
-
-| 文件 | 内容 |
-| --- | --- |
-| `vision.onnx` | 单文件 FP32 BioCLIP 2 视觉编码器，1,216,297,670 字节；输入 RGB 裁剪图，输出 768 维向量 |
-| `candidates.json`、`embeddings.f32` | 按行对应的中国候选名称与预计算文本向量，向量文件 4,282,368 字节 |
-| `metadata.json`、`asset-hashes.json` | 来源、固定版本、覆盖范围、预处理约定及文件哈希 |
-| `china-unmatched.json`、`taxonomy-ambiguities.json`、`licenses/` | 排除条目、分类映射歧义审计和各项许可 |
-
-当前固定候选构建从该版名录的 **1,445** 个接受双名鸟类条目中保留 **1,394** 个候选：**1,327** 个按接受学名精确匹配，**67** 个使用名录关联且目、科相容的异名，另有 **51** 个未匹配或存在歧义的条目被排除。精确接受名优先；异名不能占用另一接受种的官方向量行。排除详情见 `china-unmatched.json`，映射审计见 `taxonomy-ambiguities.json`，随包 `metadata.json` 记录对应构建数量。
-
-最终生成资源中 1,394 个候选均有中文名，审计未发现共享官方源向量行或完全相同的候选向量。这是一份固定版本的候选集合，不代表中国最新名录的全部鸟类，也不意味着每个候选都是模型单独学习并能可靠区分的类别。
-
-## 代码结构
-
-| 位置 | 职责 |
-| --- | --- |
-| `src/BirdPhotoSelector.Desktop/` | Avalonia 新入口、会话协调、双预览、列表和平台对话框 |
-| `src/BirdPhotoSelector.Domain/` | 照片、原件、组、评级、鸟框、鸟种证据与不变量 |
-| `src/BirdPhotoSelector.Application/` | 挑选会话、导入、分组、识别工作流、人工编辑/撤销、工程/自动保存、导出 |
-| `src/BirdPhotoSelector.Recognition/` | YOLO/BioCLIP 推理、固定预处理、候选与置信度，只处理已解码图像 |
-| `src/BirdPhotoSelector.Imaging/` | 不可变帧、统一采样、格式与解码契约、有界缓存与预取 |
-| `src/BirdPhotoSelector.Imaging.Portable/`、`Imaging.Native/` | JPEG/EXIF、UTF-8 LibRaw 与像素所有权 |
-| `src/BirdPhotoSelector.Imaging.Windows/`、`Infrastructure/Wpf/` | 当前 WPF 冻结位图与缓存显示适配、WIC 对照后端 |
-| `src/BirdPhotoSelector.Foundation/`、`Platform/` | 路径语义、文件实体身份与各系统回收站 |
-| `src/BirdPhotoSelector.Catalog/` | 离线名称、拼音、简繁检索 |
-| `Infrastructure/DesktopComposition.cs` | 当前宿主的依赖组装与具体后端选择 |
-| `ViewModels/MainViewModel.cs` | 挑选会话的 WPF 按键映射 |
-| `MainWindow`、`ExportDialog`、`Dialogs/`、`Controls/` | 显示、文件选择、双预览、选区、命令调度与对话框 |
-| `native/`、`scripts/` | 固定原生依赖、CMake/平台构建、验证、模型准备与 Windows 发布 |
-| `Tests/` | 独立核心/实际适配检查及 Windows 界面、服务与真实模型回归 |
-| `models/`、`licenses/` | 本机模型、候选向量、来源清单及许可 |
-
-更细的依赖方向、数据与资源所有权约定见 [架构说明](ARCHITECTURE.md)。
-
-图像处理和文件服务运行在后台，UI 在收到分离的结果后更新绑定对象。预览使用 EXIF 方向校正后的像素，鸟类框与视图中心都存为相对图像的归一化坐标，便于不同分辨率窗口恢复。评级不会改变图像内容。
-
-预览缓存预算只计算保留的解码输出帧，按每像素至少四字节计费，**不是进程总内存上限**。当前显示的图像、最多一个正在解码的图像，以及 Skia/LibRaw、ONNX、WPF 和运行库的额外内存不属于这项预算。单张超出预算的照片仍能作为前台图像查看，但不保留到缓存；近邻预取会按容量和前台任务情况跳过或取消。
-
-自动保存与手动保存共用写入门，JSON 使用临时文件完成后原子替换。未命名或原路径不可写时，恢复文件位于 `%LOCALAPPDATA%/BirdPhotoSelector/Autosaves/`；同一会话更新同一恢复文件，新会话使用新文件。只有保存版本仍与当前修改版本一致时，正式工程自动保存才清除未保存状态；恢复文件不会代替用户选择正式工程位置。忙碌任务结束后会补查到期保存，无变更的版本不会重复写入。
-
-背景分组会同时与前一张和组首图片比较，避免缓慢变化的场景被无限串成一组。已有的自动框和手动框区域均可从背景特征中排除；分组过程本身不定位鸟或改写识别状态。1.6 的默认显示阈值 50% 对应旧版实际阈值 95%，阈值范围为 0%～100%；旧工程载入时换算显示值，保留原有实际分组力度。
-
-工程 `schema` 为 `BirdPhotoSelector.Project`，1.8 保存的 `version` 为 `3`，新增无框人工鸟种、人工编辑保护及最近使用记录；仍兼容读取 v1 / v2。旧程序无法打开新 v3，需要继续使用旧程序时请另存工程，保留原版本副本。v2 引入的 JPG / RAW 成员、预览来源、几何参照与待核对状态继续保留；v1 只迁移明确记录的 JPG，不自动发现相邻 RAW。人工视图的 `ViewReference` 须与当前来源标识和文件状态匹配才恢复。迁移与原子读写由 `src/BirdPhotoSelector.Application/Projects/ProjectService.cs` 负责。
-
-既有的框来源、稳定编号、高水位计数、置信度及阈值刻度迁移继续保留。旧结果缺少置信度时显示 `—`；缺少 `GroupingThresholdScaleVersion` 的旧工程按旧刻度换算，保持实际分组力度。删除所有框后仍保存编号计数，避免重开工程复用已删除的编号。
-
-后续可通过替换 `BirdDetectionService` 的适配器引入其他检测模型，通过服务层增加评分或导出策略。替换模型时需同时匹配输入预处理、输出张量布局、类别映射和许可证，不能直接把任意 ONNX 改名使用。
-
-## 识别与分组的边界
-
-定位模型使用 COCO 通用 `bird` 类；小目标、重遮挡、枝叶、逆光和少见姿态存在漏检、误检。多鸟检测在去除重叠重复框后保留有效目标，默认选面积最大的一只，并非每张照片中的每只鸟都能检出。默认 CPU 推理便于部署，批量耗时受处理器、照片数量和磁盘速度影响。
-
-鸟种识别使用 BioCLIP 2 图像向量与预计算候选向量比较，当前界面使用中国鸟类候选表，按每个自动或手动框分别识别。候选集合与分类版本会影响名称和结果；模型返回候选中最接近的物种，不能保证实际鸟种一定在候选表内。显示的识别置信度采用官方模型 logit scale 对当前候选相似度进行 softmax，表示候选之间的相对竞争，未经识别准确率校准；即使错误候选也可能得到高值。悬停显示 `0.412` 等原始余弦相似度及相近候选，不将原始数值直接改成百分比，也不提供清晰度评分或最佳照片推荐。大模型加载和逐鸟推理会额外占用内存，该部分不计入 512 MiB 预览缓存预算。
-
-背景分组使用图像特征而非大型视觉语义模型。相近颜色但不同环境可能误合组，剧烈曝光或取景变化可能误拆组；阈值与拆组用于人工校正。按当前列表顺序处理，不按拍摄时间重新排序。
-
-当前不包含视频、云端同步、画质自动排序及原片路径自动重定位，也不提供导出预览、鸟种批量应用或单独恢复自动结果入口。RAW 验证仅覆盖实测机型和压缩模式，尼康 Z6III HE 测试样片不受支持，不代表整个品牌全部机型均可解码。JPG/RAW 鸟框自动几何映射尚未验证，切源时按原归一化位置保留虚框并提示核对，可继续编辑，或使用“重新识别本张”重建；该位置状态不阻止按已有鸟种导出。工程不打包照片，也不实时监视外部文件变化。v1 工程沿用旧同名去重规则；新导入及 v2 / v3 工程按完整路径检查重复，可以保留不同目录的同名照片。
-
-## 第三方许可
-
-ONNX Runtime 1.20.1 使用 MIT License。.NET 与 WPF 的许可和运行库第三方说明随发布产物保留。
-
-[BioCLIP 2](https://huggingface.co/imageomics/bioclip-2) 的模型与代码使用 MIT License；当前中国候选名单和中文名取自[中国科学院《中国生物物种名录》2023 v1.1](https://doi.org/10.15468/ae6ush)，来源许可为 **CC BY-NC 4.0**。两者需分别保留来源与许可，含该候选数据的分发受非商业条件约束，不能把整个鸟种资源包视为仅 MIT。具体来源、固定版本及资源清单见 [第三方说明](THIRD_PARTY_NOTICES.md) 和鸟种资源目录中的元数据。
-
-**开发与再次发布时请注意：YOLOv10 模型发布者标注 AGPL-3.0，且[上游 YOLOv10](https://github.com/THU-MIG/yolov10)采用 GNU Affero GPL v3。** 含该模型的发布包需要按上游许可处理版权、许可文本和对应源码义务；不要把整个含模型分发物标为仅 MIT 或默认闭源可商用。变更分发方式、公开发行或商业集成前应核实相应许可条件，或替换成拥有适用授权的模型。见 [第三方说明](THIRD_PARTY_NOTICES.md) 和 `licenses` 目录。
+GitHub：[yyx263/BirdPhotoSelector](https://github.com/yyx263/BirdPhotoSelector)。

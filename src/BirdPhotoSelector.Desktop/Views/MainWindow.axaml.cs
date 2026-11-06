@@ -283,7 +283,7 @@ public sealed partial class MainWindow : Window
     /// <summary>帮助包含真实快捷键及可访问的项目来源。</summary>
     private async void ShowHelp(object? sender, RoutedEventArgs e) => await GuardUi(async () =>
     {
-        var result = await PromptDialog.AskAsync(this, "羽选 v2.0.0-alpha.5", "添加本地 JPG / RAW 照片，或打开已有 JSON 工程。\n\n方向键 / WASD：连续切图（到组首尾自动跨组）\nPage Up / Down：切换组\n1 / 2 / 3 / 4：未标记 / 舍弃 / 保留 / 精选\n右侧滚轮：缩放；左键拖动：平移\nR：还原鸟类视图\nCtrl / Command + Z：撤销鸟种/选区编辑\nCtrl / Command + S：保存工程\n\n每五分钟自动保存有变更的工程。未命名工程保存在本机恢复目录。\n\nhttps://github.com/yyx263/BirdPhotoSelector", ("关闭", PromptResult.Cancel), ("打开 GitHub", PromptResult.Continue));
+        var result = await PromptDialog.AskAsync(this, "羽选 v2.0.0-alpha.6", "添加本地 JPG / RAW 照片，或打开已有 JSON 工程。\n\n方向键 / WASD：连续切图（到组首尾自动跨组）\nPage Up / Down：切换组\n1 / 2 / 3 / 4：未标记 / 舍弃 / 保留 / 精选\n右侧滚轮：缩放；左键拖动：平移\nR：还原鸟类视图\nCtrl / Command + Z：撤销鸟种/选区编辑\nCtrl / Command + S：保存工程\n\n每五分钟自动保存有变更的工程。未命名工程保存在本机恢复目录。\n\nhttps://github.com/yyx263/BirdPhotoSelector", ("关闭", PromptResult.Cancel), ("打开 GitHub", PromptResult.Continue));
         if (result == PromptResult.Continue && !_closed) await Launcher.LaunchUriAsync(new Uri("https://github.com/yyx263/BirdPhotoSelector"));
     });
     /// <summary>先结束当前 Closing 回调，再异步确认；禁止在关闭过程直接打开模态窗口。</summary>

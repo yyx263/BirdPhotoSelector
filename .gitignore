@@ -2,24 +2,6 @@
 bin/
 obj/
 publish/
-# Preserve verification source while keeping generated/test-support output ignored.
-Tests/*
-!Tests/*Checks.cs
-!Tests/BirdPhotoSelector.SmokeTests.csproj
-!Tests/Program.cs
-!Tests/TestServices.cs
-!Tests/Imaging.Core/
-!Tests/Imaging.Core/*.cs
-!Tests/Imaging.Core/*.csproj
-!Tests/Application.Core/
-!Tests/Application.Core/*.cs
-!Tests/Application.Core/*.csproj
-!Tests/PortableAdapters/
-!Tests/PortableAdapters/*.cs
-!Tests/PortableAdapters/*.csproj
-!Tests/Desktop/
-!Tests/Desktop/*.cs
-!Tests/Desktop/*.csproj
 artifacts/
 # Local release archives belong in GitHub Releases.
 /*.zip

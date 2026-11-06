@@ -18,4 +18,8 @@
 /licenses/MicroCom-MIT.txt -text
 /licenses/TmdsDBus-MIT.txt -text
 /licenses/DotNetRuntime-*.txt -text whitespace=-blank-at-eol,-blank-at-eof
-/licenses/WindowsDesktopRuntime-LICENSE.txt -text whitespace=-blank-at-eol,-blank-at-eof
+/licenses/LLVM-*.txt -text whitespace=-blank-at-eol,-blank-at-eof
+/licenses/Zig-MIT.txt -text whitespace=-blank-at-eol,-blank-at-eof
+*.py text eol=lf
+*.sh text eol=lf
+*.tbd text eol=lf

@@ -7,7 +7,11 @@ internal static class Program
 {
     /// <summary>主线程运行桌面事件循环；工程或照片参数由主窗口在打开后处理。</summary>
     [STAThread]
-    private static void Main(string[] args) => BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
+    private static int Main(string[] args)
+    {
+        if (args.Length == 2 && args[0] == "--self-test") return Diagnostics.PackageDiagnostics.Run(args[1]);
+        return BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
+    }
     /// <summary>同时供真实桌面和无窗口验证入口复用相同应用主题、字体与渲染配置。</summary>
     public static AppBuilder BuildAvaloniaApp() => AppBuilder.Configure<App>().UsePlatformDetect().LogToTrace();
 }

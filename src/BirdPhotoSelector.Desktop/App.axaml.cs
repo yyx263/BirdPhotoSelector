@@ -14,7 +14,12 @@ public sealed partial class App : Application
     public override void OnFrameworkInitializationCompleted()
     {
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
-            desktop.MainWindow = new MainWindow { StartupFiles = desktop.Args ?? [] };
+            {
+            string[] args = desktop.Args ?? [];
+            var window = new MainWindow { StartupFiles = args.Length == 2 && args[0] == "--smoke-test" ? [] : args };
+            desktop.MainWindow = window;
+            if (args.Length == 2 && args[0] == "--smoke-test") Diagnostics.PackageDiagnostics.AttachWindow(window, args[1]);
+        }
         base.OnFrameworkInitializationCompleted();
     }
 }

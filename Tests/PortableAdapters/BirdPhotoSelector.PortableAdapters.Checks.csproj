@@ -8,8 +8,6 @@
     <ProjectReference Include="../../src/BirdPhotoSelector.Imaging.Portable/BirdPhotoSelector.Imaging.Portable.csproj" />
     <ProjectReference Include="../../src/BirdPhotoSelector.Platform/BirdPhotoSelector.Platform.csproj" />
     <ProjectReference Include="../../src/BirdPhotoSelector.Catalog/BirdPhotoSelector.Catalog.csproj" />
-    <Compile Include="../SpeciesSearchChecks.cs" Link="Shared/SpeciesSearchChecks.cs" />
-    <Compile Include="../RawExposureBiasChecks.cs" Link="Shared/RawExposureBiasChecks.cs" />
-    <None Include="../../.tools/raw-decoder/*.dll;../../.tools/raw-decoder/*.so*;../../.tools/raw-decoder/*.dylib" Link="%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="$(BpsNativeDirectory)*.dll;$(BpsNativeDirectory)*.so*;$(BpsNativeDirectory)*.dylib" Link="%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>
