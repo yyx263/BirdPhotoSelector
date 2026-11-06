@@ -24,7 +24,7 @@ internal static class ExportConflictChecks
             bool Clean(string directory) => !Directory.EnumerateFiles(directory, ".BirdPhotoSelector-*", SearchOption.AllDirectories).Any();
             Task<ExportConflictDecision> Overwrite(ExportConflict _, CancellationToken __) => Task.FromResult(new ExportConflictDecision(ExportConflictAction.Overwrite));
             Task<ExportConflictDecision> Rename(ExportConflict _, CancellationToken __) => Task.FromResult(new ExportConflictDecision(ExportConflictAction.Rename));
-            var service = new ExportService(File.Delete); // Random generated fixtures only; no user files/recycle dialogs.
+            var service = TestServices.Export(File.Delete); // Random generated fixtures only; no user files/recycle dialogs.
 
             var identical = Photo("identical"); string identicalOut = Folder("identical-out");
             File.Copy(identical.FilePath, Path.Combine(identicalOut, identical.FileName));
@@ -165,7 +165,7 @@ internal static class ExportConflictChecks
             {
                 var faultPhoto = Photo("copy-fault-" + corrupt); string faultOut = Folder("copy-fault-out-" + corrupt);
                 string faultTarget = Put(faultOut, faultPhoto.FileName);
-                var faulty = new ExportService(File.Delete, async (source, output, token) =>
+                var faulty = TestServices.Export(File.Delete, async (source, output, token) =>
                 {
                     if (!corrupt) { await output.WriteAsync(new byte[] { 1 }, token); throw new IOException("Injected interrupted copy"); }
                     var bytes = new byte[checked((int)source.Length)]; await source.ReadExactlyAsync(bytes, token);
@@ -189,7 +189,7 @@ internal static class ExportConflictChecks
             var canceled = Photo("cancel-copy"); string canceledOut = Folder("cancel-copy-out"); string canceledTarget = Put(canceledOut, canceled.FileName);
             using (var cancellation = new CancellationTokenSource())
             {
-                var cancelService = new ExportService(File.Delete, async (_, output, token) =>
+                var cancelService = TestServices.Export(File.Delete, async (_, output, token) =>
                 { await output.WriteAsync(new byte[] { 1 }, token); cancellation.Cancel(); token.ThrowIfCancellationRequested(); });
                 var canceledResult = await cancelService.ExportAsync(new[] { canceled }, canceledOut, true, cancellation.Token, conflictResolver: Overwrite);
                 Check(canceledResult.CanceledFileCount == 1 && File.Exists(canceled.FilePath) && File.ReadAllText(canceledTarget) == "old generated target" && Clean(canceledOut),
@@ -204,7 +204,7 @@ internal static class ExportConflictChecks
                   File.Exists(cancelFirst.FilePath) && File.Exists(cancelSecond.FilePath), "canceling a conflict ends the entire export rather than continuing to the next original");
 
             var late = Photo("late"); string lateOut = Folder("late-out"); string lateTarget = Path.Combine(lateOut, late.FileName); int latePrompts = 0;
-            var lateService = new ExportService(File.Delete, async (source, output, token) =>
+            var lateService = TestServices.Export(File.Delete, async (source, output, token) =>
             { File.WriteAllText(lateTarget, "appeared during copy"); await source.CopyToAsync(output, token); });
             var lateResult = await lateService.ExportAsync(new[] { late }, lateOut, false, conflictResolver: (conflict, token) =>
             { latePrompts++; return Rename(conflict, token); });

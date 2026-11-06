@@ -27,7 +27,7 @@ internal static class SinglePhotoRecognitionChecks
             var match = new SpeciesMatch("大山雀", "Parus major", .65, Confidence: .86);
             BirdDetectionResult Detected() => new(Box(.1, .12), "已定位两只鸟")
             { Birds = new[] { Box(.1, .12), Box(.5, .30) } };
-            SinglePhotoRecognitionService SuccessService() => new(
+            SinglePhotoRecognitionService SuccessService() => TestServices.Single(
                 detectorOverride: (_, token) => { token.ThrowIfCancellationRequested(); return Detected(); },
                 recognizerOverride: (_, _, _, token) => { token.ThrowIfCancellationRequested(); return new(match, "本张新结果"); });
             var photo = Photo(path);
@@ -80,19 +80,19 @@ internal static class SinglePhotoRecognitionChecks
                       Rejected(() => result.ApplyTo(subject, allowEmpty: true)) && Unchanged(subject, state, birds), description);
             }
             await Failure("a missing detector preserves every old region, species, selected number and saved view",
-                () => new(detectorOverride: (_, _) => new(null, "定位模型缺失", true),
+                () => TestServices.Single(detectorOverride: (_, _) => new(null, "定位模型缺失", true),
                     recognizerOverride: (_, _, _, _) => throw new InvalidOperationException("must not recognize without localization")));
             await Failure("a localization exception cannot be interpreted as a successful empty detection",
-                () => new(detectorOverride: (_, _) => throw new IOException("generated localization fault")));
+                () => TestServices.Single(detectorOverride: (_, _) => throw new IOException("generated localization fault")));
             await Failure("an unreadable current image cannot erase old species or be committed as an empty result",
-                () => new(loaderOverride: (_, _) => throw new InvalidDataException("generated decode fault")));
+                () => TestServices.Single(loaderOverride: (_, _) => throw new InvalidDataException("generated decode fault")));
             await Failure("an invalid localization box is a failure instead of a request to clear the previous regions",
-                () => new(detectorOverride: (_, _) => new(new BirdBox { X = -.5, Width = .1, Height = .1 }, "invalid")));
+                () => TestServices.Single(detectorOverride: (_, _) => new(new BirdBox { X = -.5, Width = .1, Height = .1 }, "invalid")));
             await Failure("a missing species model after successful localization keeps all old manual and automatic results",
-                () => new(detectorOverride: (_, _) => Detected(), recognizerOverride: (_, _, _, _) => new(null, "鸟种模型缺失", true)));
+                () => TestServices.Single(detectorOverride: (_, _) => Detected(), recognizerOverride: (_, _, _, _) => new(null, "鸟种模型缺失", true)));
             int recognized = 0;
             await Failure("failure on a later new bird never applies an earlier partially recognized result",
-                () => new(detectorOverride: (_, _) => Detected(), recognizerOverride: (_, _, _, _) =>
+                () => TestServices.Single(detectorOverride: (_, _) => Detected(), recognizerOverride: (_, _, _, _) =>
                     ++recognized == 1 ? new(match, "first complete") : new(null, "second failed", false, "generated species failure")));
 
             foreach (string stage in new[] { "before", "decode", "detect", "recognize" })
@@ -100,7 +100,7 @@ internal static class SinglePhotoRecognitionChecks
                 var subject = Photo(path); var state = State(subject); var birds = subject.Birds.ToArray();
                 using var cancellation = new CancellationTokenSource();
                 if (stage == "before") cancellation.Cancel();
-                using var service = new SinglePhotoRecognitionService(
+                using var service = TestServices.Single(
                     loaderOverride: (source, token) =>
                     { if (stage == "decode") cancellation.Cancel(); token.ThrowIfCancellationRequested(); return BirdPhotoSelector.Imaging.Windows.WpfImageBridge.FromBitmap(ImageLoader.Load(source)); },
                     detectorOverride: (_, token) =>
@@ -116,7 +116,7 @@ internal static class SinglePhotoRecognitionChecks
 
             var emptyPhoto = Photo(path); var emptyState = State(emptyPhoto); var oldEmptyBirds = emptyPhoto.Birds.ToArray();
             int unexpectedRecognitions = 0;
-            using (var emptyService = new SinglePhotoRecognitionService(detectorOverride: (_, _) => new(null, "正常完成但未检测到鸟"),
+            using (var emptyService = TestServices.Single(detectorOverride: (_, _) => new(null, "正常完成但未检测到鸟"),
                 recognizerOverride: (_, _, _, _) => { unexpectedRecognitions++; return new(match, "unexpected"); }))
             {
                 var empty = await emptyService.RebuildAsync(emptyPhoto);
@@ -142,7 +142,7 @@ internal static class SinglePhotoRecognitionChecks
             sourceSwitch.AddAsset(raw); sourceSwitch.RemoveAsset(oldJpg.Id);
             Check(sourceSwitch.GeometryStatus == PhotoGeometryStatus.NeedsReview && sourceSwitch.GeometryReference?.AssetId == oldJpg.Id,
                 "the rebuild fixture starts with the old JPG frame requiring review on its new RAW source");
-            using (var service = new SinglePhotoRecognitionService(loaderOverride: (_, _) => BirdPhotoSelector.Imaging.Windows.WpfImageBridge.FromBitmap(image),
+            using (var service = TestServices.Single(loaderOverride: (_, _) => BirdPhotoSelector.Imaging.Windows.WpfImageBridge.FromBitmap(image),
                 detectorOverride: (_, _) => Detected(), recognizerOverride: (_, _, china, _) =>
                 { Check(china, "single-photo rebuilding retains the selected China candidate scope"); return new(match, "new RAW evidence"); }))
             {
@@ -189,7 +189,7 @@ internal static class SinglePhotoRecognitionChecks
             }
             string duringPath = Path.Combine(root, "changed-during-read.jpg"); File.Copy(path, duringPath);
             var duringPhoto = Photo(duringPath); var duringState = State(duringPhoto); var duringBirds = duringPhoto.Birds.ToArray();
-            using (var service = new SinglePhotoRecognitionService(detectorOverride: (_, _) => new(Box(.3, .2), "one bird"),
+            using (var service = TestServices.Single(detectorOverride: (_, _) => new(Box(.3, .2), "one bird"),
                 recognizerOverride: (_, _, _, _) =>
                 { var bytes = File.ReadAllBytes(duringPath); bytes[^1] ^= 1; File.WriteAllBytes(duringPath, bytes); return new(match, "complete"); }))
             {
@@ -213,7 +213,7 @@ internal static class SinglePhotoRecognitionChecks
             if (!string.IsNullOrWhiteSpace(model) && !string.IsNullOrWhiteSpace(assets) && !string.IsNullOrWhiteSpace(sample))
             {
                 var nativePhoto = Photo(Path.GetFullPath(sample));
-                using var service = new SinglePhotoRecognitionService(model, assets);
+                using var service = TestServices.Single(model, assets);
                 var result = await service.RebuildAsync(nativePhoto);
                 Check(result.Success && result.Birds.Count > 0 && result.Birds.All(bird => bird.Species is { IsValid: true }),
                     "the real detector and BioCLIP model produce a complete detached single-photo replacement");

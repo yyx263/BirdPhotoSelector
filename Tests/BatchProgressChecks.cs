@@ -27,7 +27,7 @@ internal static class BatchProgressChecks
             WriteJpeg(second);
             await File.WriteAllTextAsync(invalid, "invalid JPEG fixture");
             var importProgress = new List<PhotoOperationProgress>();
-            var imported = await new PhotoImportService().ImportAsync(
+            var imported = await TestServices.Import().ImportAsync(
                 new[] { first, first, unsupported, invalid, second }, Array.Empty<string>(),
                 progress: new InlineProgress(importProgress.Add));
             Check(imported.Added.Count == 2 && imported.SkippedDuplicate == 1 &&
@@ -41,7 +41,7 @@ internal static class BatchProgressChecks
                   importProgress.Last() is { Completed: 5, CurrentIndex: 5, FileCompleted: true },
                 "import progress identifies the current full path, filename and input index");
 
-            var exporter = new ExportService();
+            var exporter = TestServices.Export();
             string destination = Directory.CreateDirectory(Path.Combine(root, "export")).FullName;
             await File.WriteAllTextAsync(Path.Combine(destination, "first.jpg"), "collision sentinel");
             var missing = new PhotoItem { FilePath = Path.Combine(root, "missing.jpg") };
@@ -97,7 +97,7 @@ internal static class BatchProgressChecks
             bool importCanceled = false;
             try
             {
-                await new PhotoImportService().ImportAsync(new[] { first, second }, Array.Empty<string>(), cancelImport.Token,
+                await TestServices.Import().ImportAsync(new[] { first, second }, Array.Empty<string>(), cancelImport.Token,
                     new InlineProgress(_ => cancelImport.Cancel()));
             }
             catch (OperationCanceledException) { importCanceled = true; }

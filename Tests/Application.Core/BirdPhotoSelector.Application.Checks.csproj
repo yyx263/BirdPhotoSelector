@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <NuGetAudit>false</NuGetAudit>
+    <RestorePackagesPath>$(MSBuildThisFileDirectory)../../.tools/packages</RestorePackagesPath>
+  </PropertyGroup>
+  <ItemGroup><ProjectReference Include="../../src/BirdPhotoSelector.Application/BirdPhotoSelector.Application.csproj" /></ItemGroup>
+</Project>

@@ -1,6 +1,6 @@
 <Project>
   <PropertyGroup>
     <!-- v2.0 迁移期版本；正式发布前与桌面宿主同步升级运行时和发布编号。 -->
-    <Version>2.0.0-alpha.1</Version>
+    <Version>2.0.0-alpha.2</Version>
   </PropertyGroup>
 </Project>

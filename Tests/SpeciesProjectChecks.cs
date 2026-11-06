@@ -38,7 +38,7 @@ internal static class SpeciesProjectChecks
             var recent = new RecentSpeciesHistory();
             for (int index = 0; index < 12; index++) recent.Use(new("鸟" + index, "Testus species" + index));
             recent.Use(identity);
-            var projects = new ProjectService();
+            var projects = TestServices.Projects();
             string path = Path.Combine(root, "project.json");
             await projects.SaveAsync(path, new[] { group }, .5, recentSpecies: recent.Items);
             var document = JsonNode.Parse(await File.ReadAllTextAsync(path))!;
@@ -63,7 +63,7 @@ internal static class SpeciesProjectChecks
             Check(loaded.Groups.Single().Photos[1].Birds.Single().ManualSpecies == identity &&
                   loaded.Groups.Single().Photos[1].GeometryStatus == PhotoGeometryStatus.Unspecified,
                 "manual-only photos reopen without inventing a location or a geometry review warning");
-            var autosave = new AutoSaveService(Path.Combine(root, "recoveries"));
+            var autosave = TestServices.AutoSave(Path.Combine(root, "recoveries"));
             var recovery = await autosave.SaveAsync(loaded.Groups, .5, null, 5, recentSpecies: loaded.RecentSpecies);
             var recovered = await projects.LoadAsync(recovery.Path);
             Check(recovered.RecentSpecies.SequenceEqual(loaded.RecentSpecies) &&

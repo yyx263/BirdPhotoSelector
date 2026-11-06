@@ -189,7 +189,7 @@ internal static class RawNativeChecks
             {
                 outcome.Input = original; outcome.InputBytes = new FileInfo(original).Length;
                 outcome.Sha256Before = await Hash(original);
-                var result = await new PhotoImportService().ImportAsync(new[] { original }, Array.Empty<PhotoItem>());
+                var result = await TestServices.Import().ImportAsync(new[] { original }, Array.Empty<PhotoItem>());
                 var photo = result.Added.Single();
                 outcome.Info = RawImageDecoder.ReadInfo(original);
                 outcome.PreviewWidth = photo.Thumbnail?.PixelWidth; outcome.PreviewHeight = photo.Thumbnail?.PixelHeight;

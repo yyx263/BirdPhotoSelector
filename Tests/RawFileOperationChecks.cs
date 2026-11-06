@@ -34,7 +34,7 @@ internal static class RawFileOperationChecks
             string Destination(string name) => Directory.CreateDirectory(Path.Combine(root, "out-" + name)).FullName;
             string PathOf(PhotoItem photo, PhotoAssetKind kind) => photo.Assets.Single(asset => asset.Kind == kind).CanonicalPath;
             bool BothExist(PhotoItem photo) => photo.Assets.All(asset => File.Exists(asset.CanonicalPath));
-            var service = new ExportService(recycleSource: File.Delete); // Generated random fixtures only.
+            var service = TestServices.Export(recycleSource: File.Delete); // Generated random fixtures only.
 
             var scopes = Pair("scopes");
             Check(ExportService.CreatePlan(new[] { scopes }).FileCount == 2 &&
@@ -72,7 +72,7 @@ internal static class RawFileOperationChecks
                 "a verified partial copy remains explicit while associated originals are retained");
 
             var faultPhoto = Pair("copy-fault"); string faultOut = Destination("copy-fault"); int copies = 0;
-            var faultService = new ExportService(File.Delete, async (source, output, token) =>
+            var faultService = TestServices.Export(File.Delete, async (source, output, token) =>
             {
                 if (++copies == 2) { await output.WriteAsync(new byte[] { 1, 2, 3 }, token); throw new IOException("Injected partial copy failure."); }
                 await source.CopyToAsync(output, token);
@@ -83,7 +83,7 @@ internal static class RawFileOperationChecks
                 "a partial second copy is cleaned while its verified sibling and both originals are preserved");
 
             var hashPhoto = Pair("bad-hash"); string hashOut = Destination("bad-hash");
-            var hashService = new ExportService(File.Delete, async (source, output, token) =>
+            var hashService = TestServices.Export(File.Delete, async (source, output, token) =>
             {
                 var bytes = new byte[checked((int)source.Length)]; await source.ReadExactlyAsync(bytes, token);
                 bytes[0] ^= 1; await output.WriteAsync(bytes, token);
@@ -142,7 +142,7 @@ internal static class RawFileOperationChecks
                   allRemoval.Assets.Count == 0, "only a logical photo with every member successfully removed is returned for removal from the session");
 
             var partial = Pair("partial-delete"); string partialRaw = PathOf(partial, PhotoAssetKind.Raw);
-            var partialService = new ExportService(path => { if (path == partialRaw) throw new IOException("Injected recycling failure."); File.Delete(path); });
+            var partialService = TestServices.Export(path => { if (path == partialRaw) throw new IOException("Injected recycling failure."); File.Delete(path); });
             var partialResult = await partialService.DeleteAsync(ExportService.CreatePlan(new[] { partial }));
             partialResult.ApplyRemovedAssets(new[] { partial });
             Check(partialResult.RemovedFileCount == 1 && partialResult.FailedFileCount == 1 && partialResult.SourceRemoved.Count == 0 &&
@@ -228,7 +228,7 @@ internal static class RawFileOperationChecks
             Check(noDirectory && !Directory.Exists(Path.Combine(root, "absent-target")), "export still refuses to create a missing destination directory");
 
             var postError = Pair("post-shell-error");
-            var postErrorResult = await new ExportService(path => { File.Delete(path); throw new IOException("Shell reported after moving."); })
+            var postErrorResult = await TestServices.Export(path => { File.Delete(path); throw new IOException("Shell reported after moving."); })
                 .DeleteAsync(ExportService.CreatePlan(new[] { postError }, PhotoFileScope.JpgOnly));
             Check(postErrorResult.RemovedFileCount == 1 && postErrorResult.Errors.Count == 1,
                 "a shell diagnostic after an actual removal keeps membership accounting aligned with the filesystem");

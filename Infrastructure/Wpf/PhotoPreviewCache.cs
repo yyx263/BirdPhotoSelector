@@ -15,13 +15,13 @@ public sealed class PhotoPreviewCache : IDisposable
 
     /// <summary>创建显示适配；可注入 Windows 位图解码函数，用于现有界面验证。</summary>
     public PhotoPreviewCache(long budgetBytes = DefaultBudgetBytes, Func<string, BitmapSource>? loader = null,
-        Func<string, CancellationToken, BitmapSource>? cancellableLoader = null)
+        Func<string, CancellationToken, BitmapSource>? cancellableLoader = null, IPhotoImageDecoder? images = null)
     {
         if (loader is not null && cancellableLoader is not null) throw new ArgumentException("只能指定一种预览解码器。");
         Func<string, CancellationToken, ImageFrame> decode = cancellableLoader is not null
             ? (path, token) => WpfImageBridge.FromBitmap(cancellableLoader(path, token))
             : loader is not null ? (path, _) => WpfImageBridge.FromBitmap(loader(path))
-            : (path, token) => PhotoImaging.Decoder.Decode(path, cancellationToken: token);
+            : (path, token) => (images ?? DesktopComposition.Images).Decode(path, cancellationToken: token);
         _cache = new PreviewImageCache(decode, budgetBytes);
     }
     /// <summary>保留帧预算，解码临时内存和显示资源另计。</summary>

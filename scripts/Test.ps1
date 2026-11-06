@@ -1,4 +1,4 @@
-[CmdletBinding()]
+﻿[CmdletBinding()]
 param([switch]$IncludeModel)
 
 $ErrorActionPreference = 'Stop'
@@ -17,6 +17,11 @@ if ($IncludeModel) {
 }
 Push-Location $ProjectRoot
 try {
+    foreach ($PortableProject in @('Tests/Imaging.Core/BirdPhotoSelector.Imaging.Checks.csproj',
+            'Tests/Application.Core/BirdPhotoSelector.Application.Checks.csproj')) {
+        & $Dotnet run --project $PortableProject -c Release
+        if ($LASTEXITCODE -ne 0) { throw "Portable verification failed: $PortableProject" }
+    }
     & $Dotnet restore Tests/BirdPhotoSelector.SmokeTests.csproj --configfile NuGet.Config
     if ($LASTEXITCODE -ne 0) { throw 'Test dependency restore failed.' }
     & $Dotnet run --project Tests/BirdPhotoSelector.SmokeTests.csproj -c Release --no-restore

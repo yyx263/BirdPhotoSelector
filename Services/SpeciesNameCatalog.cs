@@ -51,37 +51,6 @@ public sealed class SpeciesNameCatalog
 
     public IReadOnlyList<SpeciesIdentity> Search(string? query) => _search.Search(query);
 
-    internal static SpeciesIdentity Normalize(SpeciesIdentity identity)
-    {
-        ArgumentNullException.ThrowIfNull(identity);
-        if (!identity.IsValid) throw new ArgumentException("鸟种必须包含学名。", nameof(identity));
-        return new(identity.ChineseName?.Trim() ?? "", identity.ScientificName.Trim(),
-            string.IsNullOrWhiteSpace(identity.SourceTaxonId) ? null : identity.SourceTaxonId.Trim());
-    }
-}
-
-public sealed class RecentSpeciesHistory : INotifyPropertyChanged
-{
-    public const int Limit = 10;
-    private readonly List<SpeciesIdentity> _items = new();
-    public IReadOnlyList<SpeciesIdentity> Items => _items.AsReadOnly();
-    public event PropertyChangedEventHandler? PropertyChanged;
-    public void Use(SpeciesIdentity identity)
-    {
-        var normalized = SpeciesNameCatalog.Normalize(identity);
-        _items.RemoveAll(item => item.Key == normalized.Key);
-        _items.Insert(0, normalized);
-        if (_items.Count > Limit) _items.RemoveRange(Limit, _items.Count - Limit);
-        Notify();
-    }
-    public void Replace(IEnumerable<SpeciesIdentity> identities)
-    {
-        ArgumentNullException.ThrowIfNull(identities);
-        var unique = new HashSet<string>(StringComparer.Ordinal);
-        var replacement = identities.Where(item => item is { IsValid: true })
-            .Select(SpeciesNameCatalog.Normalize).Where(item => unique.Add(item.Key)).Take(Limit).ToArray();
-        _items.Clear(); _items.AddRange(replacement); Notify();
-    }
-    public void Clear() { _items.Clear(); Notify(); }
-    private void Notify() => PropertyChanged?.Invoke(this, new(nameof(Items)));
+    /// <summary>名称文件和人工编辑共用领域归一化规则，检索索引不参与业务数据修改。</summary>
+    internal static SpeciesIdentity Normalize(SpeciesIdentity identity) => SpeciesIdentity.Normalize(identity);
 }

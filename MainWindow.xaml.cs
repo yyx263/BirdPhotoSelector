@@ -13,14 +13,15 @@ namespace BirdPhotoSelector;
 
 public partial class MainWindow : Window
 {
+    private readonly ApplicationServices _services;
     private readonly MainViewModel _vm = new();
-    private readonly PhotoImportService _import = new();
-    private readonly ProjectService _projects = new();
-    private readonly ExportService _export = new();
-    private readonly PhotoPreviewCache _previewCache = new(512L * 1024 * 1024);
-    private readonly AutoSaveService _autoSave = new();
-    private readonly SpeciesEditHistory _speciesEdits = new();
-    private readonly RecentSpeciesHistory _recentSpecies = new();
+    private readonly PhotoImportService _import;
+    private readonly ProjectService _projects;
+    private readonly ExportService _export;
+    private readonly PhotoPreviewCache _previewCache;
+    private readonly AutoSaveService _autoSave;
+    private readonly SpeciesEditHistory _speciesEdits;
+    private readonly RecentSpeciesHistory _recentSpecies;
     private SpeciesNameCatalog? _speciesCatalog;
     private readonly SemaphoreSlim _projectSaveGate = new(1, 1);
     private readonly CancellationTokenSource _lifetime = new();
@@ -39,8 +40,16 @@ public partial class MainWindow : Window
     private bool _closeRequestPending;
     private bool _isClosed;
 
-    public MainWindow()
+    /// <summary>WPF/XAML 默认入口，由 Windows 宿主集中选择各项后端。</summary>
+    public MainWindow() : this(DesktopComposition.Create()) { }
+
+    /// <summary>接收完整业务依赖图；窗口只负责控件、调度和对话框，不构造业务默认实现。</summary>
+    public MainWindow(ApplicationServices services)
     {
+        _services = services ?? throw new ArgumentNullException(nameof(services));
+        _speciesEdits = _vm.SpeciesEdits; _recentSpecies = _vm.RecentSpecies;
+        _import = services.Import; _projects = services.Projects; _export = services.Export; _autoSave = services.AutoSave;
+        _previewCache = new(512L * 1024 * 1024, images: services.Images);
         InitializeComponent();
         DataContext = _vm;
         _vm.PhotoChanged += LoadPreview;
@@ -97,9 +106,9 @@ public partial class MainWindow : Window
         try
         {
             if (_isClosed || version != _previewVersion) return;
-            RawImageInfo? rawInfo = null;
+            PhotoImageInfo? rawInfo = null;
             if (photo.ActivePreviewAsset is { Kind: PhotoAssetKind.Raw } raw)
-                rawInfo = await Task.Run(() => RawImageDecoder.ReadInfo(raw.CanonicalPath, token), token);
+                rawInfo = await Task.Run(() => _services.Images.ReadInfo(raw.CanonicalPath, token), token);
             if (_isClosed || version != _previewVersion) return;
             var pending = _previewCache.GetAsync(photo, token);
             _previewCache.UpdateNeighborhood(_vm.AllPhotos.ToList(), photo);
@@ -209,8 +218,6 @@ public partial class MainWindow : Window
     private void SetSessionGroups(IEnumerable<PhotoGroup> groups, string? selectedPhotoId = null)
     {
         var snapshot = groups.ToArray();
-        var retained = snapshot.SelectMany(group => group.Photos).ToHashSet();
-        if (_vm.AllPhotos.Any(photo => !retained.Contains(photo))) _speciesEdits.Clear();
         _vm.SetGroups(snapshot, selectedPhotoId);
         _previewCache.TrimToPaths(_vm.AllPhotos.Select(p => p.FilePath));
         UpdateSpeciesUndoButton();
@@ -308,7 +315,7 @@ public partial class MainWindow : Window
             var selectedId = _vm.CurrentPhoto?.Id;
             var photos = _vm.AllPhotos.ToList();
             var progress = OperationProgress<AnalyzeProgress>(p => { _vm.Progress = p.Total > 0 ? p.Completed * 100.0 / p.Total : 0; _vm.Status = p.Message; });
-            using var analysis = new AnalysisService();
+            using var analysis = _services.CreateAnalysis();
             var result = await analysis.AnalyzeAsync(photos, GroupingThreshold.ToActual(_vm.Threshold), progress, ct);
             ct.ThrowIfCancellationRequested();
             foreach (var outcome in result.Outcomes)
@@ -342,7 +349,7 @@ public partial class MainWindow : Window
             _vm.Status = "正在准备鸟类定位与鸟种识别 · 中国鸟种候选…";
             // Keep the large inference session only for this batch, rather than retaining it
             // alongside the preview cache throughout the user's entire picking session.
-            using var recognition = new BirdRecognitionWorkflow();
+            using var recognition = _services.CreateRecognition();
             var result = await recognition.RecognizeAsync(photos, chinaOnly: true, progress, ct);
             ct.ThrowIfCancellationRequested();
             foreach (var outcome in result.Outcomes)
@@ -371,8 +378,7 @@ public partial class MainWindow : Window
     {
         if (!_vm.CanEditBirdRegions || _vm.CurrentPhoto is not { } photo) return false;
         Viewer.CancelManualRegionSelection();
-        if (!_speciesEdits.Clear(photo)) return false;
-        _vm.Dirty = true;
+        if (!_vm.ClearRecognitionResults(photo)) return false;
         Viewer.ShowPhoto(photo, Viewer.CurrentImage as BitmapSource);
         QueueBirdResultSelection(photo, _previewVersion, _speciesListScrollVersion);
         UpdateSpeciesUndoButton();
@@ -389,7 +395,7 @@ public partial class MainWindow : Window
             _vm.Status = "正在重新识别本张 · " + photo.FilePath;
             var progress = OperationProgress<SpeciesProgress>(p =>
             { _vm.Progress = p.Total > 0 ? p.Completed * 100.0 / p.Total : 0; _vm.Status = p.Message; });
-            using var recognition = createRecognition?.Invoke() ?? new SinglePhotoRecognitionService();
+            using var recognition = createRecognition?.Invoke() ?? _services.CreateSinglePhotoRecognition();
             var result = await recognition.RebuildAsync(photo, chinaOnly: true, progress, ct);
             ct.ThrowIfCancellationRequested();
             if (!result.Success)
@@ -436,7 +442,7 @@ public partial class MainWindow : Window
                 Viewer.SelectBird(photo.SelectedBirdIndex);
                 QueueBirdResultSelection(photo, _previewVersion, _speciesListScrollVersion);
                 _vm.Status = $"正在识别手动选区 {bird.DisplayNumber} · 中国鸟种候选…";
-                using var recognition = new BirdSpeciesRecognitionService();
+                using var recognition = _services.CreateSpeciesRecognizer();
                 var result = await Task.Run(() => recognition.Recognize(image, bird.Box, chinaOnly: true, ct), ct);
                 ct.ThrowIfCancellationRequested();
                 if (_isClosed || !photo.Birds.Contains(bird)) return;
@@ -463,8 +469,7 @@ public partial class MainWindow : Window
         bool wasSelected = ReferenceEquals(photo.SelectedBird, bird);
         string removedName = bird.SpeciesName;
         Viewer.CancelManualRegionSelection();
-        if (!_speciesEdits.Delete(photo, bird)) return false;
-        _vm.Dirty = true;
+        if (!_vm.DeleteBirdResult(photo, bird)) return false;
         if (wasSelected)
         {
             if (photo.Birds.Count > 0) Viewer.SelectBird(photo.SelectedBirdIndex);
@@ -529,10 +534,7 @@ public partial class MainWindow : Window
         if (!_vm.CanRate || !ReferenceEquals(_vm.CurrentPhoto, photo) ||
             replaced is not null && !photo.Birds.Contains(replaced)) return false;
         Viewer.CancelManualRegionSelection();
-        if (replaced is null) _speciesEdits.Add(photo, species);
-        else _speciesEdits.Replace(photo, replaced, species);
-        _recentSpecies.Use(species);
-        _vm.Dirty = true;
+        if (!_vm.ApplyManualSpecies(photo, species, replaced)) return false;
         Viewer.SelectBird(photo.SelectedBirdIndex);
         QueueBirdResultSelection(photo, _previewVersion, _speciesListScrollVersion);
         UpdateSpeciesUndoButton();
@@ -554,10 +556,9 @@ public partial class MainWindow : Window
     {
         if (_vm.IsBusy || !_speciesEdits.CanUndo) return false;
         Viewer.CancelManualRegionSelection();
-        var photo = _speciesEdits.Undo();
+        var photo = _vm.UndoSpeciesEdit();
         UpdateSpeciesUndoButton();
-        if (photo is null || !_vm.AllPhotos.Contains(photo)) return false;
-        _vm.Dirty = true;
+        if (photo is null) return false;
         if (!ReferenceEquals(_vm.CurrentPhoto, photo)) _vm.LocatePhoto(photo);
         else if (_vm.IsPreviewReady && Viewer.CurrentImage is BitmapSource image)
         {
@@ -928,5 +929,3 @@ Ctrl+O 添加照片 · Ctrl+S 保存工程 · Ctrl+Z 撤销鸟种编辑
     private void ShowMessage(string message, string title, MessageBoxImage image = MessageBoxImage.Information) => MessageBox.Show(this, message, "羽选 · " + title, MessageBoxButton.OK, image);
     private void ShowDetails(string title, IEnumerable<string> messages) => ShowMessage(string.Join("\n", messages.Take(14)), title, MessageBoxImage.Warning);
 }
-
-

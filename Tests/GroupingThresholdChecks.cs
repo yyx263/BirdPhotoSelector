@@ -38,7 +38,7 @@ internal static class GroupingThresholdChecks
         try
         {
             string path = Path.Combine(root, "project.json");
-            var service = new ProjectService();
+            var service = TestServices.Projects();
             await service.SaveAsync(path, Array.Empty<PhotoGroup>(), .5);
             using (var json = JsonDocument.Parse(await File.ReadAllTextAsync(path)))
             {

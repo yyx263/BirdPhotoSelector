@@ -27,7 +27,7 @@ internal static class SpeciesExportChecks
             }
             string Output(string name) => Directory.CreateDirectory(Path.Combine(root, "out-" + name)).FullName;
             bool Exist(PhotoItem photo) => photo.Assets.All(asset => File.Exists(asset.CanonicalPath));
-            var service = new ExportService(File.Delete); // Generated random fixtures only.
+            var service = TestServices.Export(File.Delete); // Generated random fixtures only.
             var photo = Pair("all");
             photo.Birds.Add(Auto("同一物种别名", " parus MAJOR "));
             var plan = ExportService.CreatePlan(new[] { photo }, groupBySpecies: true);
@@ -105,7 +105,7 @@ internal static class SpeciesExportChecks
                 "one existing destination preserves every original in that photo, does not overwrite it and allows other photos to finish");
 
             var failed = Pair("failed"); int copies = 0;
-            var failing = new ExportService(File.Delete, async (source, output, token) =>
+            var failing = TestServices.Export(File.Delete, async (source, output, token) =>
             {
                 if (++copies == 4) { await output.WriteAsync(new byte[] { 1 }, token); throw new IOException("Injected copy failure."); }
                 await source.CopyToAsync(output, token);
@@ -120,7 +120,7 @@ internal static class SpeciesExportChecks
             using (var cancellation = new CancellationTokenSource())
             {
                 int attempted = 0;
-                var cancelService = new ExportService(File.Delete, async (source, output, token) =>
+                var cancelService = TestServices.Export(File.Delete, async (source, output, token) =>
                 { if (++attempted == 2) cancellation.Cancel(); await source.CopyToAsync(output, token); });
                 var cancelResult = await cancelService.ExportAsync(ExportService.CreatePlan(new[] { canceled }, groupBySpecies: true),
                     Output("canceled"), true, cancellation.Token);
@@ -140,7 +140,7 @@ internal static class SpeciesExportChecks
 
             var protectedPhoto = Pair("protected"); var protectedPlan = ExportService.CreatePlan(new[] { protectedPhoto }, groupBySpecies: true);
             string protectedOut = Output("protected"); int blocked = 0, removals = 0;
-            var protectedService = new ExportService(path =>
+            var protectedService = TestServices.Export(path =>
             {
                 if (removals++ == 0)
                     foreach (string target in Directory.GetFiles(protectedOut, "*", SearchOption.AllDirectories))
@@ -157,7 +157,7 @@ internal static class SpeciesExportChecks
                 "all four copies remain locked while each original is recycled exactly once and committed once");
 
             var partial = Pair("partial"); string partialRaw = partial.Assets.Single(asset => asset.Kind == PhotoAssetKind.Raw).CanonicalPath;
-            var partialService = new ExportService(path =>
+            var partialService = TestServices.Export(path =>
             { if (path == partialRaw) throw new IOException("Injected recycle failure."); File.Delete(path); });
             var partialResult = await partialService.ExportAsync(ExportService.CreatePlan(new[] { partial }, groupBySpecies: true), Output("partial"), true);
             partialResult.ApplyRemovedAssets(new[] { partial });

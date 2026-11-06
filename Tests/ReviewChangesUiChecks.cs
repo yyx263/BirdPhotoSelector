@@ -43,7 +43,7 @@ internal static class ReviewChangesUiChecks
             string currentRaw = Path.ChangeExtension(currentJpg, ".NEF");
             WriteJpeg(currentJpg);
             File.WriteAllText(currentRaw, "Opaque paired RAW. The real JPG is the only preview source in this test.");
-            var imported = new PhotoImportService().ImportAsync(new[] { currentJpg }, Array.Empty<PhotoItem>())
+            var imported = TestServices.Import().ImportAsync(new[] { currentJpg }, Array.Empty<PhotoItem>())
                 .GetAwaiter().GetResult();
             var photo = imported.Added.Single();
             photo.Rating = PhotoRating.Favorite;

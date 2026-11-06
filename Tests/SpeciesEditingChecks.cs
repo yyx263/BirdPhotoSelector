@@ -105,7 +105,7 @@ internal static class SpeciesEditingChecks
             var protectedPhoto = new PhotoItem { FilePath = Path.Combine(root, "not-readable.jpg") };
             history.Add(protectedPhoto, sparrow);
             int detects = 0, recognizes = 0;
-            using (var workflow = new BirdRecognitionWorkflow(detectorOverride: (_, _) =>
+            using (var workflow = TestServices.Workflow(detectorOverride: (_, _) =>
                 { detects++; return new(null, "不应调用"); }, recognizerOverride: (_, _, _, _) =>
                 { recognizes++; return new(null, "不应调用"); }))
             {
@@ -122,7 +122,7 @@ internal static class SpeciesEditingChecks
             }
             var rebuildPhoto = new PhotoItem { FilePath = path };
             history.Add(rebuildPhoto, sparrow);
-            using (var rebuild = new SinglePhotoRecognitionService(detectorOverride: (_, _) => new(Box(), "定位完成"),
+            using (var rebuild = TestServices.Single(detectorOverride: (_, _) => new(Box(), "定位完成"),
                 recognizerOverride: (_, _, _, _) => new(Match(), "识别完成"), loaderOverride: (_, _) => BirdPhotoSelector.Imaging.Windows.WpfImageBridge.FromBitmap(bitmap)))
             {
                 var beforeRebuild = history.Capture(rebuildPhoto, "重新识别本张");
@@ -136,14 +136,14 @@ internal static class SpeciesEditingChecks
                 Check(rebuildPhoto.HasManualSpeciesEdits && rebuildPhoto.Birds.Single().ManualSpecies == sparrow && !rebuildPhoto.Birds[0].HasRegion,
                     "undoing an explicit rebuild restores the manual species and its batch protection");
             }
-            using (var failed = new SinglePhotoRecognitionService(detectorOverride: (_, _) => new(null, "失败", Error: "fixture failure"),
+            using (var failed = TestServices.Single(detectorOverride: (_, _) => new(null, "失败", Error: "fixture failure"),
                 loaderOverride: (_, _) => BirdPhotoSelector.Imaging.Windows.WpfImageBridge.FromBitmap(bitmap)))
             {
                 var result = await failed.RebuildAsync(rebuildPhoto);
                 Check(!result.Success && rebuildPhoto.HasManualSpeciesEdits && rebuildPhoto.Birds[0].ManualSpecies == sparrow,
                     "a failed explicit rebuild retains both manual results and protection");
             }
-            using (var grouping = new AnalysisService())
+            using (var grouping = TestServices.Analysis())
             {
                 var grouped = await grouping.AnalyzeAsync(new[] { rebuildPhoto }, .8);
                 Check(grouped.Outcomes.Single().Birds.Count == 0 && rebuildPhoto.Birds.Single().ManualSpecies == sparrow,

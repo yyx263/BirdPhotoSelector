@@ -97,23 +97,23 @@ internal static class SpeciesRecognitionChecks
 
             var full = Box(0, 0, 1, 1);
             var red = Bitmap(17, 11, (_, _) => (255, 0, 0));
-            var input = SpeciesImagePreprocessor.CreateInput(red, full);
+            var input = WpfSpeciesImagePreprocessor.CreateInput(red, full);
             Check(input.Dimensions.SequenceEqual(new[] { 1, 3, 224, 224 }), "encoder input is RGB float32 NCHW at the model's fixed 224 pixels");
             Check(Near(input[0, 0, 73, 129], (1 - .48145466f) / .26862954f) &&
                 Near(input[0, 1, 73, 129], -.4578275f / .26130258f) &&
                 Near(input[0, 2, 73, 129], -.40821073f / .27577711f),
                 "RGB order and official OpenCLIP mean/std are applied after bicubic resize");
             var longBird = Bitmap(100, 20, (x, _) => x < 30 ? (255, 0, 0) : x > 70 ? (0, 0, 255) : (0, 255, 0));
-            var longInput = SpeciesImagePreprocessor.CreateInput(longBird, Box(.1, .4, .8, .2));
+            var longInput = WpfSpeciesImagePreprocessor.CreateInput(longBird, Box(.1, .4, .8, .2));
             Check(longInput[0, 0, 112, 20] > 1.5f && longInput[0, 2, 112, 205] > 1.5f,
                 "square context with edge extension retains a long bird's head and tail through center cropping");
             var split = Bitmap(160, 80, (x, _) => x < 80 ? (255, 0, 0) : (0, 0, 255));
-            var leftInput = SpeciesImagePreprocessor.CreateInput(split, Box(.05, .25, .25, .5));
-            var rightInput = SpeciesImagePreprocessor.CreateInput(split, Box(.70, .25, .25, .5));
+            var leftInput = WpfSpeciesImagePreprocessor.CreateInput(split, Box(.05, .25, .25, .5));
+            var rightInput = WpfSpeciesImagePreprocessor.CreateInput(split, Box(.70, .25, .25, .5));
             Check(leftInput[0, 0, 112, 112] > 1.5f && rightInput[0, 2, 112, 112] > 1.5f &&
                 rightInput[0, 0, 112, 112] < -1,
                 "each selected bird box creates its own crop rather than reusing the full-photo center");
-            Reject<ArgumentException>(() => SpeciesImagePreprocessor.CreateInput(red, Box(0, 0, 0, 1)),
+            Reject<ArgumentException>(() => WpfSpeciesImagePreprocessor.CreateInput(red, Box(0, 0, 0, 1)),
                 "invalid crop boxes fail before image allocation");
 
             // Generated independently by Pillow 11.0.0, not by the C# implementation.
@@ -127,7 +127,7 @@ internal static class SpeciesRecognitionChecks
             {
                 var pattern = Bitmap(golden.Width, golden.Height, (x, y) =>
                     ((x * 17 + y * 13) % 256, (x * 7 + y * 31) % 256, (x * 47 + y * 3) % 256));
-                var tensor = SpeciesImagePreprocessor.CreateInput(pattern, golden.Box);
+                var tensor = WpfSpeciesImagePreprocessor.CreateInput(pattern, golden.Box);
                 var reconstructed = new byte[224 * 224 * 3];
                 float[] means = { .48145466f, .4578275f, .40821073f }, deviations = { .26862954f, .26130258f, .27577711f };
                 for (int y = 0; y < 224; y++) for (int x = 0; x < 224; x++) for (int channel = 0; channel < 3; channel++)

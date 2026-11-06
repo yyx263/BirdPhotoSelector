@@ -52,13 +52,13 @@ internal static class ImagingIntegrationChecks
             string path = Path.Combine(root, "source.jpg");
             byte[] sourceBytes = { 1, 3, 5, 7 }; await File.WriteAllBytesAsync(path, sourceBytes);
             var decoder = new ManagedDecoder(red);
-            var imported = await new PhotoImportService(decoder).ImportAsync(new[] { path }, Array.Empty<PhotoItem>());
+            var imported = await TestServices.Import(decoder).ImportAsync(new[] { path }, Array.Empty<PhotoItem>());
             var photo = imported.Added.Single();
             Check(imported.Errors.Count == 0 && ReferenceEquals(photo.Thumbnail, red) && photo.Metadata.Camera == "Managed test source",
                 "import delegates header and thumbnail loading to an injected non-WPF decoder");
             Check(decoder.Widths.SequenceEqual(new[] { 160 }) && photo.PixelWidth == 8 && photo.PixelHeight == 4,
                 "import requests a small thumbnail while preserving complete displayed dimensions");
-            using (var grouping = new AnalysisService(images: decoder))
+            using (var grouping = TestServices.Analysis(images: decoder))
             {
                 var grouped = await grouping.AnalyzeAsync(new[] { photo }, .5);
                 Check(grouped.Errors.Count == 0 && grouped.Groups.Single().Single() == photo && decoder.Widths.Last() == 1280,
@@ -69,14 +69,14 @@ internal static class ImagingIntegrationChecks
             { Check(ReferenceEquals(image, red), "localization receives the exact managed decoded frame"); detected++; return new(crop, "located"); }
             SpeciesRecognitionResult Recognize(ImageFrame image, BirdBox box, bool chinaOnly, CancellationToken token)
             { Check(ReferenceEquals(image, red) && chinaOnly, "species recognition shares the same frame and China candidate scope"); recognized++; return new(new("大山雀", "Parus major", .7, Confidence: .9), "recognized"); }
-            using (var workflow = new BirdRecognitionWorkflow(detectorOverride: Detect, recognizerOverride: Recognize, images: decoder))
+            using (var workflow = TestServices.Workflow(detectorOverride: Detect, recognizerOverride: Recognize, images: decoder))
             {
                 var result = await workflow.RecognizeAsync(new[] { photo });
                 Check(result.Errors.Count == 0 && result.Outcomes.Single().MatchedBirds == 1 && detected == 1 && recognized == 1,
                     "complete batch workflow accepts a non-WPF image implementation");
                 Check(photo.Birds.Count == 0, "background recognition remains detached until UI application");
             }
-            using (var single = new SinglePhotoRecognitionService(detectorOverride: Detect, recognizerOverride: Recognize, images: decoder))
+            using (var single = TestServices.Single(detectorOverride: Detect, recognizerOverride: Recognize, images: decoder))
             {
                 var result = await single.RebuildAsync(photo);
                 Check(result.Success && result.Birds.Count == 1 && detected == 2 && recognized == 2,

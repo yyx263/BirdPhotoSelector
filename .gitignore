@@ -7,9 +7,13 @@ Tests/*
 !Tests/*Checks.cs
 !Tests/BirdPhotoSelector.SmokeTests.csproj
 !Tests/Program.cs
+!Tests/TestServices.cs
 !Tests/Imaging.Core/
 !Tests/Imaging.Core/*.cs
 !Tests/Imaging.Core/*.csproj
+!Tests/Application.Core/
+!Tests/Application.Core/*.cs
+!Tests/Application.Core/*.csproj
 artifacts/
 # Local release archives belong in GitHub Releases.
 /*.zip

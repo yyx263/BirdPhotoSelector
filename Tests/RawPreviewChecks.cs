@@ -132,7 +132,7 @@ internal static class RawPreviewChecks
             var evidence = unsafePhoto.Birds.ToArray();
             int detectCalls = 0, recognizeCalls = 0, changes = 0;
             unsafePhoto.PropertyChanged += (_, _) => Interlocked.Increment(ref changes);
-            using (var workflow = new BirdRecognitionWorkflow(
+            using (var workflow = TestServices.Workflow(
                 detectorOverride: (_, _) => { detectCalls++; return new(null, "unexpected"); },
                 recognizerOverride: (_, _, _, _) => { recognizeCalls++; return new(null, "unexpected"); }))
             {
@@ -233,11 +233,11 @@ internal static class RawPreviewChecks
             photos.Add(photo);
         }
         var first = ImageLoader.Load(photos[0].FilePath); var second = ImageLoader.Load(photos[1].FilePath);
-        double unmasked = BackgroundSimilarity.Compare(BackgroundSimilarity.Describe(first), BackgroundSimilarity.Describe(second));
-        double masked = BackgroundSimilarity.Compare(BackgroundSimilarity.Describe(first, photos[0].SelectedBird!.Box),
-            BackgroundSimilarity.Describe(second, photos[1].SelectedBird!.Box));
+        double unmasked = BackgroundSimilarity.Compare(WpfBackgroundSimilarity.Describe(first), WpfBackgroundSimilarity.Describe(second));
+        double masked = BackgroundSimilarity.Compare(WpfBackgroundSimilarity.Describe(first, photos[0].SelectedBird!.Box),
+            WpfBackgroundSimilarity.Describe(second, photos[1].SelectedBird!.Box));
         check(masked > unmasked + .01, "the grouping fixture distinguishes exclusion of an old bird area from a full-frame comparison");
-        using var analysis = new AnalysisService();
+        using var analysis = TestServices.Analysis();
         var result = await analysis.AnalyzeAsync(photos, (masked + unmasked) / 2);
         check(result.Groups.Count == 2 && result.Outcomes.All(outcome => outcome.PreservedExistingBirds) &&
               photos.All(photo => photo.Birds.Count == 1 && photo.SelectedBird?.Species is not null &&

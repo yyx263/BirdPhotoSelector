@@ -77,7 +77,7 @@ internal static class ContinuousBirdNumberChecks
                 "replacing the displayed result order also starts at one and keeps the requested subject");
             var group = new PhotoGroup("编号检查"); group.Photos.Add(photo);
             string project = Path.Combine(root, "compact.json");
-            var projects = new ProjectService();
+            var projects = TestServices.Projects();
             await projects.SaveAsync(project, new[] { group }, .5);
             var restored = (await projects.LoadAsync(project)).Groups.Single().Photos.Single();
             Check(restored.Birds.Select(bird => bird.DisplayNumber).SequenceEqual(new[] { 1, 2 }) &&
@@ -91,7 +91,7 @@ internal static class ContinuousBirdNumberChecks
                 "clearing every selection then adding one restarts the visible list at one");
 
             var progress = new List<SpeciesProgress>();
-            using (var rebuild = new SinglePhotoRecognitionService(
+            using (var rebuild = TestServices.Single(
                 detectorOverride: (_, _) => new(Box(.1), "定位完成") { Birds = new[] { Box(.1), Box(.55) } },
                 recognizerOverride: (_, _, _, _) => new(species, "成功")))
             {
@@ -107,7 +107,7 @@ internal static class ContinuousBirdNumberChecks
             }
             progress.Clear();
             var detectedBoxes = photo.Birds.Select(bird => bird.Box.Copy()).ToArray();
-            using (var workflow = new BirdRecognitionWorkflow(
+            using (var workflow = TestServices.Workflow(
                 detectorOverride: (_, _) => new(Box(.1), "定位完成") { Birds = detectedBoxes },
                 recognizerOverride: (_, _, _, _) => new(species, "成功")))
             {

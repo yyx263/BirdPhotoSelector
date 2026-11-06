@@ -34,7 +34,7 @@ internal static class RecognitionWorkflowChecks
             var updates = new List<SpeciesProgress>();
             int detections = 0, recognitions = 0, mutations = 0;
             empty.PropertyChanged += (_, _) => mutations++;
-            using (var workflow = new BirdRecognitionWorkflow(
+            using (var workflow = TestServices.Workflow(
                 detectorOverride: (_, ct) => { ct.ThrowIfCancellationRequested(); detections++; return new(Box(.1), "已定位 1 只鸟"); },
                 recognizerOverride: (_, _, china, ct) =>
                 { ct.ThrowIfCancellationRequested(); Check(china, "the combined command retains the China candidate scope"); recognitions++; return new(species, "已识别"); }))
@@ -67,7 +67,7 @@ internal static class RecognitionWorkflowChecks
             empty.ViewZoom = 2.4; empty.ViewCenterX = .7; empty.ViewCenterY = .4;
             int originalNumber = original.Number, manualNumber = manual.Number;
             int highWaterMark = empty.NextBirdNumber;
-            using (var workflow = new BirdRecognitionWorkflow(
+            using (var workflow = TestServices.Workflow(
                 detectorOverride: (_, _) => new(Box(.11), "已定位 1 只鸟"),
                 recognizerOverride: (_, _, _, _) => new(null, "模型读取失败", true, "fixture species failure")))
             {
@@ -82,7 +82,7 @@ internal static class RecognitionWorkflowChecks
                     "recognition keeps manual region identity, selection, saved pan/zoom and previous species on failure");
             }
             var beforeFailure = empty.Birds.ToArray();
-            using (var workflow = new BirdRecognitionWorkflow(
+            using (var workflow = TestServices.Workflow(
                 detectorOverride: (_, _) => new(null, "定位模型缺失", true),
                 recognizerOverride: (_, _, _, _) => new(null, "鸟种模型缺失", true)))
             {
@@ -93,7 +93,7 @@ internal static class RecognitionWorkflowChecks
                       ReferenceEquals(empty.SelectedBird, manual),
                     "missing inference assets retain all existing region objects, evidence and the selected bird");
             }
-            using (var workflow = new BirdRecognitionWorkflow(
+            using (var workflow = TestServices.Workflow(
                 detectorOverride: (_, _) => new(null, "本次未检测到鸟"),
                 recognizerOverride: (_, _, _, _) => new(species, "已识别")))
             {
@@ -104,7 +104,7 @@ internal static class RecognitionWorkflowChecks
             var shiftedPhoto = new PhotoItem { FilePath = path };
             shiftedPhoto.SetBirds(new[] { new DetectedBird { Number = 4, Box = Box(.1), Species = species } });
             var previouslyKnown = shiftedPhoto.Birds.Single();
-            using (var workflow = new BirdRecognitionWorkflow(
+            using (var workflow = TestServices.Workflow(
                 detectorOverride: (_, _) => new(Box(.65), "本次定位发生变化"),
                 recognizerOverride: (_, _, _, _) => new(null, "鸟种模型失败", false, "fixture failure")))
             {
@@ -115,7 +115,7 @@ internal static class RecognitionWorkflowChecks
                     "an unmatched refreshed detection plus a failed species stage preserves previous evidence and selection");
             }
             using (var cancellation = new CancellationTokenSource())
-            using (var workflow = new BirdRecognitionWorkflow(
+            using (var workflow = TestServices.Workflow(
                 detectorOverride: (_, _) => new(Box(.1), "已定位"),
                 recognizerOverride: (_, _, _, ct) => { cancellation.Cancel(); ct.ThrowIfCancellationRequested(); return new(species, "不可达"); }))
             {
@@ -128,7 +128,7 @@ internal static class RecognitionWorkflowChecks
             }
             var absent = new PhotoItem { FilePath = Path.Combine(root, "absent.jpg"), DetectionStatus = "原定位状态" };
             absent.SetBirds(new[] { new DetectedBird { Number = 7, Box = Box(.1), Species = species, RecognitionStatus = "原识别状态" } });
-            using (var workflow = new BirdRecognitionWorkflow(
+            using (var workflow = TestServices.Workflow(
                 detectorOverride: (_, _) => throw new InvalidOperationException("unreadable photos must not reach the detector")))
             {
                 var result = await workflow.RecognizeAsync(new[] { absent });
@@ -142,7 +142,7 @@ internal static class RecognitionWorkflowChecks
             await File.WriteAllTextAsync(invalidModel, "invalid model must never be read by grouping");
             var beforeGrouping = empty.Birds.ToArray();
             string detectionStatus = empty.DetectionStatus;
-            using (var grouping = new AnalysisService(invalidModel))
+            using (var grouping = TestServices.Analysis(invalidModel))
             {
                 var result = await grouping.AnalyzeAsync(new[] { empty, second, absent }, .95);
                 Check(!result.MissingModel && result.Errors.Count == 1 &&
@@ -162,7 +162,7 @@ internal static class RecognitionWorkflowChecks
             {
                 var nativePhoto = new PhotoItem { FilePath = Path.GetFullPath(nativeSample), ViewZoom = 1.25 };
                 var nativeUpdates = new List<SpeciesProgress>();
-                using var nativeWorkflow = new BirdRecognitionWorkflow(Path.GetFullPath(nativeModel), Path.GetFullPath(nativeAssets));
+                using var nativeWorkflow = TestServices.Workflow(Path.GetFullPath(nativeModel), Path.GetFullPath(nativeAssets));
                 var nativeResult = await nativeWorkflow.RecognizeAsync(new[] { nativePhoto },
                     progress: new InlineProgress(nativeUpdates.Add));
                 Check(!nativeResult.MissingModel && nativeResult.Errors.Count == 0 && nativeResult.MatchedBirds > 0 &&
@@ -185,7 +185,7 @@ internal static class RecognitionWorkflowChecks
                 var nativeSelected = nativePhoto.SelectedBird;
                 string nativeDetectionStatus = nativePhoto.DetectionStatus;
                 int nativeNextNumber = nativePhoto.NextBirdNumber;
-                using var nativeGrouping = new AnalysisService(invalidModel);
+                using var nativeGrouping = TestServices.Analysis(invalidModel);
                 var regrouped = await nativeGrouping.AnalyzeAsync(new[] { nativePhoto }, .95);
                 Check(regrouped.Groups.Single().Single() == nativePhoto && regrouped.Errors.Count == 0 &&
                       regrouped.Outcomes.Single().PreservedExistingBirds && nativePhoto.Birds.SequenceEqual(nativeBirds) &&

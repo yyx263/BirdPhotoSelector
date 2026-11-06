@@ -33,7 +33,7 @@ function Write-Json($Value, [string]$Path) {
     [IO.File]::WriteAllText($Path, ($Value | ConvertTo-Json -Depth 8), [Text.UTF8Encoding]::new($false))
 }
 
-$Required = @('BirdPhotoSelector.exe', 'BirdPhotoSelector.dll', 'BirdPhotoSelector.Imaging.dll', 'BirdPhotoSelector.Imaging.Windows.dll', 'BirdPhotoSelector.Raw.dll', 'libraw.dll',
+$Required = @('BirdPhotoSelector.exe', 'BirdPhotoSelector.dll', 'BirdPhotoSelector.Imaging.dll', 'BirdPhotoSelector.Imaging.Windows.dll', 'BirdPhotoSelector.Domain.dll', 'BirdPhotoSelector.Recognition.dll', 'BirdPhotoSelector.Application.dll', 'BirdPhotoSelector.Raw.dll', 'libraw.dll',
     'msvcp140.dll', 'vcruntime140.dll', 'vcruntime140_1.dll', 'coreclr.dll', 'hostfxr.dll', 'PresentationFramework.dll',
     'models/yolov10n.onnx', 'models/bioclip2/vision.onnx', 'models/bioclip2/asset-hashes.json',
     'licenses/LibRaw-CDDL-1.0.txt', 'licenses/LibRaw-COPYRIGHT.txt', 'licenses/LibRaw-ComponentNotices.txt',

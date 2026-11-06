@@ -22,7 +22,7 @@ internal static class PhotoProjectV2Checks
         Directory.CreateDirectory(root);
         try
         {
-            var projects = new ProjectService();
+            var projects = TestServices.Projects();
             string pairDirectory = Directory.CreateDirectory(Path.Combine(root, "paired")).FullName;
             string pairJpg = Path.Combine(pairDirectory, "scene.jpg");
             string pairRaw = Path.Combine(pairDirectory, "scene.NEF");
@@ -84,7 +84,7 @@ internal static class PhotoProjectV2Checks
                   resavedAgain[pair.Id].GeometryReference == loadedPair.GeometryReference,
                 "repeated v2 replacements preserve the full member list, old species evidence and geometry identity");
 
-            var autosave = new AutoSaveService(Path.Combine(root, "Recovery"));
+            var autosave = TestServices.AutoSave(Path.Combine(root, "Recovery"));
             var recovery = await autosave.SaveAsync(resaved.Groups, .5, null, revision: 42);
             var recovered = (await projects.LoadAsync(recovery.Path)).Groups.Single().Photos.ToDictionary(photo => photo.Id);
             Check(autosave.LastSavedRevision == 42 && recovered[pair.Id].Assets.Count == 2 &&
@@ -278,7 +278,7 @@ internal static class PhotoProjectV2Checks
               !reopened.CanUseBirdGeometry && reopened.GeometryReference?.AssetId == jpgAsset.Id && HasSavedBirdState(reopened),
             "reopening restores the verified current-source manual view while keeping old bird geometry unverified");
         await projects.SaveAsync(currentPath, new[] { Group(reopened) }, .5);
-        var recovery = await new AutoSaveService(Path.Combine(directory, "Recovery"))
+        var recovery = await TestServices.AutoSave(Path.Combine(directory, "Recovery"))
             .SaveAsync(new[] { Group(reopened) }, .5, null, revision: 1);
         check(HasCurrentView((await projects.LoadAsync(currentPath)).Groups.Single().Photos.Single()) &&
               HasCurrentView((await projects.LoadAsync(recovery.Path)).Groups.Single().Photos.Single()),
@@ -391,7 +391,7 @@ internal static class PhotoProjectV2Checks
             "switching from a missing JPG to RAW does not reuse the old JPG pixels, thumbnail, zoom or pan");
         await projects.SaveAsync(path, loaded.Groups, loaded.GroupingThreshold);
         var restoredAgain = (await projects.LoadAsync(path)).Groups.Single().Photos.Single();
-        var autosave = new AutoSaveService(Path.Combine(root, "MissingRecovery"));
+        var autosave = TestServices.AutoSave(Path.Combine(root, "MissingRecovery"));
         var recovery = await autosave.SaveAsync(new[] { Group(restoredAgain) }, .5, null, revision: 73);
         var recovered = (await projects.LoadAsync(recovery.Path)).Groups.Single().Photos.Single();
         check(restoredAgain.GeometryStatus == PhotoGeometryStatus.NeedsReview && recovered.GeometryStatus == PhotoGeometryStatus.NeedsReview &&

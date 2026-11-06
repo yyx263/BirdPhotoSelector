@@ -91,7 +91,7 @@ internal static class RecognitionResetChecks
             var fresh = new PhotoItem { FilePath = path };
             var legacy = new PhotoItem { FilePath = path };
             var legacyGroup = new PhotoGroup(); legacyGroup.Photos.Add(legacy);
-            var projects = new ProjectService(); string projectPath = Path.Combine(root, "legacy-empty.json");
+            var projects = TestServices.Projects(); string projectPath = Path.Combine(root, "legacy-empty.json");
             await projects.SaveAsync(projectPath, new[] { legacyGroup }, .5);
             var document = JsonNode.Parse(await File.ReadAllTextAsync(projectPath))!;
             var record = document["Groups"]![0]!["Photos"]![0]!;
@@ -108,7 +108,7 @@ internal static class RecognitionResetChecks
             var manualOnly = new PhotoItem { FilePath = path };
             manualOnly.SetBirds(new[] { Label(5, "白鹭", "Egretta garzetta") }); manualOnly.HasManualSpeciesEdits = false;
             int detections = 0, recognitions = 0;
-            using (var workflow = new BirdRecognitionWorkflow(detectorOverride: (_, _) =>
+            using (var workflow = TestServices.Workflow(detectorOverride: (_, _) =>
                 { detections++; return new(Box(), "定位成功"); }, recognizerOverride: (_, _, _, _) =>
                 { recognitions++; return new(new("大山雀", "Parus major", .7, Confidence: .95), "识别成功"); }))
             {
@@ -128,7 +128,7 @@ internal static class RecognitionResetChecks
                     "applying a detached result still refuses to overwrite a nonempty manually protected photo");
             }
             edits.Clear(legacy);
-            using (var missing = new BirdRecognitionWorkflow(detectorOverride: (_, _) => new(null, "定位模型缺失", true)))
+            using (var missing = TestServices.Workflow(detectorOverride: (_, _) => new(null, "定位模型缺失", true)))
             {
                 var result = await missing.RecognizeAsync(new[] { legacy });
                 result.Outcomes.Single().ApplyTo(legacy);

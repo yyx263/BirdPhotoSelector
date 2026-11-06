@@ -32,7 +32,7 @@ internal static class AssetTransitionGuardChecks
             string destination = Directory.CreateDirectory(Path.Combine(root, "destination")).FullName;
             var before = new[] { jpg, raw, singlePath }.ToDictionary(path => path,
                 path => SHA256.HashData(File.ReadAllBytes(path)));
-            var service = new ExportService();
+            var service = TestServices.Export();
 
             var exported = await service.ExportAsync(new[] { single, pair }, destination, removeOriginal: false);
             Check(exported.CopiedFileCount == 3 && exported.Succeeded.Count == 2 && exported.RemovedFileCount == 0,

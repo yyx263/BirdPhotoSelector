@@ -162,7 +162,7 @@ internal static class Program
             File.Copy(first, unsupported);
             await File.WriteAllTextAsync(invalid, "This is not a JPEG.");
 
-            var importer = new PhotoImportService();
+            var importer = TestServices.Import();
             var imported = await importer.ImportAsync(new[] { first, duplicate, second, unsupported, invalid }, Array.Empty<string>());
             Check(imported.Added.Count == 2, "only valid unique JPEG photos import");
             Check(imported.SkippedDuplicate == 1, "filename deduplication ignores directory and case");
@@ -188,7 +188,7 @@ internal static class Program
             await TestAnalysisAsync(testRoot, p1, p2);
             var group = new PhotoGroup("测试分组");
             group.Photos.Add(p1); group.Photos.Add(p2);
-            var projects = new ProjectService();
+            var projects = TestServices.Projects();
             string projectPath = Path.Combine(testRoot, "roundtrip.json");
             await projects.SaveAsync(projectPath, new[] { group }, 0.73);
             var loaded = await projects.LoadAsync(projectPath);
@@ -221,7 +221,7 @@ internal static class Program
             await File.WriteAllTextAsync(malformed, "{\"Schema\":\"BirdPhotoSelector.Project\",\"Version\":999,\"GroupingThreshold\":0.8,\"Groups\":[]}");
             await ExpectThrowsAsync<InvalidDataException>(() => projects.LoadAsync(malformed), "future project version is rejected");
 
-            var exporter = new ExportService();
+            var exporter = TestServices.Export();
             string collision = Path.Combine(destination, p1.FileName);
             byte[] sentinel = { 8, 6, 7, 5, 3, 0, 9 };
             await File.WriteAllBytesAsync(collision, sentinel);
@@ -294,7 +294,7 @@ internal static class Program
         }
         var decoded = ImageLoader.Load(path);
         Check(decoded.PixelWidth == 40 && decoded.PixelHeight == 64, "EXIF rotation is applied to image pixels");
-        var imported = new PhotoImportService().ImportAsync(new[] { path }, Array.Empty<string>()).GetAwaiter().GetResult();
+        var imported = TestServices.Import().ImportAsync(new[] { path }, Array.Empty<string>()).GetAwaiter().GetResult();
         Check(imported.Added.Count == 1 && imported.Added[0].PixelWidth == 40 && imported.Added[0].PixelHeight == 64,
             "EXIF-oriented dimensions agree between import and preview");
         var metadataRead = new MetadataService().Read(path);
@@ -307,10 +307,10 @@ internal static class Program
 
     private static void TestBackgroundSimilarity()
     {
-        var normal = BackgroundSimilarity.Describe(SolidBitmap(80));
-        var identical = BackgroundSimilarity.Describe(SolidBitmap(80));
-        var brighter = BackgroundSimilarity.Describe(SolidBitmap(85));
-        var veryDifferent = BackgroundSimilarity.Describe(SolidBitmap(255));
+        var normal = WpfBackgroundSimilarity.Describe(SolidBitmap(80));
+        var identical = WpfBackgroundSimilarity.Describe(SolidBitmap(80));
+        var brighter = WpfBackgroundSimilarity.Describe(SolidBitmap(85));
+        var veryDifferent = WpfBackgroundSimilarity.Describe(SolidBitmap(255));
         Check(Math.Abs(BackgroundSimilarity.Compare(normal, identical) - 1) < 0.000001,
             "identical backgrounds score one");
         double exposureSimilarity = BackgroundSimilarity.Compare(normal, brighter);
@@ -323,7 +323,7 @@ internal static class Program
     private static async Task TestAnalysisAsync(string directory, PhotoItem first, PhotoItem second)
     {
         string noModel = Path.Combine(directory, "intentionally-missing-model.onnx");
-        using var analyzer = new AnalysisService(noModel);
+        using var analyzer = TestServices.Analysis(noModel);
         BirdBox? prior = first.Bird;
         var missingModel = await analyzer.AnalyzeAsync(new[] { first, second }, 0.82);
         Check(!missingModel.MissingModel && missingModel.Outcomes.Count == 2,
@@ -342,7 +342,7 @@ internal static class Program
             using (var stream = File.Create(path)) encoder.Save(stream);
             driftPhotos.Add(new PhotoItem { FilePath = path, PixelWidth = 160, PixelHeight = 120 });
         }
-        var descriptors = driftPhotos.Select(p => BackgroundSimilarity.Describe(ImageLoader.Load(p.FilePath))).ToArray();
+        var descriptors = driftPhotos.Select(p => WpfBackgroundSimilarity.Describe(ImageLoader.Load(p.FilePath))).ToArray();
         double adjacent = Math.Min(BackgroundSimilarity.Compare(descriptors[0], descriptors[1]),
             BackgroundSimilarity.Compare(descriptors[1], descriptors[2]));
         double anchor = BackgroundSimilarity.Compare(descriptors[0], descriptors[2]);
@@ -387,12 +387,12 @@ internal static class Program
         string secondPath = Path.Combine(testRoot, "integration-scene-b.jpg");
         File.Copy(samplePath, firstPath);
         File.Copy(samplePath, secondPath);
-        var imported = await new PhotoImportService().ImportAsync(new[] { firstPath, secondPath }, Array.Empty<string>());
+        var imported = await TestServices.Import().ImportAsync(new[] { firstPath, secondPath }, Array.Empty<string>());
         Check(imported.Added.Count == 2 && imported.Errors.Count == 0, "real JPEG fixture copies import successfully");
         // This integration exercises the real YOLO model and the production orchestration.
         // Species is deliberately deterministic here; native BioCLIP validation has its own checks.
         var fixtureSpecies = new SpeciesMatch("集成测试候选", "Testus integration", .61, Confidence: .88);
-        using var workflow = new BirdRecognitionWorkflow(modelPath,
+        using var workflow = TestServices.Workflow(modelPath,
             recognizerOverride: (_, _, _, ct) =>
             {
                 ct.ThrowIfCancellationRequested();
@@ -418,7 +418,7 @@ internal static class Program
             Photo = photo, Birds = photo.Birds.ToArray(), Selected = photo.SelectedBird,
             photo.DetectionStatus, photo.NextBirdNumber
         }).ToArray();
-        using var analyzer = new AnalysisService(modelPath);
+        using var analyzer = TestServices.Analysis(modelPath);
         var analyzed = await analyzer.AnalyzeAsync(imported.Added, 0.95);
         Check(!analyzed.MissingModel && analyzed.Errors.Count == 0 && analyzed.Outcomes.Count == 2,
             "background-only grouping succeeds for both localized real-model photos");
@@ -440,7 +440,7 @@ internal static class Program
         string demoSecond = Path.Combine(sampleDirectory, "native-test-b.jpg");
         File.Copy(samplePath, demoFirst, overwrite: true);
         File.Copy(samplePath, demoSecond, overwrite: true);
-        var demoPhotos = await new PhotoImportService().ImportAsync(new[] { demoFirst, demoSecond }, Array.Empty<string>());
+        var demoPhotos = await TestServices.Import().ImportAsync(new[] { demoFirst, demoSecond }, Array.Empty<string>());
         if (demoPhotos.Added.Count != 2) throw new InvalidOperationException("Native demo fixtures failed to import.");
         var demoGroup = new PhotoGroup("同场景鸟类识别测试");
         for (int index = 0; index < demoPhotos.Added.Count; index++)
@@ -457,7 +457,7 @@ internal static class Program
             demoGroup.Photos.Add(photo);
         }
         string demoProject = Path.Combine(sampleDirectory, "native-test.json");
-        var projects = new ProjectService();
+        var projects = TestServices.Projects();
         await projects.SaveAsync(demoProject, new[] { demoGroup }, 0.50);
         var reloadedDemo = await projects.LoadAsync(demoProject);
         Check(reloadedDemo.Groups.Count == 1 && reloadedDemo.Groups[0].Count == 2 &&
@@ -496,7 +496,7 @@ internal static class Program
         WriteJpeg(exportSource, 48, 32, 30);
         WriteJpeg(deleteSource, 48, 32, 45);
         byte[] expected = await File.ReadAllBytesAsync(exportSource);
-        var exporter = new ExportService();
+        var exporter = TestServices.Export();
         var photo = new PhotoItem { FilePath = exportSource, Rating = PhotoRating.Keep };
         Console.WriteLine("  RUN recycle export of generated temporary JPEG only");
         var exported = await exporter.ExportAsync(new[] { photo }, destination, removeOriginal: true);

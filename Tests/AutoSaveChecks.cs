@@ -22,7 +22,7 @@ internal static class AutoSaveChecks
         {
             DateTimeOffset now = new(2026, 10, 18, 9, 0, 0, TimeSpan.FromHours(8));
             string recoveryDirectory = Path.Combine(testRoot, "Recovery");
-            var autosave = new AutoSaveService(recoveryDirectory, () => now);
+            var autosave = TestServices.AutoSave(recoveryDirectory, () => now);
             Check(autosave.RecoveryDirectory == Path.GetFullPath(recoveryDirectory) && !Directory.Exists(recoveryDirectory),
                 "constructing an unnamed session does not create a folder or write outside its injected recovery location");
             Check(!autosave.IsDue && autosave.LastSavedRevision == -1, "new sessions start with a fresh five-minute interval");
@@ -41,7 +41,7 @@ internal static class AutoSaveChecks
             };
             var group = new PhotoGroup("自动保存测试");
             group.Photos.Add(photo);
-            var projects = new ProjectService();
+            var projects = TestServices.Projects();
             string firstRecoveryPath = autosave.RecoveryPath;
             long firstGeneration = autosave.SessionGeneration;
             var unnamed = await autosave.SaveAsync(new[] { group }, .81, null, revision: 7);
@@ -68,7 +68,7 @@ internal static class AutoSaveChecks
 
             string namedPath = Path.Combine(testRoot, "named.json");
             string namedRecovery = Path.Combine(testRoot, "NamedRecovery");
-            var named = new AutoSaveService(namedRecovery, () => now);
+            var named = TestServices.AutoSave(namedRecovery, () => now);
             photo.Rating = PhotoRating.Keep;
             var namedResult = await named.SaveAsync(new[] { group }, .85, namedPath, revision: 11);
             Check(!namedResult.IsRecovery && namedResult.PrimaryError is null && namedResult.Path == Path.GetFullPath(namedPath) &&
@@ -121,7 +121,7 @@ internal static class AutoSaveChecks
             using var canceled = new CancellationTokenSource();
             canceled.Cancel();
             string canceledRecovery = Path.Combine(testRoot, "CanceledRecovery");
-            var canceledService = new AutoSaveService(canceledRecovery, () => now);
+            var canceledService = TestServices.AutoSave(canceledRecovery, () => now);
             bool cancellationObserved = false;
             try { await canceledService.SaveAsync(new[] { group }, .8, null, 99, canceled.Token); }
             catch (OperationCanceledException) { cancellationObserved = true; }

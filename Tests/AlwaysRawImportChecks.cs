@@ -21,7 +21,7 @@ internal static class AlwaysRawImportChecks
         Directory.CreateDirectory(root);
         try
         {
-            var service = new PhotoImportService();
+            var service = TestServices.Import();
             string first = Directory.CreateDirectory(Path.Combine(root, "first")).FullName;
             string second = Directory.CreateDirectory(Path.Combine(root, "second")).FullName;
             string jpg = Path.Combine(first, "capture.JPG"), raw = Path.Combine(first, "capture.NEF");

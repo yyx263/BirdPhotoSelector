@@ -34,7 +34,7 @@ internal static class MainWindowUiChecks
         try
         {
             string[] photos = CreateFixtures(fixtureRoot);
-            var imported = new PhotoImportService().ImportAsync(photos, Array.Empty<string>()).GetAwaiter().GetResult();
+            var imported = TestServices.Import().ImportAsync(photos, Array.Empty<string>()).GetAwaiter().GetResult();
             Check(imported.Added.Count == 3, "three real JPEG fixtures import for full-window layout");
             Check(imported.Added.All(photo => photo.Rating == PhotoRating.Unmarked), "new photos start unmarked");
             var first = imported.Added[0];
@@ -715,7 +715,7 @@ internal static class MainWindowUiChecks
         var cache = (PhotoPreviewCache)WindowField(window, "_previewCache")!;
         var saveGate = (SemaphoreSlim)WindowField(window, "_projectSaveGate")!;
         var autosave = (AutoSaveService)WindowField(window, "_autoSave")!;
-        var projects = new ProjectService();
+        var projects = TestServices.Projects();
         string? originalPath = WindowField(window, "_projectPath") as string;
         string originalName = model.ProjectName;
         string projectPath = Path.Combine(Path.GetDirectoryName(paths[0])!, "clear-current-project.json");

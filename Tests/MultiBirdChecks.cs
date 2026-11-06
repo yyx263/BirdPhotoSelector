@@ -45,7 +45,7 @@ internal static class MultiBirdChecks
                 "selecting another numbered bird updates the existing detail facade and marks the project dirty");
             photo.ViewZoom = 2.3; photo.ViewCenterX = .74; photo.ViewCenterY = .4;
             string projectPath = Path.Combine(root, "multi.json");
-            var projects = new ProjectService();
+            var projects = TestServices.Projects();
             await projects.SaveAsync(projectPath, new[] { group }, .83);
             var loaded = (await projects.LoadAsync(projectPath)).Groups.Single().Photos.Single();
             Check(loaded.Birds.Count == 2 && loaded.Birds[0].Box.Width == .45 && loaded.Birds[1].Box.X == .7 &&
@@ -54,7 +54,7 @@ internal static class MultiBirdChecks
             Check(loaded.Birds[0].Species is { ChineseName: "大山雀", ScientificName: "Parus major", Similarity: .412, CandidateScope: "China" } &&
                   loaded.Birds[1].Species?.ChineseName == "麻雀" && loaded.Rating == PhotoRating.Favorite && loaded.ViewZoom == 2.3,
                 "species scores, names, candidate scope, original rating and manual view survive project reload");
-            var autosave = new AutoSaveService(Path.Combine(root, "Recovery"));
+            var autosave = TestServices.AutoSave(Path.Combine(root, "Recovery"));
             var recovery = await autosave.SaveAsync(new[] { group }, .83, null, 3);
             var recovered = (await projects.LoadAsync(recovery.Path)).Groups.Single().Photos.Single();
             Check(recovered.Birds.Count == 2 && recovered.SelectedBirdIndex == 1 &&
@@ -79,15 +79,15 @@ internal static class MultiBirdChecks
             Check(loaded.Birds.Count == 1 && loaded.Birds[0].Species is null && loaded.SelectedBirdIndex == 0,
                 "invalid stored boxes and non-cosine species scores are rejected without losing the valid photo");
 
-            using (var analysis = new AnalysisService(Path.Combine(root, "missing-detector.onnx")))
+            using (var analysis = TestServices.Analysis(Path.Combine(root, "missing-detector.onnx")))
             {
                 var result = await analysis.AnalyzeAsync(new[] { photo }, .8);
                 Check(result.Outcomes.Single().Birds.Count == 2 && result.Outcomes.Single().PreservedExistingBirds &&
                       photo.Birds[0].Species?.ChineseName == "大山雀" && photo.SelectedBirdIndex == 1,
                     "background-only grouping preserves all prior locations and species without mutating UI models on its worker");
             }
-            double score = BackgroundSimilarity.Compare(BackgroundSimilarity.DescribeAll(image, new[] { large, small }),
-                BackgroundSimilarity.DescribeAll(image, new[] { large, small }));
+            double score = BackgroundSimilarity.Compare(WpfBackgroundSimilarity.DescribeAll(image, new[] { large, small }),
+                WpfBackgroundSimilarity.DescribeAll(image, new[] { large, small }));
             Check(score > .9999, "background grouping can exclude all bird boxes while keeping identical backgrounds comparable");
             await CheckManualRegionLifecycle(photoPath, root, projects, Check);
 
@@ -166,7 +166,7 @@ internal static class MultiBirdChecks
               { Confidence: .84, AlternativeName: "麻雀", RunnerUpSimilarity: .4, ConfidenceMethod: "candidate-discrimination-v1" } &&
               loaded.Birds[0].RecognitionStatus == "手动选区已识别" && loaded.ViewZoom == 2.6,
             "JSON preserves manual origins, stable numbers, confidence evidence, selected number and view");
-        var autosave = new AutoSaveService(Path.Combine(root, "ManualRecovery"));
+        var autosave = TestServices.AutoSave(Path.Combine(root, "ManualRecovery"));
         var manualRecovery = await autosave.SaveAsync(new[] { group }, .84, null, revision: 16);
         var restoredManual = (await projects.LoadAsync(manualRecovery.Path)).Groups.Single().Photos.Single();
         check(restoredManual.Birds.All(b => b.IsManual) && restoredManual.SelectedBird?.Number == 3 &&

@@ -21,7 +21,7 @@ internal static class RawImportChecks
         Directory.CreateDirectory(root);
         try
         {
-            var service = new PhotoImportService();
+            var service = TestServices.Import();
             string a = Directory.CreateDirectory(Path.Combine(root, "A")).FullName;
             string b = Directory.CreateDirectory(Path.Combine(root, "B")).FullName;
             string jpg = Path.Combine(a, "SCENE.JPG"), raw = Path.Combine(a, "scene.NEF");

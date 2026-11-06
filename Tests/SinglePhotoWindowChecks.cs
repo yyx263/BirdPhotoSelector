@@ -121,7 +121,7 @@ internal static class SinglePhotoWindowChecks
                 var clearTask = Invoke(() =>
                 {
                     factories++;
-                    return new SinglePhotoRecognitionService(
+                    return TestServices.Single(
                         detectorOverride: (_, token) => { started.Set(); release.Wait(token); return new(null, "正常空结果"); },
                         recognizerOverride: (_, _, _, _) => { recognitions++; return new(replacementSpecies, "unexpected"); });
                 });
@@ -168,7 +168,7 @@ internal static class SinglePhotoWindowChecks
             var failedBirds = failed.Current.Birds.ToArray();
             int priorEntries = UndoCount(), errorReports = 0;
             IReadOnlyList<string>? reportedErrors = null;
-            Complete(Invoke(() => new SinglePhotoRecognitionService(detectorOverride: (_, _) =>
+            Complete(Invoke(() => TestServices.Single(detectorOverride: (_, _) =>
                 throw new IOException("generated single-photo window failure")), errors =>
                 { errorReports++; reportedErrors = errors; }));
             Check(errorReports == 1 && reportedErrors is { Count: > 0 } &&
@@ -179,7 +179,7 @@ internal static class SinglePhotoWindowChecks
             using (var started = new ManualResetEventSlim())
             using (var release = new ManualResetEventSlim())
             {
-                var cancelTask = Invoke(() => new SinglePhotoRecognitionService(detectorOverride: (_, token) =>
+                var cancelTask = Invoke(() => TestServices.Single(detectorOverride: (_, token) =>
                     { started.Set(); release.Wait(token); return new(null, "must be canceled"); }), _ => errorReports++);
                 try
                 {
@@ -208,7 +208,7 @@ internal static class SinglePhotoWindowChecks
             Check(pending.Current.GeometryStatus == PhotoGeometryStatus.NeedsReview && !pending.Current.CanUseBirdGeometry &&
                   button.IsEnabled && model.CanReidentifyCurrentPhoto && model.CanEditBirdRegions,
                 "a pending coordinate frame supports both explicit rebuilding and continued manual editing");
-            Complete(Invoke(() => new SinglePhotoRecognitionService(detectorOverride: (_, _) =>
+            Complete(Invoke(() => TestServices.Single(detectorOverride: (_, _) =>
                     new(Box(.1, .15), "定位两只鸟") { Birds = new[] { Box(.1, .15), Box(.55, .3) } },
                     recognizerOverride: (_, _, _, _) => new(replacementSpecies, "本张重新识别成功"))));
             Check(pending.Current.Birds.Count == 2 && pending.Current.Birds.All(bird => !bird.IsManual && bird.Species == replacementSpecies) &&
