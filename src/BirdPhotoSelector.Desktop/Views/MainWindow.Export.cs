@@ -11,7 +11,7 @@ public sealed partial class MainWindow
     /// <summary>先收集选项，再依次检查未标记、分类结果与原件移除确认；取消不会开始文件操作。</summary>
     private async void OpenExport(object? sender, RoutedEventArgs e) => await GuardUi(async () =>
     {
-        if (Controller.State.IsBusy || !Controller.State.HasPhotos) { Controller.State.Status = "请先添加照片并评级"; return; }
+        if (Controller.State.IsBusy || !Controller.State.HasPhotos) { Controller.State.Status = "请先添加照片"; return; }
         var dialog = new ExportDialog(Controller.State.AllPhotos.ToArray());
         var options = await dialog.ShowDialog<ExportOptions?>(this);
         if (_closed || options is null) return;

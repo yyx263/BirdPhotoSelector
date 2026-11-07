@@ -49,7 +49,7 @@ internal static class Program
             Geometry();
             InteractionChecks.Benchmark(root, true);
             await using var session = HeadlessUnitTestSession.StartNew(typeof(Program));
-            await session.Dispatch(async () => { if (args.Contains("--decode-probe")) { DecodePerformanceProbe.Run(root, args.Contains("--after") ? "after" : "before"); return 0; } _checks += InteractionChecks.DisplayPixels(); await Desktop(root); _checks += await DesktopWorkflowChecks.Run(root); _checks += await InteractionChecks.LargeViewport(root); return 0; }, CancellationToken.None);
+            await session.Dispatch(async () => { if (args.Contains("--decode-probe")) { DecodePerformanceProbe.Run(root, args.Contains("--after") ? "after" : "before"); return 0; } _checks += InteractionChecks.DisplayPixels(); await Desktop(root); _checks += await DesktopWorkflowChecks.Run(root); _checks += await ExportAllAndRawChecks.Run(root); _checks += await InteractionChecks.LargeViewport(root); return 0; }, CancellationToken.None);
             Console.WriteLine($"PASS: {_checks} Avalonia desktop assertions on {System.Runtime.InteropServices.RuntimeInformation.OSDescription}."); return 0;
         }
         catch (Exception ex) { Console.Error.WriteLine("FAIL: " + ex); return 1; }
@@ -162,7 +162,7 @@ internal static class Program
         controller.State.LocatePhoto(controller.State.AllPhotos.First(p => p.Birds.Count == 4)); await controller.PreviewTask; Dispatcher.UIThread.RunJobs();
         var birds = window.FindControl<ListBox>("BirdList")!;
         Check(birds.Items.Count == 4, "new window displays all four persisted bird results");
-        string visuals = Path.Combine(Directory.GetCurrentDirectory(), "artifacts/desktop-2.0-alpha8"); Directory.CreateDirectory(visuals);
+        string visuals = Path.Combine(Directory.GetCurrentDirectory(), "artifacts/desktop-2.0-alpha9"); Directory.CreateDirectory(visuals);
         foreach (var size in new[] { new Size(1560, 920), new Size(1150, 780) })
         {
             window.Width = size.Width; window.Height = size.Height; Dispatcher.UIThread.RunJobs();

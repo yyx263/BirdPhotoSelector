@@ -1,6 +1,6 @@
 # v2.0 跨平台工程
 
-当前里程碑 **2.0.0-alpha.8**：大图 GPU 缓存和解码/显示链路优化。alpha.6 已完成：只保留 Avalonia 宿主，清理旧 WPF 源码/项目/测试宿主与历史输出，建立三平台目录发布、原生目标隔离、逐文件/模型/归档校验和实际发布目录自检。`dev` 持续开发，`main` 保持稳定。
+当前里程碑 **2.0.0-alpha.9**：导出全部评级及原件移除后的 RAW 缩略图恢复；沿用 alpha.8 的大图 GPU 缓存和解码/显示链路优化。alpha.6 已完成：只保留 Avalonia 宿主，清理旧 WPF 源码/项目/测试宿主与历史输出，建立三平台目录发布、原生目标隔离、逐文件/模型/归档校验和实际发布目录自检。`dev` 持续开发，`main` 保持稳定。
 
 ## 依赖方向
 
@@ -110,3 +110,13 @@ Windows/OpenGL 原生窗口固定两张 24MP 图、70 帧缩放/换图对照：�
 复测入口：`dotnet run --project Tests/Desktop/BirdPhotoSelector.Desktop.Checks.csproj -c Release -- --render-probe`（框架默认基线），追加 `--expanded` 使用正式渲染配置；`--decode-probe` 测量 JPEG 到显示帧阶段。两个原生窗口测量会短暂显示并自动关闭。
 
 来源核对：[Avalonia 12.1.5 SkiaOptions](https://github.com/AvaloniaUI/Avalonia/blob/12.1.5/src/Skia/Avalonia.Skia/SkiaOptions.cs)。
+
+## alpha.9 全评级导出和换源缩略图
+
+`ExportChoice.All` 只取消评级过滤，仍通过共享 `ExportService.CreatePlan` 固定原件范围、鸟种目录与文件版本，再沿用现有复制校验/冲突/原件保护流程。未标记与分类核对提醒继续由窗口统一处理，不因导出全部绕过。
+
+文件操作完成后先应用逐成员真实移除结果，随后只重建活动原件确实变化且仍有成员的照片。缩略图恢复逐张在后台通过 `IPhotoImageDecoder.ReadInfo/Decode(maxWidth: 160)` 读取 RAW，不把已移除的 JPG 缩略图重新挂回领域对象。回到 UI 后核对活动成员身份和路径再提交尺寸、参数与缩略图；不修改评级、鸟种或坐标核对规则。使用窗口生命周期令牌，保证导出取消不会阻止已成功移除 JPG 的 RAW 缩略图恢复；关闭时停止，单张解码失败汇入提示而不丢失已完成文件结果。
+
+回归覆盖四种评级全部导出、格式与鸟种范围、实际副本字节、非当前照片换源、取消后的真实删除状态；有本地 RAW 样本时再通过实际 LibRaw 恢复缩略图并校验原件哈希。
+
+本轮验证：图像核心 50、业务 50、实际后端 176、工作流 67、桌面 124（含真实模型及 RAW 样本），另有真实窗口预览检查。核心/业务日志位于 `artifacts/regression-alpha9.log`，修正新增测试夹具后完成的桌面与实际窗口结果位于 `artifacts/desktop-alpha9.log`。

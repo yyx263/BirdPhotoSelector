@@ -11,7 +11,7 @@ namespace BirdPhotoSelector.Desktop.Dialogs;
 public sealed class ExportDialog : Window
 {
     private readonly IReadOnlyList<PhotoItem> _photos;
-    private readonly ComboBox _action = new() { Name = "ExportAction", HorizontalAlignment = HorizontalAlignment.Stretch, MinHeight = 42, ItemsSource = new[] { "导出保留 + 精选", "仅导出精选", "导出舍弃", "删除舍弃的原文件" }, SelectedIndex = 0 };
+    private readonly ComboBox _action = new() { Name = "ExportAction", HorizontalAlignment = HorizontalAlignment.Stretch, MinHeight = 42, ItemsSource = new[] { "导出保留 + 精选", "仅导出精选", "导出舍弃", "导出全部", "删除舍弃的原文件" }, SelectedIndex = 0 };
     private readonly ComboBox _scope = new() { Name = "ExportScope", HorizontalAlignment = HorizontalAlignment.Stretch, MinHeight = 42, ItemsSource = new[] { "全部原件（JPG + RAW）", "仅 JPG 原件", "仅 RAW 原件" }, SelectedIndex = 0 };
     private readonly TextBox _destination = new() { Name = "ExportDestination", MinHeight = 42, PlaceholderText = "选择已有目标目录" };
     private readonly CheckBox _group = new() { Name = "GroupBySpecies", Content = "按已识别鸟种创建子文件夹", IsChecked = false };
@@ -50,7 +50,7 @@ public sealed class ExportDialog : Window
     /// <summary>读取并规范化删除模式的互斥选项，避免隐藏的勾选仍触发分类或复制后移除。</summary>
     private ExportOptions ReadOptions()
     {
-        var choice = (ExportChoice)Math.Clamp(_action.SelectedIndex, 0, 3);
+        var choice = (ExportChoice)Math.Clamp(_action.SelectedIndex, 0, 4);
         return new(choice, (PhotoFileScope)Math.Clamp(_scope.SelectedIndex, 0, 2), _destination.Text?.Trim() ?? "", choice != ExportChoice.DeleteRejected && _remove.IsChecked == true, choice != ExportChoice.DeleteRejected && _group.IsChecked == true);
     }
     /// <summary>按真实可选原件和目标目录存在性启用操作，不预估空间、不创建目录，也不在窗口中修改文件。</summary>

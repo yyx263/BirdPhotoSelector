@@ -138,7 +138,7 @@ internal static class InteractionChecks
     /// <summary>保存可人工复核的真实 Skia 渲染结果，避免只验证属性值。</summary>
     private static void Capture(Window window, string name)
     {
-        string folder = Path.Combine(Directory.GetCurrentDirectory(), "artifacts/desktop-2.0-alpha8"); Directory.CreateDirectory(folder);
+        string folder = Path.Combine(Directory.GetCurrentDirectory(), "artifacts/desktop-2.0-alpha9"); Directory.CreateDirectory(folder);
         using var frame = window.CaptureRenderedFrame()!; frame.Save(Path.Combine(folder, name), Avalonia.Media.Imaging.PngBitmapEncoderOptions.Default);
     }
 
