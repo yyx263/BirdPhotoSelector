@@ -9,11 +9,39 @@
 - SDK SHA-256：`4e2213a0b10e32199a30b9114a61376cdb40f94df861262b4a6dca659701276b`，是从官方 HTTPS 下载记录的指纹，不是上游签名。
 - 运行文件 `libraw.dll` SHA-256：`2c4df36d9011267fd3ffd5c23e80d69d5f42c3d503f03ac02448f5c8a7fe0fa2`。
 - 原始版权与许可副本：`licenses/LibRaw-COPYRIGHT.txt`、`licenses/LibRaw-CDDL-1.0.txt`、`licenses/LibRaw-LGPL-2.1.txt`。保留 LibRaw 所包含的 dcraw、DCB/FBDD、X3F、Adobe DNG 相关署名；DCB/X3F 的 BSD 条款原文另保存在 `licenses/LibRaw-ComponentNotices.txt`。
-- 本项目的 ABI 桥接源码位于 `native/raw-decoder.cpp`，构建脚本为 `scripts/Build-RawDecoder.ps1`。桥接只调用官方库，不复制或改变库内部算法。
+- 本项目的 UTF-8 ABI 3 桥接源码位于 `native/raw-decoder.cpp`，使用 `native/CMakeLists.txt`。Windows 构建入口为 `scripts/Build-RawDecoder.ps1`，Linux/macOS 为 `scripts/Build-Native.py`；桥接只调用官方库，不复制或改变库内部算法。
+- Unix 固定源码包：[LibRaw-0.22.3.tar.gz](https://www.libraw.org/data/LibRaw-0.22.3.tar.gz)，SHA-256：`789f3c33466210a1a0907f747a97c715d21bbf4af712f257fcbbd90111b227e4`。下载源和指纹统一记录于 `native/dependencies.json`；Unix 本机编译二进制的哈希不能套用 Windows DLL 哈希。
 
 显示流程使用传感器 RAW 解码、适用的解拜耳、相机白平衡及 sRGB 输出；不将内嵌 JPEG 作为 RAW 解码结果。格式扩展名能被识别不代表所有机型或压缩模式都受支持。
 
 原生 DLL 所需的 Microsoft C++ 运行库为 `msvcp140.dll`、`vcruntime140.dll`、`vcruntime140_1.dll`。构建时从已安装 Visual Studio 的 x64 CRT 可再分发目录复制到程序目录，不从系统目录任意收集 DLL；它们仍受 Microsoft 原始条款约束。分发规则与应用目录部署方式见 [Microsoft C++ 运行库分发文档](https://learn.microsoft.com/en-us/cpp/windows/redistributing-visual-cpp-files)。这三个运行库不按本项目或 LibRaw 的开源许可重新授权。
+
+## 跨平台 JPEG 与 EXIF 依赖（v2.0.0-alpha.3）
+
+- [SkiaSharp 3.119.4](https://www.nuget.org/packages/SkiaSharp/3.119.4)，MIT；同时固定 `SkiaSharp.NativeAssets.Win32`、`SkiaSharp.NativeAssets.macOS` 和 `SkiaSharp.NativeAssets.Linux` 为 3.119.4。许可在 `licenses/SkiaSharp-MIT.txt`，各实际原生包自带的第三方声明完整保留于 `licenses/SkiaSharp-ThirdPartyNotices-Windows.txt`、`SkiaSharp-ThirdPartyNotices-macOS.txt`、`SkiaSharp-ThirdPartyNotices-Linux.txt`；发布时随适用库一并保留，不能仅附主包 MIT 文本。
+- [MetadataExtractor 2.9.3](https://github.com/drewnoakes/metadata-extractor-dotnet/tree/2.9.3)，Apache-2.0，许可在 `licenses/MetadataExtractor-Apache-2.0.txt`。
+- 传递依赖 [XmpCore 6.1.10.1](https://github.com/drewnoakes/xmp-core-dotnet)，Adobe XMPCore 的 .NET 移植，BSD-3-Clause。`licenses/XmpCore-NOTICE.txt` 保留移植作者及 Adobe 署名，`licenses/XmpCore-BSD-3-Clause.txt` 保留上游 Adobe XMP SDK 许可原文。
+
+上述依赖从实际恢复的 NuGet 包核对版本；JPEG/EXIF 仅在本机读取，未修改这些依赖的源码。Linux GIO 和 macOS Foundation 使用系统 API，不将系统库复制或重新授权为本项目代码；实际发行仍需针对所用系统和二进制核查依赖。
+
+## Avalonia 桌面依赖（v2.0.0-alpha.4）
+
+新桌面入口使用开源 Avalonia **12.1.5**，包括 Desktop、Win32、X11、Native、Skia、HarfBuzz、Fluent、FreeDesktop/AtSpi、Remote.Protocol。Avalonia 许可为 MIT，原文为 `licenses/Avalonia-MIT.txt`，来自实际包记录的源码提交 `5825bf8c66fba0c11e67c980d8ece6444576bffa`。不引入 Avalonia XPF 或商业控件。Headless 12.1.5 仅用于检查，同样采用 MIT。
+
+除上面的 SkiaSharp 等共享依赖外，本次恢复的新增运行依赖为：
+
+| 组件 | 固定版本 | 原始许可/署名 |
+| --- | --- | --- |
+| Avalonia.Angle.Windows.Natives | 2.1.27548.20260419 | 原包完整 `LICENSE` 保存在 `licenses/Avalonia-ANGLE-LICENSE.txt`，保留 ANGLE 和所列子组件声明 |
+| HarfBuzzSharp 与 Windows/macOS/Linux NativeAssets | 8.3.1.3 | MIT 主许可及每个平台完整第三方声明保存在 `licenses/HarfBuzzSharp-MIT.txt`、`HarfBuzzSharp-ThirdPartyNotices-*.txt` |
+| MicroCom.Runtime | 0.11.6 | MIT，`licenses/MicroCom-MIT.txt`；对应源提交 `76785efcafd91b5902fd19dd11145f6dd655b7b4` |
+| Tmds.DBus.Protocol | 0.94.1 | MIT，`licenses/TmdsDBus-MIT.txt`；对应源提交 `b4a7fed0b878f74cb54f7cca84d2889af4e596ba` |
+
+版本和源提交按实际 NuGet 恢复记录核对，HarfBuzz/ANGLE 原生声明从所用包逐字复制；源项目的 MIT 许可从对应提交取得。构建期 Avalonia.BuildServices 11.3.2 使用 MIT，不作为产品功能。浏览器/WebAssembly 依赖在 NuGet 图中出现不表示本应用支持浏览器发布；本次只配置桌面入口，最终发布应核对目标 RID 的实际成员。
+
+Linux 图像和界面统一使用支持 Fontconfig 的标准 Skia 原生包，避免同时引入两个同名、不同构建的 libSkiaSharp.so；Ubuntu 主机需要 Fontconfig 和可用中文字体。
+
+界面使用系统可用中文字体，不随程序收集或分发系统字体。Linux/macOS 下的系统窗口、字体和输入法依赖仍需目标主机验证。
 
 ## YOLOv10n ONNX 模型
 
@@ -54,7 +82,7 @@ BioCLIP 2 文本向量和分类标签来自 [Imageomics / TreeOfLife-200M](https
 
 - 拼音工具：[pypinyin 0.55.0](https://pypi.org/project/pypinyin/0.55.0/)，使用 MIT License，本地原文为 `licenses/Pypinyin-MIT.txt`。固定官方 wheel SHA-256：`d53b1e8ad2cdb815fb2cb604ed3123372f5a28c6f447571244aca36fc62a286f`。该工具仅在生成索引时放入项目内 `.tools/search-python`，不作为程序运行依赖。
 - 拼音数据：[pinyin-data](https://github.com/mozillazg/pinyin-data) v0.15.0 与 [phrase-pinyin-data](https://github.com/mozillazg/phrase-pinyin-data) v0.19.0，均使用 MIT License；原始许可分别为 `licenses/Pypinyin-Data-MIT.txt` 和 `licenses/Pypinyin-Phrase-Data-MIT.txt`。
-- 简繁折叠使用 Windows 自带的语言转换接口及少量显式罕见字变体，不使用 OpenCC。该转换仅作用于搜索比较键。
+- 简繁折叠自 v2.0.0-alpha.3 改用 [OpenCC 1.1.9](https://github.com/BYVoid/OpenCC/tree/ver.1.1.9) 原始 `TSCharacters.txt` 单字表，Apache-2.0；本地为 `Assets/OpenCC/TSCharacters.txt`，SHA-256：`6b5a0a799bea2bb22c001f635eaa3fc2904310f0c08addbff275477a80ecf09a`。程序取单字首选映射并保留少量既有罕见鸟名字形别名，仅生成比较键，不改写原名称。许可及来源为 `licenses/OpenCC-Apache-2.0.txt`、`licenses/OpenCC-NOTICE.txt`，运行时不调用 OpenCC 原生库或 Windows NLS。
 
 索引中鸟种名称仍来自上述中国候选资料，相关署名及 CC BY-NC 4.0 条件继续适用，不能因拼音工具采用 MIT 而将名称资料重新标为 MIT。索引重建不应修改 `models/bioclip2` 中的模型、候选表或原哈希清单。
 
@@ -88,13 +116,13 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-## .NET 8 与 Windows Presentation Foundation
+## .NET 10 与 Windows Presentation Foundation
 
 本应用自包含发布时携带 Microsoft .NET Windows Desktop 运行库。
 
 - [.NET Runtime 源码和许可](https://github.com/dotnet/runtime)
 - [WPF 源码和许可](https://github.com/dotnet/wpf)
-- 本次 Windows x64 发布运行库版本为 8.0.33，随附以下 NuGet 运行库包的原始声明：
+- v2.0 开发分支使用 SDK 10.0.403、运行库 10.0.14；Windows x64 自包含发行对应运行库版本为 10.0.14，随附以下 NuGet 运行库包的原始声明：
   - `licenses/DotNetRuntime-LICENSE.txt`：`Microsoft.NETCore.App.Runtime.win-x64` 的 MIT 许可。
   - `licenses/DotNetRuntime-ThirdPartyNotices.txt`：同包完整第三方声明。
   - `licenses/WindowsDesktopRuntime-LICENSE.txt`：`Microsoft.WindowsDesktop.App.Runtime.win-x64` 的 MIT 许可。该版本的 WindowsDesktop 运行库包未另外提供第三方声明文件。
@@ -102,3 +130,9 @@ SOFTWARE.
 以上原文随程序一同分发。升级 .NET 运行库时，应从实际发布所用版本的 NuGet 包同步更新这些文件和版本记录。
 
 开发 SDK 和 NuGet 缓存位于 `.tools`，属于本地构建工具，不需要随应用一起分发。
+
+## v2.0-alpha.6 交叉编译运行时
+
+Windows 交叉构建使用固定 [Zig 0.17.1](https://ziglang.org/download/)；官方下载 URL 与 SHA-256 在 `scripts/NativeToolchain.json`。编译器本身只留在忽略的 `.tools/`，不打入程序包。Unix 原生组件中静态链接的 C++/异常运行时保留 LLVM Apache-2.0 with LLVM exception 及其历史许可：`licenses/LLVM-libcxx.txt`、`LLVM-libcxxabi.txt`、`LLVM-libunwind.txt`，Zig compiler-rt 的 MIT 许可在 `licenses/Zig-MIT.txt`。文件直接取自所用、已校验的编译器归档。
+
+`native/macos-imports` 是本项目仅用于交叉链接的公开 API 声明与文本导入表，不包含 Foundation、libobjc 或 Apple SDK 的实现/二进制；Mac 包在运行时加载系统框架。本机 Mac 编译仍可使用 Xcode SDK。旧 WindowsDesktop/WPF 运行时不再作为本程序依赖或随包分发，.NET Core 运行库许可继续保留。

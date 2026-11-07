@@ -1,0 +1,12 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/BirdPhotoSelector.Desktop/BirdPhotoSelector.Desktop.csproj" />
+  </Folder>
+  <Folder Name="/Tests/">
+    <Project Path="Tests/Imaging.Core/BirdPhotoSelector.Imaging.Checks.csproj" />
+    <Project Path="Tests/Application.Core/BirdPhotoSelector.Application.Checks.csproj" />
+    <Project Path="Tests/PortableAdapters/BirdPhotoSelector.PortableAdapters.Checks.csproj" />
+    <Project Path="Tests/Workflows/BirdPhotoSelector.Workflow.Checks.csproj" />
+    <Project Path="Tests/Desktop/BirdPhotoSelector.Desktop.Checks.csproj" />
+  </Folder>
+</Solution>

@@ -1,0 +1,12 @@
+<Project>
+  <PropertyGroup>
+    <!-- 所有应用/检查使用同一版本；原生缓存以目标 RID 隔离，禁止跨平台混用。 -->
+    <!-- 本工程只有显式 .NET Core 框架引用，禁止 SDK 为可能的传递引用预取 WPF/ASP.NET 包。 -->
+    <DisableTransitiveFrameworkReferenceDownloads>true</DisableTransitiveFrameworkReferenceDownloads>
+    <Version>2.0.0</Version>
+    <BpsHostRid>$([System.Runtime.InteropServices.RuntimeInformation]::RuntimeIdentifier)</BpsHostRid>
+    <BpsNativeRid Condition="'$(RuntimeIdentifier)' != ''">$(RuntimeIdentifier)</BpsNativeRid>
+    <BpsNativeRid Condition="'$(BpsNativeRid)' == ''">$(BpsHostRid)</BpsNativeRid>
+    <BpsNativeDirectory>$(MSBuildThisFileDirectory).tools/native/$(BpsNativeRid)/</BpsNativeDirectory>
+  </PropertyGroup>
+</Project>

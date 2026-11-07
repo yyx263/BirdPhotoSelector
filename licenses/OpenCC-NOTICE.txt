@@ -1,0 +1,7 @@
+OpenCC 1.1.9 character conversion data
+Source: https://github.com/BYVoid/OpenCC/tree/ver.1.1.9
+Copyright BYVoid and OpenCC contributors; distributed under Apache License 2.0.
+Unmodified upstream data: Assets/OpenCC/TSCharacters.txt
+SHA-256: 6b5a0a799bea2bb22c001f635eaa3fc2904310f0c08addbff275477a80ecf09a
+The application uses the first character candidate for SEARCH KEYS ONLY and preserves original display identities.
+Application-specific rare bird-character folds are applied before the table; no OpenCC executable is bundled.

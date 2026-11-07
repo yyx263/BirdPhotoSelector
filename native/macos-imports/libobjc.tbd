@@ -1,0 +1,8 @@
+--- !tapi-tbd
+tbd-version: 4
+targets: [ arm64-macos ]
+install-name: '/usr/lib/libobjc.A.dylib'
+exports:
+  - targets: [ arm64-macos ]
+    symbols: [ _objc_msgSend, _objc_autoreleasePoolPush, _objc_autoreleasePoolPop, _objc_begin_catch, _objc_end_catch, _objc_exception_rethrow, _objc_exception_throw, ___objc_personality_v0 ]
+...

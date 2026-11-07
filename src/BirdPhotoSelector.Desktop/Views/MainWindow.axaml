@@ -1,0 +1,129 @@
+<Window xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:app="clr-namespace:BirdPhotoSelector;assembly=BirdPhotoSelector.Application" xmlns:domain="clr-namespace:BirdPhotoSelector;assembly=BirdPhotoSelector.Domain"
+        xmlns:c="using:BirdPhotoSelector.Desktop.Controls" xmlns:im="using:BirdPhotoSelector.Desktop.Imaging"
+        x:Class="BirdPhotoSelector.Desktop.Views.MainWindow" x:DataType="app:PhotoSelectionSession" Title="{Binding WindowTitle}"
+        Width="1560" Height="920" MinWidth="1150" MinHeight="780" WindowStartupLocation="CenterScreen">
+  <Window.Resources>
+    <im:ThumbnailConverter x:Key="Thumbnail" /><im:RatingConverter x:Key="Rating" />
+  </Window.Resources>
+  <Grid RowDefinitions="64,50,*,32">
+    <Border Background="#192128" Padding="20,10">
+      <DockPanel LastChildFill="True">
+        <StackPanel Orientation="Horizontal" Spacing="12" DockPanel.Dock="Left">
+          <Border x:Name="BrandMark" Background="#9DDFC4" CornerRadius="11" Width="38" Height="38" VerticalAlignment="Center"><TextBlock Text="羽" Foreground="#163D30" FontSize="22" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center" /></Border>
+          <StackPanel VerticalAlignment="Center"><TextBlock Text="羽选" FontSize="20" FontWeight="Bold" /><TextBlock Text="BIRD PHOTO SELECTOR" FontSize="9" Foreground="#8FA5AD" /></StackPanel>
+        </StackPanel>
+        <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right" VerticalAlignment="Center" IsEnabled="{Binding CanEdit}">
+          <Button Classes="primary" Content="添加照片" Click="AddPhotos" />
+          <Button Content="清空列表" Click="ClearList" />
+          <Button Content="打开工程" Click="OpenProject" />
+          <Button Content="保存工程" Click="SaveProject" />
+          <Button Content="恢复自动保存" Click="RecoverProject" />
+          <Button Classes="accent" Content="导出 / 清理" Click="OpenExport" />
+          <Button Content="?" Click="ShowHelp" ToolTip.Tip="帮助" />
+        </StackPanel>
+      </DockPanel>
+    </Border>
+    <Grid Grid.Row="1" Margin="20,8" ColumnDefinitions="Auto,*,Auto,170,60,Auto,Auto,Auto">
+      <StackPanel Orientation="Horizontal" Spacing="12" VerticalAlignment="Center"><TextBlock Text="本次挑选" FontWeight="Bold" /><TextBlock Text="{Binding LibrarySummary}" Classes="muted" /></StackPanel>
+      <TextBlock Grid.Column="2" Text="背景相似阈值" Classes="muted" VerticalAlignment="Center" />
+      <Slider x:Name="GroupingSlider" Theme="{StaticResource CompactSlider}" Grid.Column="3" Margin="12,0" Minimum="0" Maximum="1" Value="{Binding Threshold, Mode=TwoWay}" IsEnabled="{Binding CanEdit}" />
+      <TextBlock Grid.Column="4" Text="{Binding Threshold, StringFormat={}{0:P0}}" Foreground="#9EDCC5" VerticalAlignment="Center" />
+      <Button Grid.Column="5" Content="自动分组" Click="GroupPhotos" IsEnabled="{Binding CanEdit}" />
+      <Button Classes="accent" Grid.Column="6" Content="全部识别" Click="RecognizeAll" ToolTip.Tip="识别当前列表全部照片，默认中国候选；保留人工修改" IsEnabled="{Binding CanEdit}" Margin="8,0,0,0" />
+      <Button Grid.Column="7" Content="取消" Click="CancelOperation" IsVisible="{Binding IsBusy}" Margin="8,0,0,0" />
+    </Grid>
+    <Grid Grid.Row="2" ColumnDefinitions="190,10,148,10,*" Margin="16,0,16,10">
+      <Border Background="#192128" CornerRadius="10" Padding="8">
+        <Grid RowDefinitions="30,22,*,38,38">
+          <Grid ColumnDefinitions="*,Auto" Margin="4,0"><TextBlock Text="照片组" FontWeight="Bold" /><TextBlock Grid.Column="1" Text="{Binding GroupPosition}" Classes="muted" /></Grid>
+          <TextBlock Grid.Row="1" Text="Page Up / Down 切换组" FontSize="10" Foreground="#8FA5AD" Margin="4,0" />
+          <ListBox x:Name="GroupList" Grid.Row="2" ItemsSource="{Binding Groups}" SelectionMode="Multiple" SelectionChanged="GroupSelectionChanged" IsEnabled="{Binding CanEdit}">
+            <ListBox.ItemTemplate><DataTemplate x:DataType="app:GroupCard">
+              <Border Padding="7" CornerRadius="8" ContextRequested="GroupContextRequested">
+                <StackPanel Spacing="5">
+                  <Grid Height="110"><Image Source="{Binding Cover.Thumbnail, Converter={StaticResource Thumbnail}}" Stretch="Uniform" ClipToBounds="True" />
+                    <Border Classes="ratingBadge"><TextBlock Text="{Binding Rating, Converter={StaticResource Rating}}" Foreground="{Binding Rating, Converter={StaticResource Rating}, ConverterParameter=color}" FontSize="{Binding Rating, Converter={StaticResource Rating}, ConverterParameter=size}" /></Border>
+                    <Border Classes="formatBadge"><TextBlock Text="{Binding Cover.CompactFormatLabel}" /></Border>
+                  </Grid>
+                  <TextBlock Text="{Binding Title}" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Title}" FontSize="12" />
+                  <TextBlock Text="{Binding Summary}" FontSize="10" Foreground="#93ADA5" />
+                </StackPanel>
+              </Border>
+            </DataTemplate></ListBox.ItemTemplate>
+          </ListBox>
+          <Button Grid.Row="3" Content="拆分整组" HorizontalAlignment="Stretch" Click="SplitGroup" IsEnabled="{Binding CanEdit}" Margin="0,3" />
+          <Button Grid.Row="4" Content="从列表中移除" HorizontalAlignment="Stretch" Click="RemoveGroups" IsEnabled="{Binding CanEdit}" Margin="0,3" />
+        </Grid>
+      </Border>
+      <Border Grid.Column="2" Background="#192128" CornerRadius="10" Padding="8">
+        <Grid RowDefinitions="30,22,*,38,38">
+          <Grid ColumnDefinitions="*,Auto" Margin="4,0"><TextBlock Text="组内照片" FontWeight="Bold" /><TextBlock Grid.Column="1" Text="{Binding PhotoPosition}" Classes="muted" /></Grid>
+          <TextBlock Grid.Row="1" Text="方向键 / WASD 切图" FontSize="10" Foreground="#8FA5AD" Margin="4,0" />
+          <ListBox x:Name="PhotoList" Grid.Row="2" SelectionMode="Multiple" SelectionChanged="PhotoSelectionChanged" IsEnabled="{Binding CanEdit}">
+            <ListBox.ItemTemplate><DataTemplate x:DataType="domain:PhotoItem">
+              <Border Padding="6" CornerRadius="8" ContextRequested="PhotoContextRequested">
+                <StackPanel Spacing="5"><Grid Height="88"><Image Source="{Binding Thumbnail, Converter={StaticResource Thumbnail}}" Stretch="Uniform" ClipToBounds="True" />
+                  <Border Classes="formatBadge"><TextBlock Text="{Binding CompactFormatLabel}" /></Border>
+                  <Border Classes="ratingBadge"><TextBlock Text="{Binding Rating, Converter={StaticResource Rating}}" Foreground="{Binding Rating, Converter={StaticResource Rating}, ConverterParameter=color}" FontSize="{Binding Rating, Converter={StaticResource Rating}, ConverterParameter=size}" /></Border>
+                </Grid><TextBlock Text="{Binding FileName}" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding FilePath}" FontSize="11" /></StackPanel>
+              </Border>
+            </DataTemplate></ListBox.ItemTemplate>
+          </ListBox>
+          <Button Grid.Row="3" Content="将当前图独立" HorizontalAlignment="Stretch" Click="SplitPhoto" IsEnabled="{Binding CanEdit}" Margin="0,3" />
+          <Button Grid.Row="4" Content="从列表中移除" HorizontalAlignment="Stretch" Click="RemovePhotos" IsEnabled="{Binding CanEdit}" Margin="0,3" />
+        </Grid>
+      </Border>
+      <Grid Grid.Column="4" RowDefinitions="36,*,Auto,220,62">
+        <Grid ColumnDefinitions="*,Auto" Background="#192128" Margin="0,0,0,4"><TextBlock Text="{Binding CurrentPhoto.FileName}" Margin="14,0" VerticalAlignment="Center" FontWeight="Bold" /><TextBlock Grid.Column="1" Text="{Binding PreviewSourceLabel}" Classes="muted" Margin="12,0" VerticalAlignment="Center" /></Grid>
+        <Grid Grid.Row="1" ColumnDefinitions="*,10,*">
+          <Border Background="#141D24" BorderBrush="#2B3B44" BorderThickness="1" CornerRadius="10" ClipToBounds="True">
+            <Grid RowDefinitions="36,*,36"><TextBlock Text="全图" FontWeight="Bold" Margin="12,0" VerticalAlignment="Center" />
+              <c:PhotoPane x:Name="FullPane" Grid.Row="1" />
+              <TextBlock Grid.Row="2" Text="白框显示当前细节视野" Classes="muted" Margin="12,0" VerticalAlignment="Center" />
+            </Grid>
+          </Border>
+          <Border Grid.Column="2" Background="#141D24" BorderBrush="#2B3B44" BorderThickness="1" CornerRadius="10" ClipToBounds="True">
+            <Grid RowDefinitions="36,*,36"><Grid ColumnDefinitions="*,Auto" Margin="12,0"><TextBlock Text="细节预览" FontWeight="Bold" VerticalAlignment="Center" /><StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="10" VerticalAlignment="Center"><ToggleButton x:Name="ManualRegionButton" Content="手动选区" FontSize="11" Padding="8,3" Click="ToggleManualRegion" IsEnabled="{Binding CanEditBirdRegions}" /><TextBlock x:Name="ZoomText" Text="—" Foreground="#9EDCC5" VerticalAlignment="Center" /></StackPanel></Grid>
+              <c:PhotoPane x:Name="DetailPane" Grid.Row="1" IsDetail="True" />
+              <StackPanel Grid.Row="2" Orientation="Horizontal" Spacing="6" HorizontalAlignment="Right" Margin="6,3" IsEnabled="{Binding CanRate}"><Button Content="适应画面" Padding="10,4" Click="FitPhoto" /><Button Content="还原鸟类视图" Padding="10,4" Click="FocusBird" /></StackPanel>
+            </Grid>
+          </Border>
+        </Grid>
+        <c:BalancedMetadataPanel x:Name="MetadataPanel" Grid.Row="2" Margin="14,6">
+          <TextBlock FontSize="11"><Run Text="时间  " Foreground="#899BAA" /><Run Text="{Binding CurrentPhoto.Metadata.CapturedAt, TargetNullValue=—, FallbackValue=—}" Foreground="#D3DDE4" /></TextBlock>
+          <TextBlock FontSize="11"><Run Text="相机  " Foreground="#899BAA" /><Run Text="{Binding CurrentPhoto.Metadata.Camera, TargetNullValue=—, FallbackValue=—}" Foreground="#D3DDE4" /></TextBlock>
+          <TextBlock FontSize="11"><Run Text="焦距  " Foreground="#899BAA" /><Run Text="{Binding CurrentPhoto.Metadata.FocalLength, TargetNullValue=—, FallbackValue=—}" Foreground="#D3DDE4" /></TextBlock>
+          <TextBlock FontSize="11"><Run Text="光圈  " Foreground="#899BAA" /><Run Text="{Binding CurrentPhoto.Metadata.Aperture, TargetNullValue=—, FallbackValue=—}" Foreground="#D3DDE4" /></TextBlock>
+          <TextBlock FontSize="11"><Run Text="快门  " Foreground="#899BAA" /><Run Text="{Binding CurrentPhoto.Metadata.Shutter, TargetNullValue=—, FallbackValue=—}" Foreground="#D3DDE4" /></TextBlock>
+          <TextBlock FontSize="11"><Run Text="ISO  " Foreground="#899BAA" /><Run Text="{Binding CurrentPhoto.Metadata.Iso, TargetNullValue=—, FallbackValue=—}" Foreground="#D3DDE4" /></TextBlock>
+          <TextBlock FontSize="11"><Run Text="补偿  " Foreground="#899BAA" /><Run Text="{Binding CurrentPhoto.Metadata.ExposureBias, TargetNullValue=—, FallbackValue=—}" Foreground="#D3DDE4" /></TextBlock>
+          <TextBlock FontSize="11"><Run Text="格式  " Foreground="#899BAA" /><Run Text="{Binding CurrentFormatLabel}" Foreground="#B8D6C9" /></TextBlock>
+        </c:BalancedMetadataPanel>
+        <Grid Grid.Row="3" RowDefinitions="34,*,30" Background="#192128" Margin="0,0,0,8">
+          <Grid ColumnDefinitions="Auto,*,Auto,Auto" Margin="12,3"><TextBlock Text="鸟种识别" FontWeight="Bold" VerticalAlignment="Center" /><TextBlock Grid.Column="1" Text="{Binding GeometryNotice}" Foreground="#D8B978" Margin="12,0" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+            <Button Grid.Column="2" Content="清空识别结果" Click="ClearBirdResults" IsEnabled="{Binding CanEditBirdRegions}" Padding="8,4" FontSize="11" />
+            <Button Grid.Column="3" Content="重新识别本张" Click="ReidentifyPhoto" IsEnabled="{Binding CanReidentifyCurrentPhoto}" Padding="8,4" FontSize="11" Margin="6,0,0,0" />
+          </Grid>
+          <ListBox x:Name="BirdList" Grid.Row="1" SelectionChanged="BirdSelectionChanged" Margin="8,0,8,6" IsEnabled="{Binding CanRate}">
+            <ListBox.Styles><Style Selector="ListBoxItem"><Setter Property="Margin" Value="0,0,0,2" /></Style></ListBox.Styles>
+            <ListBox.ItemTemplate><DataTemplate x:DataType="domain:DetectedBird"><Grid ColumnDefinitions="42,*,*,80" Height="28" Margin="6,0" Background="Transparent" ToolTip.Tip="{Binding EvidenceTooltip}"><TextBlock Text="{Binding DisplayNumberText}" Foreground="#9EDCC5" VerticalAlignment="Center" /><TextBlock Grid.Column="1" Text="{Binding SpeciesName}" VerticalAlignment="Center" /><TextBlock Grid.Column="2" Text="{Binding ScientificName}" Classes="muted" VerticalAlignment="Center" FontStyle="Italic" /><TextBlock Grid.Column="3" Text="{Binding ConfidenceText}" HorizontalAlignment="Right" VerticalAlignment="Center" /></Grid></DataTemplate></ListBox.ItemTemplate>
+          </ListBox>
+          <Grid Grid.Row="2" ColumnDefinitions="*,Auto" Margin="10,0,8,0"><Button Content="＋ 手动添加鸟种" Click="AddSpecies" IsEnabled="{Binding CanRate}" Background="Transparent" Foreground="#9CB8AE" FontSize="12" Padding="4,2" HorizontalAlignment="Left" /><Button x:Name="UndoResultsButton" Grid.Column="1" Content="撤销" Click="UndoBirdResults" Padding="10,3" FontSize="11" /></Grid>
+        </Grid>
+        <Grid Grid.Row="4" ColumnDefinitions="120,*,*,*,*" IsEnabled="{Binding CanRate}">
+          <StackPanel VerticalAlignment="Center" Margin="12,0"><TextBlock Text="为这张照片评级" FontWeight="Bold" /><TextBlock Text="快捷键 1 / 2 / 3 / 4" FontSize="10" Foreground="#91A4AF" Margin="0,4,0,0" /></StackPanel>
+          <ToggleButton x:Name="UnmarkedRating" Grid.Column="1" Classes="rating unmarked" Tag="Unmarked" Click="RatePhoto" HorizontalAlignment="Stretch" Margin="3,3"><StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center"><TextBlock Classes="ratingGlyph" Text="●" FontSize="11" /><TextBlock Text="未标记" VerticalAlignment="Center" /></StackPanel></ToggleButton>
+          <ToggleButton x:Name="RejectRating" Grid.Column="2" Classes="rating reject" Tag="Reject" Click="RatePhoto" HorizontalAlignment="Stretch" Margin="3,3"><StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center"><TextBlock Classes="ratingGlyph" Text="×" /><TextBlock Text="舍弃" VerticalAlignment="Center" /></StackPanel></ToggleButton>
+          <ToggleButton x:Name="KeepRating" Grid.Column="3" Classes="rating keep" Tag="Keep" Click="RatePhoto" HorizontalAlignment="Stretch" Margin="3,3"><StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center"><TextBlock Classes="ratingGlyph" Text="✓" /><TextBlock Text="保留" VerticalAlignment="Center" /></StackPanel></ToggleButton>
+          <ToggleButton x:Name="FavoriteRating" Grid.Column="4" Classes="rating favorite" Tag="Favorite" Click="RatePhoto" HorizontalAlignment="Stretch" Margin="3,3"><StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center"><TextBlock Classes="ratingGlyph" Text="★" /><TextBlock Text="精选" VerticalAlignment="Center" /></StackPanel></ToggleButton>
+        </Grid>
+      </Grid>
+    </Grid>
+    <Grid Grid.Row="3" ColumnDefinitions="*,Auto" Background="#192128" Margin="0,3,0,0">
+      <TextBlock Text="{Binding Status}" FontSize="11" Foreground="#93A7B1" Margin="16,0" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Status}" />
+      <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="14" Margin="12,0" VerticalAlignment="Center"><TextBlock Text="{Binding AutoSaveSummary}" FontSize="10" Foreground="#92A9A0" ToolTip.Tip="{Binding AutoSavePath}" /><TextBlock Text="{Binding RatingSummary}" FontSize="10" Foreground="#A9BDB7" /></StackPanel>
+    </Grid>
+    <ProgressBar Grid.Row="2" Grid.ColumnSpan="1" Height="3" VerticalAlignment="Bottom" Value="{Binding Progress}" IsVisible="{Binding IsBusy}" />
+  </Grid>
+</Window>

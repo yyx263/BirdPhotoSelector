@@ -1,0 +1,10 @@
+--- !tapi-tbd
+tbd-version: 4
+targets: [ arm64-macos ]
+install-name: '/System/Library/Frameworks/Foundation.framework/Versions/C/Foundation'
+exports:
+  - targets: [ arm64-macos ]
+    symbols: [ _NSCocoaErrorDomain ]
+    objc-classes: [ NSString, NSURL, NSFileManager, NSException ]
+    objc-eh-types: [ NSException ]
+...

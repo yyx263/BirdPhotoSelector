@@ -5,3 +5,21 @@
 # Preserve the upstream EML's mixed line endings and all vector bytes exactly.
 /models/bioclip2/licenses/*.xml -text whitespace=cr-at-eol
 /models/bioclip2/*.f32 binary
+
+# Keep the pinned OpenCC dictionary byte-for-byte identical on every host.
+/Assets/OpenCC/*.txt text eol=lf
+
+# Preserve upstream license bytes, including their original whitespace.
+/licenses/SkiaSharp*.txt -text whitespace=-blank-at-eol,-blank-at-eof
+/licenses/OpenCC-Apache-2.0.txt -text whitespace=-blank-at-eof
+
+/licenses/Avalonia-*.txt -text whitespace=-blank-at-eol,-blank-at-eof
+/licenses/HarfBuzzSharp*.txt -text whitespace=-blank-at-eol,-blank-at-eof
+/licenses/MicroCom-MIT.txt -text
+/licenses/TmdsDBus-MIT.txt -text
+/licenses/DotNetRuntime-*.txt -text whitespace=-blank-at-eol,-blank-at-eof
+/licenses/LLVM-*.txt -text whitespace=-blank-at-eol,-blank-at-eof
+/licenses/Zig-MIT.txt -text whitespace=-blank-at-eol,-blank-at-eof
+*.py text eol=lf
+*.sh text eol=lf
+*.tbd text eol=lf

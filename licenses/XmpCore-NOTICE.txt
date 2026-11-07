@@ -1,0 +1,17 @@
+XmpCore 6.1.10.1 (.NET port of Adobe XMPCore 6.1.10)
+Project: https://github.com/drewnoakes/xmp-core-dotnet
+NuGet: https://www.nuget.org/packages/XmpCore/6.1.10.1
+
+Copyright 2015-2021, XmpCore authors and contributors.
+Initially ported by Yakov Danila and Nathanael Jones; maintained by Drew Noakes and contributors.
+The upstream source also retains Adobe Systems Incorporated copyright headers,
+including Copyright 2006-2007 Adobe Systems Incorporated. All Rights Reserved.
+
+The upstream README and project metadata identify the Adobe XMP SDK BSD-3-Clause
+license as applying to this port. The original linked Adobe web page is no longer
+available. The Adobe XMP Toolkit SDK license text is reproduced without changes
+in XmpCore-BSD-3-Clause.txt from:
+https://raw.githubusercontent.com/adobe/XMP-Toolkit-SDK/main/LICENSE
+
+This is a transitive dependency of MetadataExtractor 2.9.3; no XmpCore source was
+modified by BirdPhotoSelector. Keep this attribution and the license together.

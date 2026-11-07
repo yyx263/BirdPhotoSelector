@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType><AssemblyName>BirdPhotoSelector</AssemblyName><TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable><ImplicitUsings>enable</ImplicitUsings>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors><NuGetAudit>false</NuGetAudit>
+    <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
+    <RestorePackagesPath>$(MSBuildThisFileDirectory)../../.tools/packages</RestorePackagesPath>
+    <ApplicationManifest Condition="$(BpsNativeRid.StartsWith('win-'))">app.manifest</ApplicationManifest>
+    <ApplicationIcon>../../Assets/App.ico</ApplicationIcon>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../BirdPhotoSelector.Imaging.Portable/BirdPhotoSelector.Imaging.Portable.csproj" />
+    <ProjectReference Include="../BirdPhotoSelector.Platform/BirdPhotoSelector.Platform.csproj" />
+    <ProjectReference Include="../BirdPhotoSelector.Catalog/BirdPhotoSelector.Catalog.csproj" />
+    <PackageReference Include="Avalonia.Desktop" Version="12.1.5" />
+    <PackageReference Include="Avalonia.Themes.Fluent" Version="12.1.5" />
+    <Content Include="../../RELEASE_NOTES.md" Link="RELEASE_NOTES.md" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="../../Assets/App.ico" Link="Assets/App.ico" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="../../models/**" Link="models/%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="../../licenses/**" Link="licenses/%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="../../THIRD_PARTY_NOTICES.md;../../使用说明.md" Link="%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="$(BpsNativeDirectory)*.dll;$(BpsNativeDirectory)*.so*;$(BpsNativeDirectory)*.dylib" Link="%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+  <Target Name="BuildWindowsNative" BeforeTargets="PrepareForBuild" Condition="$([MSBuild]::IsOSPlatform('Windows')) And '$(BpsNativeRid)' == 'win-x64' And '$(DesignTimeBuild)' != 'true' And '$(BpsSkipNativeBuild)' != 'true'">
+    <Exec Command="powershell.exe -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildProjectDirectory)/../../scripts/Build-RawDecoder.ps1&quot;" />
+  </Target>
+</Project>
