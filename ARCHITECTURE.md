@@ -1,6 +1,6 @@
 # v2.0 跨平台工程
 
-当前里程碑 **2.0.0-alpha.7**：界面样式对齐和交互开销优化。alpha.6 已完成：只保留 Avalonia 宿主，清理旧 WPF 源码/项目/测试宿主与历史输出，建立三平台目录发布、原生目标隔离、逐文件/模型/归档校验和实际发布目录自检。`dev` 持续开发，`main` 保持稳定。
+当前里程碑 **2.0.0-alpha.8**：大图 GPU 缓存和解码/显示链路优化。alpha.6 已完成：只保留 Avalonia 宿主，清理旧 WPF 源码/项目/测试宿主与历史输出，建立三平台目录发布、原生目标隔离、逐文件/模型/归档校验和实际发布目录自检。`dev` 持续开发，`main` 保持稳定。
 
 ## 依赖方向
 
@@ -90,3 +90,23 @@ Avalonia 缓存入口只保留一份不可变 BGRA，双预览共享。缓存前
 - 固定 5000 组、200 次评级并读取统计的通知基准：约 357ms → 1–3ms，组通知 1000000 → 200，标题通知 400 → 1；1000 次脏标记更新的标题通知 1000 → 1。该数字是通知基准，不是桌面帧率保证。
 - 新增真实鼠标/键盘焦点与主题检查、空状态/正常/最小窗口截图，以及 24MP 连续缩放拖拽后静态全图图像层仍只绘制一次的检查。Windows 桌面检查 109 项（包含真实模型）；报告位于 artifacts/desktop-2.0-alpha7 和 interaction-before/after.json。
 - 对外归档命名 macos-arm64，内部仍保留 osx-arm64 标准 RID。三平台包仍区分宿主验证与交叉编译，Mac/Ubuntu 实机验收未完成。
+
+## alpha.8 真实渲染与切图
+
+上阶段通知/绘制次数检查未覆盖 GPU 纹理上传。固定 Avalonia 12.1.5 的默认 Skia 资源缓存为 29,491,200 字节（约 28MiB），小于一张 24MP 不透明纹理约 92MiB；UI 发生评级或视图重绘时仍可能反复上传整图。
+
+- `DesktopRendering` 统一真实桌面的 Skia 配置：GPU 资源缓存目标 512MiB，按需增长而非预分配。CPU 保留帧预算仍为 512MiB；两项独立计费，渲染目标、在途资源、驱动、解码、缩略图及模型另计，不是进程/显存硬上限。保留原来的 GPU/软件回退，不强制更换图形后端。
+- `Bgra32ImageFrame` 保留 JPEG 解码后的显示布局，公共算法接口仍输出 RGB24 副本。定向直接置换完整 BGRA 像素，RGB 采样规则不变；全尺寸显示避免 BGRA→RGB→BGRA 的整图往返。小缩略图和显式缩放继续保存紧凑 RGB，不扩大照片列表的长期存储。
+- RAW/托管 RGB 显示采用跨 x64/ARM64 的 Vector128 四像素重排及标量尾部；每次 16 字节读取均有边界检查，不通过降分辨率、降低显示倍率或改变模型输入提速。
+- 缓存命中先提交画面；只快照前后各两张，邻居文件状态查询转到后台。提交邻域前在缓存锁内复查取消，迟到旧工作不能覆盖新选择；当前原件的文件版本仍正常验证。
+- 未标记实心点统一缩至 11px，其他评级符号及按钮尺寸不变；主窗口批量入口改为“全部识别”，人工保护规则不变。
+
+Windows/OpenGL 原生窗口固定两张 24MP 图、70 帧缩放/换图对照：默认缓存中位绘制 16.10ms、P95 24.10ms、总用时约 10.97s；仅使用 512MiB 缓存后中位约 0.046ms、P95 0.078ms、总用时约 1.47s。此为固定场景、此电脑的真实绘制测量，不是所有设备帧率保证。`Tests/Desktop/NativeRenderProbe.cs` 通过仅测试使用的 Skia lease 读取真实上下文，未来升级 Avalonia 时必须复核该不稳定诊断 API。
+
+24MP 生成 JPEG 的热缓存文件→显示帧中位约 254ms → 138ms，显示转换阶段约 92ms → 21ms，托管分配约 168MB → 96MB。夹具和程序均在同机，不包含 GPU 首次上传时间，也不能代表所有压缩文件的解码速度。
+
+本轮 Windows 检查：图像核心 50、业务 50、实际后端 176、工作流 67、桌面 111（含真实模型）；另有真实窗口探针。像素检查覆盖 BGRA 所有权、裁切、八方向、固定缩放及 SIMD 短尾精确相等。日志 `artifacts/regression-alpha8-final.log`；真实绘制对照为 `render-default.json` / `render-expanded.json`，解码对照为 `decode-before.json` / `decode-after.json`。
+
+复测入口：`dotnet run --project Tests/Desktop/BirdPhotoSelector.Desktop.Checks.csproj -c Release -- --render-probe`（框架默认基线），追加 `--expanded` 使用正式渲染配置；`--decode-probe` 测量 JPEG 到显示帧阶段。两个原生窗口测量会短暂显示并自动关闭。
+
+来源核对：[Avalonia 12.1.5 SkiaOptions](https://github.com/AvaloniaUI/Avalonia/blob/12.1.5/src/Skia/Avalonia.Skia/SkiaOptions.cs)。

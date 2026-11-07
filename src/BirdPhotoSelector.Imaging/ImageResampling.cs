@@ -43,8 +43,11 @@ public static class ImageResampling
         if (orientation is <= 1 or > 8) return source;
         int sw = source.PixelWidth, sh = source.PixelHeight;
         int width = orientation >= 5 ? sh : sw, height = orientation >= 5 ? sw : sh;
-        byte[] pixels = source is Rgb24ImageFrame managed ? managed.ReadOnlyPixels : source.CopyRgb24(cancellationToken);
-        var result = new byte[checked(width * height * 3)];
+        // 定向是纯位置置换，保留 BGRA 显示帧通道布局，无需先投影整图 RGB。
+        bool bgra = source is Bgra32ImageFrame;
+        int channels = bgra ? 4 : 3;
+        byte[] pixels = source is Bgra32ImageFrame display ? display.ReadOnlyPixels : source is Rgb24ImageFrame managed ? managed.ReadOnlyPixels : source.CopyRgb24(cancellationToken);
+        var result = new byte[checked(width * height * channels)];
         for (int y = 0; y < sh; y++)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -55,9 +58,9 @@ public static class ImageResampling
                     2 => (sw - 1 - x, y), 3 => (sw - 1 - x, sh - 1 - y), 4 => (x, sh - 1 - y),
                     5 => (y, x), 6 => (sh - 1 - y, x), 7 => (sh - 1 - y, sw - 1 - x), 8 => (y, sw - 1 - x), _ => (x, y)
                 };
-                pixels.AsSpan((y * sw + x) * 3, 3).CopyTo(result.AsSpan((dy * width + dx) * 3, 3));
+                pixels.AsSpan((y * sw + x) * channels, channels).CopyTo(result.AsSpan((dy * width + dx) * channels, channels));
             }
         }
-        return new Rgb24ImageFrame(width, height, result);
+        return bgra ? new Bgra32ImageFrame(width, height, result) : new Rgb24ImageFrame(width, height, result);
     }
 }

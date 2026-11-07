@@ -13,5 +13,5 @@ internal static class Program
         return BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
     }
     /// <summary>同时供真实桌面和无窗口验证入口复用相同应用主题、字体与渲染配置。</summary>
-    public static AppBuilder BuildAvaloniaApp() => AppBuilder.Configure<App>().UsePlatformDetect().LogToTrace();
+    public static AppBuilder BuildAvaloniaApp() => Imaging.DesktopRendering.Configure(AppBuilder.Configure<App>().UsePlatformDetect()).LogToTrace();
 }

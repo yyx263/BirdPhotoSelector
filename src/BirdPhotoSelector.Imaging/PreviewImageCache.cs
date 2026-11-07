@@ -89,10 +89,11 @@ public sealed class PreviewImageCache : IDisposable
 
     /// <summary>Prefetches current, next, previous, next + 2, previous - 2 across the flattened library.</summary>
     /// <summary>按当前位置、后一张、前一张、后两张、前两张更新预取队列；RAW 不进入后台队列。</summary>
-    public void UpdateNeighborhood(IReadOnlyList<PreviewSource> photos, PreviewSource current)
+    public void UpdateNeighborhood(IReadOnlyList<PreviewSource> photos, PreviewSource current, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(photos);
         ArgumentNullException.ThrowIfNull(current);
+        if (cancellationToken.IsCancellationRequested) return;
         int index = -1;
         for (int i = 0; i < photos.Count; i++)
             if (ReferenceEquals(photos[i], current) || photos[i].Id == current.Id) { index = i; break; }
@@ -105,6 +106,7 @@ public sealed class PreviewImageCache : IDisposable
             {
                 int candidate = index + offset;
                 if (candidate < 0 || candidate >= photos.Count) continue;
+                if (cancellationToken.IsCancellationRequested) return;
                 var photo = photos[candidate];
                 // RAW decoding is deliberately foreground-only, even when dimensions are
                 // already known. Merely browsing a neighbour must not unpack another RAW.
@@ -118,6 +120,8 @@ public sealed class PreviewImageCache : IDisposable
         lock (_gate)
         {
             ObjectDisposedException.ThrowIf(_disposed, this);
+            // 后台文件版本查询可能晚于下一次切图；取消的旧快照不能覆盖最新邻域。
+            if (cancellationToken.IsCancellationRequested) return;
             _generation++;
             _prefetch.Clear();
             _neighborhoodRanks.Clear();

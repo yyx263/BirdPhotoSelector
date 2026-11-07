@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+using System.Runtime.Intrinsics;
 using Avalonia;
 using Avalonia.Data.Converters;
 using Avalonia.Media;
@@ -31,16 +32,13 @@ public sealed class AvaloniaImageFrame : ImageFrame
     {
         ArgumentNullException.ThrowIfNull(frame); token.ThrowIfCancellationRequested();
         if (frame is AvaloniaImageFrame display) return display;
-        byte[] rgb = frame is Rgb24ImageFrame managed ? managed.ReadOnlyPixels : frame.CopyRgb24(token);
-        var bgra = new byte[checked(frame.PixelWidth * frame.PixelHeight * 4)];
-        for (int y = 0; y < frame.PixelHeight; y++)
+        byte[] bgra;
+        if (frame is Bgra32ImageFrame decoded) bgra = decoded.ReadOnlyPixels;
+        else
         {
-            token.ThrowIfCancellationRequested();
-            for (int x = 0; x < frame.PixelWidth; x++)
-            {
-                int input = (y * frame.PixelWidth + x) * 3, output = (y * frame.PixelWidth + x) * 4;
-                bgra[output] = rgb[input + 2]; bgra[output + 1] = rgb[input + 1]; bgra[output + 2] = rgb[input]; bgra[output + 3] = 255;
-            }
+            byte[] rgb = frame is Rgb24ImageFrame managed ? managed.ReadOnlyPixels : frame.CopyRgb24(token);
+            bgra = GC.AllocateUninitializedArray<byte>(checked(frame.PixelWidth * frame.PixelHeight * 4));
+            ExpandRgb(rgb, bgra, token);
         }
         var pinned = GCHandle.Alloc(bgra, GCHandleType.Pinned);
         try
@@ -49,6 +47,30 @@ public sealed class AvaloniaImageFrame : ImageFrame
                 new PixelSize(frame.PixelWidth, frame.PixelHeight), new Vector(96, 96), checked(frame.PixelWidth * 4)));
         }
         finally { pinned.Free(); }
+    }
+    /// <summary>RAW/托管 RGB 路径每次并行重排四个像素，JIT 在 x64/ARM64 选择本机 SIMD；末尾始终检查边界。</summary>
+    private static void ExpandRgb(byte[] rgb, byte[] bgra, CancellationToken token)
+    {
+        if ((long)rgb.Length * 4 != (long)bgra.Length * 3) throw new InvalidDataException("RGB 显示数据长度不符。");
+        int read = 0, write = 0;
+        if (Vector128.IsHardwareAccelerated)
+        {
+            var indices = Vector128.Create((byte)2, 1, 0, 255, 5, 4, 3, 255, 8, 7, 6, 255, 11, 10, 9, 255);
+            var alpha = Vector128.Create(0xff000000u).AsByte();
+            ref byte input = ref MemoryMarshal.GetArrayDataReference(rgb); ref byte output = ref MemoryMarshal.GetArrayDataReference(bgra);
+            while (read <= rgb.Length - 16)
+            {
+                if ((write & 0x3ffff) == 0) token.ThrowIfCancellationRequested();
+                var values = Vector128.Shuffle(Vector128.LoadUnsafe(ref input, (nuint)read), indices) | alpha;
+                values.StoreUnsafe(ref output, (nuint)write); read += 12; write += 16;
+            }
+        }
+        for (; read < rgb.Length; read += 3, write += 4)
+        {
+            if ((write & 0x3ffff) == 0) token.ThrowIfCancellationRequested();
+            bgra[write] = rgb[read + 2]; bgra[write + 1] = rgb[read + 1]; bgra[write + 2] = rgb[read]; bgra[write + 3] = 255;
+        }
+        token.ThrowIfCancellationRequested();
     }
     /// <summary>按区域读取紧密 RGB24，临时 BGRA 副本仅覆盖请求区域，不复制整幅照片。</summary>
     public override byte[] CopyRgb24(BirdPhotoSelector.Imaging.PixelRect region, CancellationToken cancellationToken = default)
@@ -84,6 +106,7 @@ public sealed class RatingConverter : IValueConverter
     public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
     {
         var rating = value is PhotoRating r ? r : PhotoRating.Unmarked;
+        if (parameter?.ToString() == "size") return rating == PhotoRating.Unmarked ? 11d : 17d;
         if (parameter?.ToString() == "color") return Brush.Parse(rating switch { PhotoRating.Reject => "#E08787", PhotoRating.Keep => "#9DDFC4", PhotoRating.Favorite => "#F4CB71", _ => "#B5C2CB" });
         return rating switch { PhotoRating.Reject => "×", PhotoRating.Keep => "✓", PhotoRating.Favorite => "★", _ => "●" };
     }

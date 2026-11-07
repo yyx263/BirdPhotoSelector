@@ -87,11 +87,25 @@ internal static class InteractionChecks
             button.Focus(NavigationMethod.Tab); await Flush();
             Check(button.GetVisualDescendants().OfType<Border>().First(b => b.Name == "PART_RatingBorder").BorderBrush?.ToString() == "#fff0fff8", name + " has a visible keyboard focus border");
         }
-        Check(window.FindControl<ToggleButton>("UnmarkedRating")!.GetVisualDescendants().OfType<TextBlock>().Any(t => t.Text == "●"), "unmarked rating is a solid dot");
+        Check(window.FindControl<ToggleButton>("UnmarkedRating")!.GetVisualDescendants().OfType<TextBlock>().Any(t => t.Text == "●" && t.FontSize == 11), "unmarked rating is a solid dot");
         var metadata = window.FindControl<BalancedMetadataPanel>("MetadataPanel")!;
         Check(metadata.Children.OfType<TextBlock>().All(t => t.FontSize == 11 && t.Inlines?.OfType<Avalonia.Controls.Documents.Run>().Select(r => r.Foreground?.ToString()).Distinct().Count() == 2), "metadata is compact with separate label and value colors");
         window.MouseMove(new Point(400, 120)); await Flush(); Capture(window, "rating-focus.png");
         return checks;
+    }
+    /// <summary>覆盖 SIMD 四像素分组及所有短尾长度，保证 RAW 显示通道没有越界、换色或丢像素。</summary>
+    internal static int DisplayPixels()
+    {
+        for (int width=1;width<=21;width++)
+        {
+            var rgb=Enumerable.Range(0,width*2*3).Select(i=>(byte)(i*37+11)).ToArray();
+            var source=new Rgb24ImageFrame(width,2,rgb); var display=AvaloniaImageFrame.Create(source);
+            if (!display.CopyRgb24().SequenceEqual(rgb)) throw new InvalidOperationException("RGB SIMD tail mismatch: " + width);
+            var bgra=new byte[width*2*4];
+            for(int i=0;i<width*2;i++) { bgra[i*4]=rgb[i*3+2];bgra[i*4+1]=rgb[i*3+1];bgra[i*4+2]=rgb[i*3];bgra[i*4+3]=255; }
+            if (!AvaloniaImageFrame.Create(new Bgra32ImageFrame(width,2,bgra)).CopyRgb24().SequenceEqual(rgb)) throw new InvalidOperationException("Direct BGRA display mismatch: " + width);
+        }
+        Console.WriteLine("PASS: RGB SIMD short/tail pixels and direct BGRA display are byte-identical."); return 2;
     }
     /// <summary>24MP 实际显示帧连续缩放/拖拽，断言静态全图图像层不会随白框更新重绘。</summary>
     internal static async Task<int> LargeViewport(string root)
@@ -124,7 +138,7 @@ internal static class InteractionChecks
     /// <summary>保存可人工复核的真实 Skia 渲染结果，避免只验证属性值。</summary>
     private static void Capture(Window window, string name)
     {
-        string folder = Path.Combine(Directory.GetCurrentDirectory(), "artifacts/desktop-2.0-alpha7"); Directory.CreateDirectory(folder);
+        string folder = Path.Combine(Directory.GetCurrentDirectory(), "artifacts/desktop-2.0-alpha8"); Directory.CreateDirectory(folder);
         using var frame = window.CaptureRenderedFrame()!; frame.Save(Path.Combine(folder, name), Avalonia.Media.Imaging.PngBitmapEncoderOptions.Default);
     }
 

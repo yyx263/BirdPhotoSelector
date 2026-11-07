@@ -15,7 +15,9 @@ internal static class Program
         try
         {
             PixelChecks();
+            BgraChecks();
             await CacheChecks(root);
+            CanceledNeighborhood(root);
             var references = typeof(ImageFrame).Assembly.GetReferencedAssemblies();
             Check(!references.Any(a => a.Name is "PresentationCore" or "PresentationFramework" or "WindowsBase" or "System.Drawing.Common"),
                 "core assembly has no desktop graphics dependency");
@@ -29,6 +31,47 @@ internal static class Program
                 throw new InvalidOperationException("Refusing to clean a directory outside the generated check root.");
             Directory.Delete(root, recursive: true);
         }
+    }
+
+    /// <summary>显示布局改动不能改变公共 RGB 像素、八方向、固定缩放、所有权或取消语义。</summary>
+    private static void BgraChecks()
+    {
+        byte[] bytes = [0,0,255,255,255,0,0,255,0,255,0,255,255,255,255,255];
+        var frame = new Bgra32ImageFrame(2,2,bytes); bytes[2] = 0;
+        byte[] rgb = [255,0,0,0,0,255,0,255,0,255,255,255];
+        Check(frame.CopyRgb24().SequenceEqual(rgb), "BGRA constructor owns pixels and projects exact RGB channels");
+        var copy = frame.CopyRgb24(); copy[0] = 0; Check(frame.CopyRgb24()[0] == 255, "BGRA reads never expose writable retained pixels");
+        Check(frame.CopyRgb24(new PixelRect(1,0,1,2)).SequenceEqual(new byte[] {0,0,255,255,255,255}), "BGRA crops project only requested rows in RGB order");
+        Check(frame.RetainedBytes == 16 && ReferenceEquals(frame,frame.Resize(2,2)), "BGRA retained budget and unchanged resize remain exact");
+        Check(frame.Resize(1,1).CopyRgb24().SequenceEqual(new byte[] {128,128,128}), "BGRA fixed bilinear reduction agrees with RGB gold sample");
+        var reference = new Rgb24ImageFrame(2,2,rgb);
+        for (int orientation=1;orientation<=8;orientation++)
+            Check(ImageResampling.Orient(frame,orientation) is Bgra32ImageFrame oriented && oriented.CopyRgb24().SequenceEqual(ImageResampling.Orient(reference,orientation).CopyRgb24()), "BGRA preserves layout and correct RGB for EXIF " + orientation);
+        Reject<ArgumentException>(()=>new Bgra32ImageFrame(2,2,new byte[15]), "BGRA rejects wrong byte length");
+        using var canceled = new CancellationTokenSource(); canceled.Cancel();
+        Reject<OperationCanceledException>(()=>frame.CopyRgb24(canceled.Token), "BGRA read observes cancellation");
+    }
+
+    /// <summary>取消的旧邻域即使完成了文件查询也不能排队，避免快速切图后错误预取旧照片。</summary>
+    private static void CanceledNeighborhood(string root)
+    {
+        string path=Path.Combine(root,"neighbor.jpg"); File.WriteAllText(path,"generated metadata fixture");
+        var source=new PreviewSource("neighbor",path,2,2); int calls=0;
+        using var cache=new PreviewImageCache((_,_)=> { Interlocked.Increment(ref calls); return new Rgb24ImageFrame(2,2,new byte[12]); });
+        using var first=new CancellationTokenSource(); first.Cancel();
+        cache.UpdateNeighborhood([source],source,first.Token);
+        Check(cache.PendingCount==0 && calls==0,"pre-canceled neighborhood does not schedule decoding");
+        using var midway=new CancellationTokenSource();
+        cache.UpdateNeighborhood(new CancelDuringLookup(source,midway),source,midway.Token);
+        Check(midway.IsCancellationRequested && cache.PendingCount==0 && calls==0,"neighborhood canceled during metadata lookup cannot commit a stale queue");
+    }
+    /// <summary>在候选读取时模拟用户又切了图，检查公开取消语义，不读取缓存内部字段。</summary>
+    private sealed class CancelDuringLookup(PreviewSource source,CancellationTokenSource cancellation) : IReadOnlyList<PreviewSource>
+    {
+        private int _reads; public int Count=>1;
+        public PreviewSource this[int index] { get { if(index!=0)throw new ArgumentOutOfRangeException(nameof(index)); if(++_reads==2)cancellation.Cancel(); return source; } }
+        public IEnumerator<PreviewSource> GetEnumerator() { yield return this[0]; }
+        System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator()=>GetEnumerator();
     }
 
     /// <summary>验证像素所有权、RGB 通道、裁切边界、插值结果、溢出和取消，避免仅镜像接口实现。</summary>

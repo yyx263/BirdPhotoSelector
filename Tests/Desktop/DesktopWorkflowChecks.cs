@@ -34,7 +34,7 @@ internal static class DesktopWorkflowChecks
         var window = new MainWindow(controller); window.Show();
         await controller.ImportAsync([first, second]); await controller.PreviewTask;
         var photo = controller.State.CurrentPhoto!; controller.State.SetRating(photo, PhotoRating.Keep); controller.State.SetRating(controller.State.AllPhotos.Last(), PhotoRating.Favorite);
-        Click(window, "识别鸟种"); await controller.WhenIdleAsync(); await Flush();
+        Click(window, "全部识别"); await controller.WhenIdleAsync(); await Flush();
         Check(controller.State.AllPhotos.All(p => p.Birds.Count == 2) && controller.State.Groups.Count == 2, "recognition button localizes all birds without grouping");
         Check(photo.SelectedBird!.Box.Width == .4 && photo.SelectedBird.Species?.CandidateScope == "China" && counters.ChinaOnly, "largest detected bird is selected and all recognition uses China candidates");
         Check(counters.Created == counters.Disposed, "recognition operation releases both model owners");
@@ -168,7 +168,7 @@ internal static class DesktopWorkflowChecks
     /// <summary>输出真实 Skia 绘制的对话框，便于核对中文输入行高和长选项文字。</summary>
     private static void Capture(Window window, string name)
     {
-        string folder = Path.Combine(Directory.GetCurrentDirectory(), "artifacts/desktop-2.0-alpha7"); Directory.CreateDirectory(folder);
+        string folder = Path.Combine(Directory.GetCurrentDirectory(), "artifacts/desktop-2.0-alpha8"); Directory.CreateDirectory(folder);
         using var frame = window.CaptureRenderedFrame() ?? throw new InvalidOperationException("Missing rendered dialog frame.");
         frame.Save(Path.Combine(folder, name), Avalonia.Media.Imaging.PngBitmapEncoderOptions.Default);
     }

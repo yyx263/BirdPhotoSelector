@@ -64,12 +64,11 @@ public sealed partial class DesktopController : IDisposable
         {
             // 在进入后台前固定来源；解码线程不得读取可能被导入关联更新的 PhotoItem。
             var source = Source(photo);
-            var neighbors = State.AllPhotos.Select(Source).ToArray();
+            var neighbors = NearbySources(photo);
             PhotoImageInfo? rawInfo = source.ForegroundOnly
                 ? await Task.Run(() => _services.Images.ReadInfo(source.Path, token), token) : null;
             token.ThrowIfCancellationRequested();
             var pending = _cache.GetAsync(source, token);
-            _cache.UpdateNeighborhood(neighbors, source);
             var frame = (AvaloniaImageFrame)await pending;
             if (_disposed || version != _previewVersion) return;
             photo.PixelWidth = frame.PixelWidth; photo.PixelHeight = frame.PixelHeight;
@@ -77,12 +76,41 @@ public sealed partial class DesktopController : IDisposable
             Preview = frame; PreviewPhoto = photo; State.IsPreviewReady = true;
             if (!State.IsBusy) State.Status = "右侧滚轮缩放，拖动平移 · 方向键 / WASD 切图 · Page Up / Down 切组";
             PreviewChanged?.Invoke();
+            // 已命中的帧立即显示；邻居的文件状态查询不占用 UI 线程。
+            _ = UpdateNeighborhoodAsync(neighbors, source, token);
         }
         catch (OperationCanceledException) { }
         catch (Exception ex)
         {
             if (!_disposed && version == _previewVersion) { State.Status = "预览失败（保留上一张画面）：" + ex.Message; PreviewChanged?.Invoke(); }
         }
+    }
+    /// <summary>只快照前后各两张，不在每次切图时为整个照片库分配来源对象。</summary>
+    private PreviewSource[] NearbySources(PhotoItem current)
+    {
+        var group = State.CurrentGroup; if (group is null) return [Source(current)];
+        int groupIndex = State.Groups.IndexOf(group), photoIndex = group.Photos.IndexOf(current);
+        var before = Walk(-1).Reverse(); var after = Walk(1);
+        return before.Concat([current]).Concat(after).Select(Source).ToArray();
+        IEnumerable<PhotoItem> Walk(int direction)
+        {
+            int g = groupIndex, p = photoIndex;
+            for (int n = 0; n < 2; n++)
+            {
+                p += direction;
+                while (g >= 0 && g < State.Groups.Count && (p < 0 || p >= State.Groups[g].Photos.Count))
+                { g += direction; if (g >= 0 && g < State.Groups.Count) p = direction > 0 ? 0 : State.Groups[g].Photos.Count - 1; }
+                if (g < 0 || g >= State.Groups.Count) yield break;
+                yield return State.Groups[g].Photos[p];
+            }
+        }
+    }
+    /// <summary>后台查询文件版本；取消和关闭时忽略迟到工作，真正的请求提交仍由缓存锁内验证。</summary>
+    private async Task UpdateNeighborhoodAsync(PreviewSource[] neighbors, PreviewSource source, CancellationToken token)
+    {
+        try { await Task.Run(() => _cache.UpdateNeighborhood(neighbors, source, token), token).ConfigureAwait(false); }
+        catch (OperationCanceledException) { }
+        catch (ObjectDisposedException) { }
     }
     /// <summary>在 UI 线程冻结真实来源和完整尺寸，后台不读取可变照片对象。</summary>
     private static PreviewSource Source(PhotoItem photo) => new(photo.Id, photo.FilePath, photo.PixelWidth, photo.PixelHeight, photo.ActivePreviewAsset?.Kind == PhotoAssetKind.Raw);

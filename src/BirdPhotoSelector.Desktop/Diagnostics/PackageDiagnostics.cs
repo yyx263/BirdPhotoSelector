@@ -93,7 +93,7 @@ internal static class PackageDiagnostics
     private static void WriteReport(string report, bool passed, IEnumerable<object> checks)
     {
         var data = new { Version = typeof(PackageDiagnostics).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion,
-            OS = RuntimeInformation.OSDescription, Architecture = RuntimeInformation.ProcessArchitecture.ToString(), Passed = passed, Checks = checks };
+            ConfiguredGpuCacheBytes = DesktopRendering.GpuCacheBytes, OS = RuntimeInformation.OSDescription, Architecture = RuntimeInformation.ProcessArchitecture.ToString(), Passed = passed, Checks = checks };
         string path = Path.GetFullPath(report); Directory.CreateDirectory(Path.GetDirectoryName(path)!);
         File.WriteAllText(path, JsonSerializer.Serialize(data, new JsonSerializerOptions { WriteIndented = true }));
     }

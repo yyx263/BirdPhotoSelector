@@ -9,7 +9,7 @@ namespace BirdPhotoSelector.Imaging.Portable;
 
 /// <summary>
 /// 三平台统一照片后端：Skia 解码 JPEG，MetadataExtractor 读取 EXIF，固定 LibRaw 处理真实 RAW。
-/// 返回已经定向的不可变 RGB24，所有文件流和 Skia 临时位图在返回前释放，不保留文件锁。
+/// 返回已经定向的不可变图像（读取接口仍为 RGB24），所有文件流和 Skia 临时位图在返回前释放，不保留文件锁。
 /// </summary>
 public sealed class PortablePhotoImageDecoder : IPhotoImageDecoder
 {
@@ -26,25 +26,25 @@ public sealed class PortablePhotoImageDecoder : IPhotoImageDecoder
         int wantedHeight = Math.Max(1, (int)Math.Round((double)height * wantedWidth / width));
         var scaled = codec.GetScaledDimensions((float)wantedWidth / width);
         using var srgb = SKColorSpace.CreateSrgb();
-        var info = new SKImageInfo(scaled.Width, scaled.Height, SKColorType.Rgba8888, SKAlphaType.Opaque, srgb);
+        var info = new SKImageInfo(scaled.Width, scaled.Height, SKColorType.Bgra8888, SKAlphaType.Opaque, srgb);
         _ = checked(info.Width * info.Height * 4);
         using var bitmap = new SKBitmap(info);
         if (bitmap.GetPixels() == IntPtr.Zero) throw new InvalidDataException("JPEG 像素分配失败。");
         cancellationToken.ThrowIfCancellationRequested();
         var result = codec.GetPixels(info, bitmap.GetPixels());
         if (result != SKCodecResult.Success) throw new InvalidDataException($"JPEG 解码未完成：{result}。");
-        var rgb = new byte[checked(info.Width * info.Height * 3)];
-        var row = new byte[checked(info.Width * 4)];
-        for (int y = 0; y < info.Height; y++)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            Marshal.Copy(IntPtr.Add(bitmap.GetPixels(), checked(y * bitmap.RowBytes)), row, 0, row.Length);
-            for (int x = 0; x < info.Width; x++)
-            { int target = (y * info.Width + x) * 3; rgb[target] = row[x * 4]; rgb[target + 1] = row[x * 4 + 1]; rgb[target + 2] = row[x * 4 + 2]; }
-        }
-        ImageFrame frame = new Rgb24ImageFrame(info.Width, info.Height, rgb);
+        // 保留 Skia 原生显示布局，避免整图 BGRA→RGB→BGRA 两次逐像素转换。
+        var pixels = new byte[checked(info.Width * info.Height * 4)];
+        int stride = checked(info.Width * 4);
+        if (bitmap.RowBytes == stride) Marshal.Copy(bitmap.GetPixels(), pixels, 0, pixels.Length);
+        else for (int y = 0; y < info.Height; y++)
+        { cancellationToken.ThrowIfCancellationRequested(); Marshal.Copy(IntPtr.Add(bitmap.GetPixels(), y * bitmap.RowBytes), pixels, y * stride, stride); }
+        cancellationToken.ThrowIfCancellationRequested();
+        ImageFrame frame = new Bgra32ImageFrame(info.Width, info.Height, pixels);
         if (frame.PixelWidth != wantedWidth || frame.PixelHeight != wantedHeight)
             frame = frame.Resize(wantedWidth, wantedHeight, cancellationToken);
+        // 小缩略图/算法缩放仍保留紧凑 RGB，避免照片列表的长期像素存储增加三分之一。
+        if (maxWidth > 0 && frame is Bgra32ImageFrame) frame = new Rgb24ImageFrame(frame.PixelWidth, frame.PixelHeight, frame.CopyRgb24(cancellationToken));
         return ImageResampling.Orient(frame, orientation, cancellationToken);
     }
 

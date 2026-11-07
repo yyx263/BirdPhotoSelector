@@ -30,7 +30,7 @@
       <Slider x:Name="GroupingSlider" Theme="{StaticResource CompactSlider}" Grid.Column="3" Margin="12,0" Minimum="0" Maximum="1" Value="{Binding Threshold, Mode=TwoWay}" IsEnabled="{Binding CanEdit}" />
       <TextBlock Grid.Column="4" Text="{Binding Threshold, StringFormat={}{0:P0}}" Foreground="#9EDCC5" VerticalAlignment="Center" />
       <Button Grid.Column="5" Content="自动分组" Click="GroupPhotos" IsEnabled="{Binding CanEdit}" />
-      <Button Classes="accent" Grid.Column="6" Content="识别鸟种" Click="RecognizeAll" IsEnabled="{Binding CanEdit}" Margin="8,0,0,0" />
+      <Button Classes="accent" Grid.Column="6" Content="全部识别" Click="RecognizeAll" ToolTip.Tip="识别当前列表全部照片，默认中国候选；保留人工修改" IsEnabled="{Binding CanEdit}" Margin="8,0,0,0" />
       <Button Grid.Column="7" Content="取消" Click="CancelOperation" IsVisible="{Binding IsBusy}" Margin="8,0,0,0" />
     </Grid>
     <Grid Grid.Row="2" ColumnDefinitions="190,10,148,10,*" Margin="16,0,16,10">
@@ -43,7 +43,7 @@
               <Border Padding="7" CornerRadius="8" ContextRequested="GroupContextRequested">
                 <StackPanel Spacing="5">
                   <Grid Height="110"><Image Source="{Binding Cover.Thumbnail, Converter={StaticResource Thumbnail}}" Stretch="Uniform" ClipToBounds="True" />
-                    <Border Classes="ratingBadge"><TextBlock Text="{Binding Rating, Converter={StaticResource Rating}}" Foreground="{Binding Rating, Converter={StaticResource Rating}, ConverterParameter=color}" /></Border>
+                    <Border Classes="ratingBadge"><TextBlock Text="{Binding Rating, Converter={StaticResource Rating}}" Foreground="{Binding Rating, Converter={StaticResource Rating}, ConverterParameter=color}" FontSize="{Binding Rating, Converter={StaticResource Rating}, ConverterParameter=size}" /></Border>
                     <Border Classes="formatBadge"><TextBlock Text="{Binding Cover.CompactFormatLabel}" /></Border>
                   </Grid>
                   <TextBlock Text="{Binding Title}" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Title}" FontSize="12" />
@@ -65,7 +65,7 @@
               <Border Padding="6" CornerRadius="8" ContextRequested="PhotoContextRequested">
                 <StackPanel Spacing="5"><Grid Height="88"><Image Source="{Binding Thumbnail, Converter={StaticResource Thumbnail}}" Stretch="Uniform" ClipToBounds="True" />
                   <Border Classes="formatBadge"><TextBlock Text="{Binding CompactFormatLabel}" /></Border>
-                  <Border Classes="ratingBadge"><TextBlock Text="{Binding Rating, Converter={StaticResource Rating}}" Foreground="{Binding Rating, Converter={StaticResource Rating}, ConverterParameter=color}" /></Border>
+                  <Border Classes="ratingBadge"><TextBlock Text="{Binding Rating, Converter={StaticResource Rating}}" Foreground="{Binding Rating, Converter={StaticResource Rating}, ConverterParameter=color}" FontSize="{Binding Rating, Converter={StaticResource Rating}, ConverterParameter=size}" /></Border>
                 </Grid><TextBlock Text="{Binding FileName}" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding FilePath}" FontSize="11" /></StackPanel>
               </Border>
             </DataTemplate></ListBox.ItemTemplate>
@@ -113,7 +113,7 @@
         </Grid>
         <Grid Grid.Row="4" ColumnDefinitions="120,*,*,*,*" IsEnabled="{Binding CanRate}">
           <StackPanel VerticalAlignment="Center" Margin="12,0"><TextBlock Text="为这张照片评级" FontWeight="Bold" /><TextBlock Text="快捷键 1 / 2 / 3 / 4" FontSize="10" Foreground="#91A4AF" Margin="0,4,0,0" /></StackPanel>
-          <ToggleButton x:Name="UnmarkedRating" Grid.Column="1" Classes="rating unmarked" Tag="Unmarked" Click="RatePhoto" HorizontalAlignment="Stretch" Margin="3,3"><StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center"><TextBlock Classes="ratingGlyph" Text="●" /><TextBlock Text="未标记" VerticalAlignment="Center" /></StackPanel></ToggleButton>
+          <ToggleButton x:Name="UnmarkedRating" Grid.Column="1" Classes="rating unmarked" Tag="Unmarked" Click="RatePhoto" HorizontalAlignment="Stretch" Margin="3,3"><StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center"><TextBlock Classes="ratingGlyph" Text="●" FontSize="11" /><TextBlock Text="未标记" VerticalAlignment="Center" /></StackPanel></ToggleButton>
           <ToggleButton x:Name="RejectRating" Grid.Column="2" Classes="rating reject" Tag="Reject" Click="RatePhoto" HorizontalAlignment="Stretch" Margin="3,3"><StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center"><TextBlock Classes="ratingGlyph" Text="×" /><TextBlock Text="舍弃" VerticalAlignment="Center" /></StackPanel></ToggleButton>
           <ToggleButton x:Name="KeepRating" Grid.Column="3" Classes="rating keep" Tag="Keep" Click="RatePhoto" HorizontalAlignment="Stretch" Margin="3,3"><StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center"><TextBlock Classes="ratingGlyph" Text="✓" /><TextBlock Text="保留" VerticalAlignment="Center" /></StackPanel></ToggleButton>
           <ToggleButton x:Name="FavoriteRating" Grid.Column="4" Classes="rating favorite" Tag="Favorite" Click="RatePhoto" HorizontalAlignment="Stretch" Margin="3,3"><StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center"><TextBlock Classes="ratingGlyph" Text="★" /><TextBlock Text="精选" VerticalAlignment="Center" /></StackPanel></ToggleButton>
