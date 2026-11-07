@@ -29,7 +29,7 @@ public sealed partial class MainWindow
         if (Controller.State.IsPreviewReady && ReferenceEquals(Controller.PreviewPhoto, photo))
         {
             if (action == ResultsViewAction.RestoreSaved) { FullPane.ShowPhoto(photo, Controller.Preview); DetailPane.ShowPhoto(photo, Controller.Preview); }
-            else { FullPane.InvalidateVisual(); if (action == ResultsViewAction.FocusBird && photo.SelectedBird?.HasRegion == true) DetailPane.FocusBird(); }
+            else { FullPane.RefreshOverlays(); if (action == ResultsViewAction.FocusBird && photo.SelectedBird?.HasRegion == true) DetailPane.FocusBird(); }
         }
         if (photo.SelectedBird is { } bird) BirdList.ScrollIntoView(bird);
         UpdateSpeciesControls();

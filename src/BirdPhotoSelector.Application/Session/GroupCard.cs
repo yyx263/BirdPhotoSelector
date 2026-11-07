@@ -18,6 +18,8 @@ public sealed class GroupCard : INotifyPropertyChanged
     /// <summary>引用既有组模型，不复制照片或共享另一份排序状态。</summary>
     public GroupCard(PhotoGroup model) => Model = model;
     public event PropertyChangedEventHandler? PropertyChanged;
+    /// <summary>单次评级只通知角标，不重新绑定封面、名称或整个列表。</summary>
+    internal void RefreshRating() => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Rating)));
     /// <summary>通知该组所有派生展示值可能变化。</summary>
     public void Refresh() => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(null));
 }

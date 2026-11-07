@@ -96,3 +96,8 @@ def validate_payload(payload, runtime):
     for name, expected_hash in expected.items():
         if sha256(payload / "models/bioclip2" / name) != expected_hash: raise RuntimeError("BioCLIP fingerprint mismatch: " + name)
     return binaries
+
+
+def package_platform(runtime):
+    """对外采用 macos 命名；内部保留 .NET 标准 osx-arm64 RID，不能按名称猜测芯片。"""
+    return "macos-arm64" if runtime == "osx-arm64" else runtime

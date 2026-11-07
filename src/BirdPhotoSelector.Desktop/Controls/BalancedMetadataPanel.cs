@@ -7,7 +7,7 @@ namespace BirdPhotoSelector.Desktop.Controls;
 public sealed class BalancedMetadataPanel : Panel
 {
     private const double ColumnSpacing = 16;
-    private const double RowHeight = 24;
+    private const double RowHeight = 20;
     private const int MaxRows = int.MaxValue;
     private readonly List<Field> _fields = new();
 

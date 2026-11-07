@@ -1,6 +1,6 @@
 # 羽选 BirdPhotoSelector
 
-本地鸟类照片筛选应用，当前开发版 **2.0.0-alpha.6**。仅保留 Avalonia 跨平台工程；旧 WPF 宿主已从 `dev` 移除，历史源码可在 Git 的 alpha.5 及更早提交查看。稳定分支 `main` 不变。
+本地鸟类照片筛选应用，当前开发版 **2.0.0-alpha.7**：修正旧版样式对齐与缩放/评级交互开销。仅保留 Avalonia 跨平台工程；旧 WPF 宿主已从 `dev` 移除，历史源码可在 Git 的 alpha.5 及更早提交查看。稳定分支 `main` 不变。
 
 ## 使用测试包
 
@@ -8,9 +8,9 @@
 
 | 目标 | 包 | 启动 |
 | --- | --- | --- |
-| Windows x64 | `BirdPhotoSelector-2.0.0-alpha.6-win-x64.zip` | 解压后运行 `BirdPhotoSelector.exe` |
-| Apple 芯片 Mac | `BirdPhotoSelector-2.0.0-alpha.6-osx-arm64.tar.gz` | 解压后打开 `BirdPhotoSelector.app` |
-| Ubuntu x64 | `BirdPhotoSelector-2.0.0-alpha.6-linux-x64.tar.gz` | 解压后运行 `./start.sh` |
+| Windows x64 | `BirdPhotoSelector-2.0.0-alpha.7-win-x64.zip` | 解压后运行 `BirdPhotoSelector.exe` |
+| Apple 芯片 Mac | `BirdPhotoSelector-2.0.0-alpha.7-macos-arm64.tar.gz` | 解压后打开 `BirdPhotoSelector.app` |
+| Ubuntu x64 | `BirdPhotoSelector-2.0.0-alpha.7-linux-x64.tar.gz` | 解压后运行 `./start.sh` |
 
 Mac 目标为 macOS 14+，Ubuntu 目标为 22.04/24.04 图形桌面。Windows 有本机运行检查；Mac/Ubuntu 在 Windows 交叉构建并核对原生架构，仍需目标机器测试，不能把打包成功当作实机验收。本测试版未做 Apple 开发者证书签名与公证。
 
@@ -48,3 +48,5 @@ Windows 交叉构建 Unix 原生组件使用项目内固定 Zig 0.17.1 和已校
 `docs/` 只作本地临时输出，不提交、不参与构建或打包。`.tools/`、`artifacts/`、`bin/obj`、`publish/` 都不上传 Git。
 
 GitHub：[yyx263/BirdPhotoSelector](https://github.com/yyx263/BirdPhotoSelector)。
+
+对外 Mac 包使用 `macos-arm64`；构建参数和清单内部仍使用 .NET 标准 `osx-arm64`，这也是 Apple 芯片 Mac 的 RID，并非 Intel 专用。参见 [微软 RID 说明](https://learn.microsoft.com/dotnet/core/rid-catalog)。

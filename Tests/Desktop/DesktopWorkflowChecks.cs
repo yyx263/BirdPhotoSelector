@@ -168,7 +168,7 @@ internal static class DesktopWorkflowChecks
     /// <summary>输出真实 Skia 绘制的对话框，便于核对中文输入行高和长选项文字。</summary>
     private static void Capture(Window window, string name)
     {
-        string folder = Path.Combine(Directory.GetCurrentDirectory(), "artifacts/desktop-2.0-alpha6"); Directory.CreateDirectory(folder);
+        string folder = Path.Combine(Directory.GetCurrentDirectory(), "artifacts/desktop-2.0-alpha7"); Directory.CreateDirectory(folder);
         using var frame = window.CaptureRenderedFrame() ?? throw new InvalidOperationException("Missing rendered dialog frame.");
         frame.Save(Path.Combine(folder, name), Avalonia.Media.Imaging.PngBitmapEncoderOptions.Default);
     }

@@ -1,41 +1,80 @@
 <Application xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              x:Class="BirdPhotoSelector.Desktop.App" RequestedThemeVariant="Dark">
+  <Application.Resources>
+    <!-- 使用完整模板明确文字继承和交互状态，避免默认主题的蓝色状态覆盖旧版配色。 -->
+    <ControlTheme x:Key="{x:Type Button}" TargetType="Button">
+      <Setter Property="Background" Value="#26343F" /><Setter Property="Foreground" Value="#E4EBF0" />
+      <Setter Property="BorderBrush" Value="Transparent" /><Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="7" /><Setter Property="Padding" Value="12,6" />
+      <Setter Property="HorizontalContentAlignment" Value="Center" /><Setter Property="VerticalContentAlignment" Value="Center" />
+      <Setter Property="Cursor" Value="Hand" /><Setter Property="FocusAdorner" Value="{x:Null}" />
+      <Setter Property="Template"><ControlTemplate>
+        <Border x:Name="PART_ButtonBorder" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="{TemplateBinding CornerRadius}" Padding="{TemplateBinding Padding}">
+          <ContentPresenter Name="PART_ContentPresenter" Content="{TemplateBinding Content}" ContentTemplate="{TemplateBinding ContentTemplate}" Foreground="{TemplateBinding Foreground}" FontFamily="{TemplateBinding FontFamily}" FontSize="{TemplateBinding FontSize}" FontWeight="{TemplateBinding FontWeight}" HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}" VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}" />
+        </Border>
+      </ControlTemplate></Setter>
+      <Style Selector="^:pointerover /template/ Border#PART_ButtonBorder"><Setter Property="Opacity" Value="0.82" /></Style>
+      <Style Selector="^:pressed /template/ Border#PART_ButtonBorder"><Setter Property="Opacity" Value="0.6" /></Style>
+      <Style Selector="^:focus-visible /template/ Border#PART_ButtonBorder"><Setter Property="BorderBrush" Value="#F0FFF8" /></Style>
+      <Style Selector="^:disabled /template/ Border#PART_ButtonBorder"><Setter Property="Opacity" Value="0.4" /></Style>
+    </ControlTheme>
+    <ControlTheme x:Key="{x:Type ToggleButton}" TargetType="ToggleButton" BasedOn="{StaticResource {x:Type Button}}">
+      <Style Selector="^:checked"><Setter Property="Background" Value="#344940" /><Setter Property="Foreground" Value="#D4EBE1" /><Setter Property="BorderBrush" Value="#9DDFC4" /></Style>
+    </ControlTheme>
+    <ControlTheme x:Key="{x:Type ListBoxItem}" TargetType="ListBoxItem">
+      <Setter Property="Padding" Value="0" /><Setter Property="Margin" Value="0,0,0,8" />
+      <Setter Property="Background" Value="#202933" /><Setter Property="BorderBrush" Value="Transparent" /><Setter Property="BorderThickness" Value="1" />
+      <Setter Property="HorizontalContentAlignment" Value="Stretch" /><Setter Property="VerticalContentAlignment" Value="Center" />
+      <Setter Property="FocusAdorner" Value="{x:Null}" />
+      <Setter Property="Template"><ControlTemplate><Border Name="PART_CardBorder" CornerRadius="8" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" Padding="{TemplateBinding Padding}">
+        <ContentPresenter Name="PART_ContentPresenter" Content="{TemplateBinding Content}" ContentTemplate="{TemplateBinding ContentTemplate}" Foreground="{TemplateBinding Foreground}" HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}" VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}" />
+      </Border></ControlTemplate></Setter>
+      <Style Selector="^:pointerover"><Setter Property="BorderBrush" Value="#57716F" /></Style>
+      <Style Selector="^:selected"><Setter Property="Background" Value="#2A3D3C" /><Setter Property="BorderBrush" Value="#9DDFC4" /></Style>
+      <Style Selector="^:focus-visible"><Setter Property="BorderBrush" Value="#F0FFF8" /></Style>
+      <Style Selector="^:disabled"><Setter Property="Opacity" Value="0.72" /></Style>
+    </ControlTheme>
+    <ControlTheme x:Key="RatingButton" TargetType="ToggleButton">
+      <Setter Property="Height" Value="44" /><Setter Property="VerticalAlignment" Value="Center" /><Setter Property="Padding" Value="8,6" />
+      <Setter Property="Background" Value="#26343F" /><Setter Property="Foreground" Value="#AAB7C3" /><Setter Property="BorderBrush" Value="#465867" /><Setter Property="BorderThickness" Value="2" />
+      <Setter Property="FontSize" Value="13" /><Setter Property="FontWeight" Value="SemiBold" /><Setter Property="Cursor" Value="Hand" /><Setter Property="FocusAdorner" Value="{x:Null}" />
+      <Setter Property="Template"><ControlTemplate><Border Name="PART_RatingBorder" CornerRadius="7" Padding="{TemplateBinding Padding}" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}">
+        <ContentPresenter Name="PART_ContentPresenter" Content="{TemplateBinding Content}" Foreground="{TemplateBinding Foreground}" FontFamily="{TemplateBinding FontFamily}" FontSize="{TemplateBinding FontSize}" FontWeight="{TemplateBinding FontWeight}" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" />
+      </Border></ControlTemplate></Setter>
+      <Style Selector="^.reject"><Setter Property="Foreground" Value="#E08787" /></Style>
+      <Style Selector="^.keep"><Setter Property="Foreground" Value="#9DDFC4" /></Style>
+      <Style Selector="^.favorite"><Setter Property="Foreground" Value="#F4CB71" /></Style>
+      <Style Selector="^:pointerover:not(:checked) /template/ Border#PART_RatingBorder"><Setter Property="BorderBrush" Value="#91C5B7" /><Setter Property="Background" Value="#354953" /></Style>
+      <Style Selector="^:checked"><Setter Property="Background" Value="#AAB7C3" /><Setter Property="BorderBrush" Value="#D9E3EC" /><Setter Property="Foreground" Value="#17232B" /><Setter Property="FontWeight" Value="Bold" /></Style>
+      <Style Selector="^.reject:checked"><Setter Property="Background" Value="#E08787" /><Setter Property="BorderBrush" Value="#FFD6D6" /><Setter Property="Foreground" Value="#35151A" /></Style>
+      <Style Selector="^.keep:checked"><Setter Property="Background" Value="#9DDFC4" /><Setter Property="BorderBrush" Value="#D8FFF0" /><Setter Property="Foreground" Value="#102F25" /></Style>
+      <Style Selector="^.favorite:checked"><Setter Property="Background" Value="#F4CB71" /><Setter Property="BorderBrush" Value="#FFE9AD" /><Setter Property="Foreground" Value="#3D2B0A" /></Style>
+      <Style Selector="^:focus-visible /template/ Border#PART_RatingBorder"><Setter Property="BorderBrush" Value="#F0FFF8" /></Style>
+      <Style Selector="^:pressed /template/ Border#PART_RatingBorder"><Setter Property="Opacity" Value="0.8" /></Style>
+      <Style Selector="^:disabled /template/ Border#PART_RatingBorder"><Setter Property="Opacity" Value="0.45" /></Style>
+    </ControlTheme>
+    <ControlTheme x:Key="CompactSlider" TargetType="Slider">
+      <Setter Property="Height" Value="28" /><Setter Property="MinHeight" Value="0" /><Setter Property="VerticalAlignment" Value="Center" />
+      <Setter Property="Template"><ControlTemplate><Track Name="PART_Track" Minimum="{TemplateBinding Minimum}" Maximum="{TemplateBinding Maximum}" Value="{TemplateBinding Value, Mode=TwoWay}" Orientation="Horizontal" Height="20" Margin="8,0" VerticalAlignment="Center">
+        <Track.DecreaseButton><RepeatButton Name="PART_DecreaseButton" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" MinWidth="0" MinHeight="0" Padding="0" Focusable="False"><RepeatButton.Template><ControlTemplate><Border Height="3" VerticalAlignment="Center" Background="#9DDFC4" CornerRadius="2" /></ControlTemplate></RepeatButton.Template></RepeatButton></Track.DecreaseButton>
+        <Track.Thumb><Thumb Name="PART_Thumb" Width="16" Height="16"><Thumb.Template><ControlTemplate><Border CornerRadius="8" Background="#9DDFC4" BorderBrush="#D8FFF0" BorderThickness="2" /></ControlTemplate></Thumb.Template></Thumb></Track.Thumb>
+        <Track.IncreaseButton><RepeatButton Name="PART_IncreaseButton" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" MinWidth="0" MinHeight="0" Padding="0" Focusable="False"><RepeatButton.Template><ControlTemplate><Border Height="3" VerticalAlignment="Center" Background="#41525E" CornerRadius="2" /></ControlTemplate></RepeatButton.Template></RepeatButton></Track.IncreaseButton>
+      </Track></ControlTemplate></Setter>
+      <Style Selector="^:disabled"><Setter Property="Opacity" Value="0.45" /></Style>
+    </ControlTheme>
+  </Application.Resources>
   <Application.Styles>
     <FluentTheme />
-    <Style Selector="Window">
-      <Setter Property="Background" Value="#10171D" />
-      <Setter Property="Foreground" Value="#E5EDF1" />
-      <Setter Property="FontFamily" Value="Microsoft YaHei UI, PingFang SC, Noto Sans CJK SC, sans-serif" />
-      <Setter Property="FontSize" Value="13" />
-    </Style>
-    <Style Selector="Button">
-      <Setter Property="CornerRadius" Value="7" /><Setter Property="Padding" Value="14,9" />
-      <Setter Property="Background" Value="#26343F" /><Setter Property="BorderThickness" Value="0" />
-    </Style>
-    <Style Selector="Button.primary"><Setter Property="Background" Value="#9EDCC5" /><Setter Property="Foreground" Value="#102C25" /></Style>
+    <Style Selector="Window"><Setter Property="Background" Value="#10171D" /><Setter Property="Foreground" Value="#E4EBF0" /><Setter Property="FontFamily" Value="Microsoft YaHei UI, PingFang SC, Noto Sans CJK SC, sans-serif" /><Setter Property="FontSize" Value="13" /></Style>
+    <Style Selector="Button.primary"><Setter Property="Background" Value="#9DDFC4" /><Setter Property="Foreground" Value="#102B23" /><Setter Property="FontWeight" Value="SemiBold" /></Style>
+    <Style Selector="Button.accent"><Setter Property="Background" Value="#344940" /><Setter Property="Foreground" Value="#D4EBE1" /></Style>
     <Style Selector="TextBlock.muted"><Setter Property="Foreground" Value="#91A4AF" /><Setter Property="FontSize" Value="12" /></Style>
-    <Style Selector="ListBox">
-      <Setter Property="Background" Value="Transparent" /><Setter Property="BorderThickness" Value="0" />
-      <Setter Property="Padding" Value="0" />
-    </Style>
-    <Style Selector="ListBoxItem"><Setter Property="Padding" Value="0" /><Setter Property="Margin" Value="0,0,0,8" /></Style>
-    <Style Selector="ListBoxItem:selected /template/ ContentPresenter">
-      <Setter Property="Background" Value="#2C403D" /><Setter Property="BorderBrush" Value="#9EDCC5" />
-      <Setter Property="BorderThickness" Value="1" /><Setter Property="CornerRadius" Value="8" />
-    </Style>
-    <Style Selector="ToggleButton.rating">
-      <Setter Property="Background" Value="#24323D" /><Setter Property="BorderBrush" Value="#415765" />
-      <Setter Property="BorderThickness" Value="1" /><Setter Property="HorizontalContentAlignment" Value="Center" />
-      <Setter Property="VerticalContentAlignment" Value="Center" />
-      <Setter Property="Template"><ControlTemplate><Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="8" Padding="10"><ContentPresenter Content="{TemplateBinding Content}" HorizontalAlignment="Center" VerticalAlignment="Center" /></Border></ControlTemplate></Setter>
-    </Style>
-    <Style Selector="ToggleButton.rating:checked"><Setter Property="BorderThickness" Value="2" /></Style>
-    <Style Selector="ToggleButton.unmarked:checked"><Setter Property="Background" Value="#455565" /><Setter Property="BorderBrush" Value="#A5B5C5" /></Style>
-    <Style Selector="ToggleButton.reject"><Setter Property="Foreground" Value="#FA8C8C" /></Style>
-    <Style Selector="ToggleButton.reject:checked"><Setter Property="Background" Value="#633D43" /><Setter Property="BorderBrush" Value="#FA8C8C" /></Style>
-    <Style Selector="ToggleButton.keep"><Setter Property="Foreground" Value="#9EDCC5" /></Style>
-    <Style Selector="ToggleButton.keep:checked"><Setter Property="Background" Value="#34594F" /><Setter Property="BorderBrush" Value="#9EDCC5" /></Style>
-    <Style Selector="ToggleButton.favorite"><Setter Property="Foreground" Value="#F2CD74" /></Style>
-    <Style Selector="ToggleButton.favorite:checked"><Setter Property="Background" Value="#F2CD74" /><Setter Property="Foreground" Value="#3C3014" /><Setter Property="BorderBrush" Value="#FFF0B2" /></Style>
+    <Style Selector="ListBox"><Setter Property="Background" Value="Transparent" /><Setter Property="BorderThickness" Value="0" /><Setter Property="Padding" Value="0" /><Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Disabled" /></Style>
+    <Style Selector="ToggleButton.rating"><Setter Property="Theme" Value="{StaticResource RatingButton}" /></Style>
+    <Style Selector="TextBlock.ratingGlyph"><Setter Property="FontSize" Value="20" /><Setter Property="FontWeight" Value="Bold" /><Setter Property="VerticalAlignment" Value="Center" /></Style>
+    <Style Selector="Border.ratingBadge"><Setter Property="Background" Value="#E91C252D" /><Setter Property="CornerRadius" Value="10" /><Setter Property="Width" Value="23" /><Setter Property="Height" Value="23" /><Setter Property="HorizontalAlignment" Value="Right" /><Setter Property="VerticalAlignment" Value="Bottom" /><Setter Property="Margin" Value="4" /></Style>
+    <Style Selector="Border.ratingBadge TextBlock"><Setter Property="FontSize" Value="17" /><Setter Property="FontWeight" Value="Bold" /><Setter Property="HorizontalAlignment" Value="Center" /><Setter Property="VerticalAlignment" Value="Center" /></Style>
+    <Style Selector="Border.formatBadge"><Setter Property="Background" Value="#E91C252D" /><Setter Property="CornerRadius" Value="3" /><Setter Property="Padding" Value="5,2" /><Setter Property="HorizontalAlignment" Value="Left" /><Setter Property="VerticalAlignment" Value="Bottom" /><Setter Property="Margin" Value="4" /></Style>
+    <Style Selector="Border.formatBadge TextBlock"><Setter Property="FontSize" Value="10" /><Setter Property="Foreground" Value="#B8D6C9" /></Style>
   </Application.Styles>
 </Application>

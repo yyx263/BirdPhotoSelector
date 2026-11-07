@@ -26,6 +26,10 @@ public class PhotoSelectionSession : INotifyPropertyChanged
     private bool _isPreviewReady;
     private bool _updatingSelection;
     private readonly HashSet<PhotoItem> _observedPhotos = new();
+    // 结构变化时重建索引，单次评级只更新所属组与四级计数，不遍历整库或刷新无关缩略图。
+    private readonly Dictionary<PhotoItem, (GroupCard Group, PhotoRating Rating)> _ratingIndex = new();
+    private readonly int[] _ratingCounts = new int[4];
+    private int _photoCount;
     private string _autoSaveSummary = "自动保存 · 5分钟";
     private string _autoSavePath = "尚未自动保存；未命名工程会写入本机恢复文件。";
     public long Revision { get; private set; }
@@ -69,7 +73,17 @@ public class PhotoSelectionSession : INotifyPropertyChanged
         get => CurrentPhoto?.Rating ?? PhotoRating.Unmarked;
         set { if (CanRate && CurrentPhoto != null) SetRating(CurrentPhoto, value); }
     }
-    public bool Dirty { get => _dirty; set { if (value) Revision++; _dirty = value; Notify(); Notify(nameof(WindowTitle)); } }
+    public bool Dirty
+    {
+        get => _dirty;
+        set
+        {
+            // 每次视图编辑仍推进保存修订；只有脏标记实际变化才更新系统标题，避免拖拽触发标题栏重绘。
+            if (value) Revision++;
+            if (_dirty == value) return;
+            _dirty = value; Notify(); Notify(nameof(WindowTitle));
+        }
+    }
     public string AutoSaveSummary { get => _autoSaveSummary; set { _autoSaveSummary = value; Notify(); } }
     public string AutoSavePath { get => _autoSavePath; set { _autoSavePath = value; Notify(); } }
     public string ProjectName { get; set; } = "未命名工程";
@@ -87,11 +101,11 @@ public class PhotoSelectionSession : INotifyPropertyChanged
     }
     public double Progress { get => _progress; set { _progress = value; Notify(); } }
     public IEnumerable<PhotoItem> AllPhotos => Groups.SelectMany(g => g.Photos);
-    public int PhotoCount => Groups.Sum(g => g.Photos.Count);
+    public int PhotoCount => _photoCount;
     public bool HasPhotos => PhotoCount > 0;
-    public int UnmarkedCount => AllPhotos.Count(p => p.Rating == PhotoRating.Unmarked);
+    public int UnmarkedCount => _ratingCounts[(int)PhotoRating.Unmarked];
     public string LibrarySummary => $"{PhotoCount} 张照片 · {Groups.Count} 个组";
-    public string RatingSummary => $"未标记 {UnmarkedCount}    保留 {AllPhotos.Count(p => p.Rating == PhotoRating.Keep)}    精选 {AllPhotos.Count(p => p.Rating == PhotoRating.Favorite)}    舍弃 {AllPhotos.Count(p => p.Rating == PhotoRating.Reject)}";
+    public string RatingSummary => $"未标记 {UnmarkedCount}    保留 {_ratingCounts[(int)PhotoRating.Keep]}    精选 {_ratingCounts[(int)PhotoRating.Favorite]}    舍弃 {_ratingCounts[(int)PhotoRating.Reject]}";
     public string GroupPosition => CurrentGroup == null ? "—" : $"{Groups.IndexOf(CurrentGroup) + 1} / {Groups.Count}";
     public string PhotoPosition => CurrentPhoto == null || CurrentGroup == null ? "—" : $"{CurrentGroup.Photos.IndexOf(CurrentPhoto) + 1} / {CurrentGroup.Photos.Count}";
 
@@ -144,7 +158,14 @@ public class PhotoSelectionSession : INotifyPropertyChanged
     /// <summary>更新组编号和派生计数/来源状态，不触发图像加载。</summary>
     public void Refresh()
     {
-        for (int i = 0; i < Groups.Count; i++) { Groups[i].Number = i + 1; Groups[i].Refresh(); }
+        _ratingIndex.Clear(); Array.Clear(_ratingCounts); _photoCount = 0;
+        for (int i = 0; i < Groups.Count; i++)
+        {
+            var group = Groups[i]; group.Number = i + 1;
+            foreach (var photo in group.Photos)
+            { _photoCount++; _ratingCounts[(int)photo.Rating]++; _ratingIndex[photo] = (group, photo.Rating); }
+            group.Refresh();
+        }
         Notify(nameof(PhotoCount)); Notify(nameof(HasPhotos)); Notify(nameof(LibrarySummary)); Notify(nameof(RatingSummary)); Notify(nameof(UnmarkedCount)); Notify(nameof(CurrentRating));
         Notify(nameof(GroupPosition)); Notify(nameof(PhotoPosition)); Notify(nameof(WindowTitle));
         NotifySourceState();
@@ -258,9 +279,13 @@ public class PhotoSelectionSession : INotifyPropertyChanged
             return;
         }
         if (e.PropertyName == nameof(PhotoItem.SelectedBirdIndex)) { Dirty = true; return; }
-        if (e.PropertyName != nameof(PhotoItem.Rating)) return;
-        Dirty = true;
-        Refresh();
+        if (e.PropertyName != nameof(PhotoItem.Rating) || sender is not PhotoItem photo || !_ratingIndex.TryGetValue(photo, out var previous)) return;
+        if (previous.Rating == photo.Rating) return;
+        _ratingCounts[(int)previous.Rating]--; _ratingCounts[(int)photo.Rating]++;
+        _ratingIndex[photo] = (previous.Group, photo.Rating);
+        Dirty = true; previous.Group.RefreshRating();
+        Notify(nameof(RatingSummary)); Notify(nameof(UnmarkedCount));
+        if (ReferenceEquals(photo, _currentPhoto)) Notify(nameof(CurrentRating));
     }
     /// <summary>发布可观察会话属性，不调用任何 UI 调度器。</summary>
     private void Notify([CallerMemberName] string? name = null) => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));

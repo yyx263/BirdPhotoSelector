@@ -14,7 +14,7 @@ import uuid
 import zipfile
 # 项目内嵌式 Python 启用隔离路径，明确只加入本脚本目录以加载公共构建工具。
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from ReleaseSupport import ROOT, RUNTIMES, architectures, host_runtime, run, sdk, sha256, validate_payload, version
+from ReleaseSupport import ROOT, RUNTIMES, architectures, host_runtime, run, sdk, sha256, validate_payload, version, package_platform
 
 
 def verify_archive(archive, expected):
@@ -82,7 +82,7 @@ def platform_files(stage, payload, runtime):
         shutil.copy2(ROOT / "Assets/App.png", payload / "App.png")
         (payload / "start.sh").write_text('#!/bin/sh\nset -eu\napp_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)\nexec "$app_dir/BirdPhotoSelector" "$@"\n', encoding="utf-8", newline="\n")
     relative = "BirdPhotoSelector.app/Contents/MacOS/BirdPhotoSelector" if runtime.startswith("osx-") else "BirdPhotoSelector.exe" if runtime.startswith("win-") else "./BirdPhotoSelector"
-    notes = f"羽选 {version()} · {runtime}\n\n解压后保留完整目录。内含 .NET、定位/鸟种模型和本平台原生组件，不需要安装 Python。\n"
+    notes = f"羽选 {version()} · {package_platform(runtime)}\n\n解压后保留完整目录。内含 .NET、定位/鸟种模型和本平台原生组件，不需要安装 Python。\n"
     notes += "Windows 双击 BirdPhotoSelector.exe；Mac 双击 BirdPhotoSelector.app；Ubuntu 执行 ./start.sh。\n\n"
     if runtime.startswith("osx-"):
         notes += "适用 Apple 芯片、macOS 14 或更高版本。本测试包尚未做 Apple 开发者证书签名与公证；系统阻止首次打开时，可在系统设置的隐私与安全性中允许打开。\n"
@@ -95,7 +95,7 @@ def platform_files(stage, payload, runtime):
 def build(runtime):
     """固定目标并逐个平台顺序发布，避免多个 RID 同时覆盖 MSBuild 中间资源。"""
     release = version(); publish = (ROOT / "publish").resolve(); publish.mkdir(exist_ok=True)
-    name = f"BirdPhotoSelector-{release}-{runtime}"; final = publish / name
+    name = f"BirdPhotoSelector-{release}-{package_platform(runtime)}"; final = publish / name
     if final.exists() or final.with_name(name + (".zip" if runtime.startswith("win-") else ".tar.gz")).exists(): raise FileExistsError("Release output already exists: " + str(final))
     stage = publish / (".staging-" + name + "-" + uuid.uuid4().hex)
     payload = make_layout(stage, runtime, release)
@@ -120,7 +120,7 @@ def build(runtime):
         files = [{"Path": p.relative_to(stage).as_posix(), "Bytes": p.stat().st_size, "SHA256": sha256(p)} for p in sorted(stage.rglob("*")) if p.is_file()]
         source = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip()
         dirty = bool(subprocess.check_output(["git", "status", "--porcelain"], cwd=ROOT, text=True).strip())
-        manifest = {"SchemaVersion": 1, "Version": release, "Runtime": runtime, "SourceCommit": source, "SourceDirty": dirty, "BuiltAtUtc": datetime.now(timezone.utc).isoformat(), "BuildHost": host_runtime(), "ExecutedOnTarget": tested, "NativeArchitectures": binaries, "Files": files}
+        manifest = {"SchemaVersion": 1, "Version": release, "Runtime": runtime, "PackagePlatform": package_platform(runtime), "SourceCommit": source, "SourceDirty": dirty, "BuiltAtUtc": datetime.now(timezone.utc).isoformat(), "BuildHost": host_runtime(), "ExecutedOnTarget": tested, "NativeArchitectures": binaries, "Files": files}
         (stage / "release-manifest.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
         stage.rename(final)
         archive = archive_folder(final, runtime)
@@ -135,9 +135,9 @@ def build(runtime):
 def main():
     """默认生成三套完整测试包；已存在输出时停止，避免静默覆盖。"""
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--runtime", action="append", choices=RUNTIMES, help="Repeat for several targets; default: all three")
+    parser.add_argument("--runtime", action="append", choices=(*RUNTIMES, "macos-arm64"), help="Repeat for several targets; default: all three")
     args = parser.parse_args()
-    for runtime in dict.fromkeys(args.runtime or RUNTIMES): build(runtime)
+    for runtime in dict.fromkeys("osx-arm64" if item == "macos-arm64" else item for item in (args.runtime or RUNTIMES)): build(runtime)
 
 
 if __name__ == "__main__": main()

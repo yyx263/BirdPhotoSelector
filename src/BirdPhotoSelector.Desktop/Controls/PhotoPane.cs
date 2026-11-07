@@ -11,7 +11,7 @@ namespace BirdPhotoSelector.Desktop.Controls;
 /// 一块照片画布。全图始终适应画面，细节图使用共享几何模块；两者共享同一显示帧。
 /// 不执行解码或业务编辑，加载时可以显示旧帧但禁止点击、缩放和拖拽。
 /// </summary>
-public sealed class PhotoPane : Control
+public sealed partial class PhotoPane : Control
 {
     private AvaloniaImageFrame? _frame;
     private PhotoItem? _photo;
@@ -33,7 +33,12 @@ public sealed class PhotoPane : Control
     /// <summary>仅当前选择已加载、没有后台编辑时允许操作，旧帧不会误改新照片。</summary>
     public bool IsInteractive { get; set; }
     /// <summary>细节视图在全图中的白框；宿主把此值同步给全图画布。</summary>
-    public ViewRectangle VisibleRegion { get; set; } = new(0, 0, 1, 1);
+    private ViewRectangle _visibleRegion = new(0, 0, 1, 1);
+    public ViewRectangle VisibleRegion
+    {
+        get => _visibleRegion;
+        set { if (_visibleRegion == value) return; _visibleRegion = value; _overlays.InvalidateVisual(); }
+    }
     /// <summary>当前实际倍率的展示文本。</summary>
     public string ScaleText => _view is null ? "—" : $"{_view.PixelScale:P1}";
     /// <summary>任何视图变化；bool 为 true 时来自人工操作，应标记工程有修改。</summary>
@@ -45,7 +50,7 @@ public sealed class PhotoPane : Control
     {
         CancelManualRegion(); _dragging = false; _photo = photo; _frame = frame;
         _view = frame is null ? null : new(frame.PixelWidth, frame.PixelHeight);
-        _initialView = true; InitializeView(); InvalidateVisual();
+        _initialView = true; InitializeView(); RefreshDrawing();
     }
     /// <summary>按工程视图或默认最大鸟初始化；来源待核对时不自动采用旧框。</summary>
     private void InitializeView()
@@ -79,39 +84,18 @@ public sealed class PhotoPane : Control
         CancelManualRegion();
         if (_initialView) InitializeView();
         else if (_view is not null) { _view.SetViewport(Bounds.Width, Bounds.Height); Publish(false); }
-        InvalidateVisual();
+        RefreshDrawing();
     }
-    /// <summary>直接绘制共享图像和覆盖层，不创建第二份整图或每次缩放重采样。</summary>
+    /// <summary>背景/空状态与图像、覆盖层分离；移动白框不会重新提交全图的位图绘制。</summary>
     public override void Render(DrawingContext context)
     {
-        base.Render(context);
-        context.DrawRectangle(Brush.Parse("#0C1217"), null, new Rect(Bounds.Size));
-        if (_frame is null)
-        {
-            DrawText(context, "添加照片，开始本次挑选", new Point(24, Math.Max(24, Bounds.Height / 2 - 10)), Brush.Parse("#7F949F"), 14);
-            return;
-        }
-        // Render 只读取状态；初始化与通知在 ShowPhoto/布局回调完成，禁止绘制中再次使视觉树失效。
-        if (_initialView) return;
-        Rect target;
-        if (IsDetail && _view is not null)
-        { var r = _view.ImageRectangle; target = new(r.X, r.Y, r.Width, r.Height); }
-        else
-        {
-            double scale = Math.Min(Bounds.Width / _frame.PixelWidth, Bounds.Height / _frame.PixelHeight);
-            var size = new Size(_frame.PixelWidth * scale, _frame.PixelHeight * scale);
-            target = new((Bounds.Width - size.Width) / 2, (Bounds.Height - size.Height) / 2, size.Width, size.Height);
-        }
-        using (context.PushClip(new Rect(Bounds.Size)))
-        {
-            context.DrawImage(_frame.Image, new Rect(_frame.Image.Size), target);
-            if (!IsDetail) DrawOverlays(context, target);
-            else if (_drawing)
-            {
-                using (context.PushClip(target))
-                    context.DrawRectangle(Brush.Parse("#259EDCC5"), new Pen(Brush.Parse("#D09EDCC5"), 1.5, DashStyle.Dash), new Rect(_regionStart, _regionEnd));
-            }
-        }
+        base.Render(context); context.DrawRectangle(BackgroundBrush, null, new Rect(Bounds.Size));
+        if (_frame is not null) return;
+        string[] lines = IsDetail ? ["＋", "看清羽毛与眼神", "滚轮缩放 · 拖动查看细节"] : ["◉", "等待照片", "从左上角添加 JPG / RAW 照片"];
+        double[] sizes = [34, IsDetail ? 13 : 15, 11];
+        var texts = lines.Select((line, i) => new FormattedText(line, CultureInfo.CurrentCulture, FlowDirection.LeftToRight, PreviewTypeface, sizes[i], EmptyBrush)).ToArray();
+        double y = (Bounds.Height - texts.Sum(t => t.Height) - 16) / 2;
+        foreach (var text in texts) { context.DrawText(text, new Point((Bounds.Width - text.Width) / 2, y)); y += text.Height + 8; }
     }
     /// <summary>鸟框高透明虚线与编号、白框均裁切到真实照片边界，描边不越界。</summary>
     private void DrawOverlays(DrawingContext context, Rect image)
@@ -138,7 +122,7 @@ public sealed class PhotoPane : Control
     }
     /// <summary>按当前平台字体绘制少量覆盖文字，完整中文名称由结果列表显示。</summary>
     private static void DrawText(DrawingContext context, string text, Point point, IBrush brush, double size) =>
-        context.DrawText(new FormattedText(text, CultureInfo.CurrentCulture, FlowDirection.LeftToRight, Typeface.Default, size, brush), point);
+        context.DrawText(new FormattedText(text, CultureInfo.CurrentCulture, FlowDirection.LeftToRight, PreviewTypeface, size, brush), point);
     /// <summary>细节区域始终消费滚轮，不向列表传播或切换照片。</summary>
     protected override void OnPointerWheelChanged(PointerWheelEventArgs e)
     {
@@ -161,7 +145,7 @@ public sealed class PhotoPane : Control
         bool active = _manualMode || _drawing; _manualMode = _drawing = _dragging = false;
         var pointer = _capturedPointer; _capturedPointer = null; pointer?.Capture(null);
         Cursor = Cursor.Default;
-        if (active) { ManualModeChanged?.Invoke(); InvalidateVisual(); }
+        if (active) { ManualModeChanged?.Invoke(); RefreshDrawing(); }
         return active;
     }
     /// <summary>细节左键为拖拽/框选；全图左键选鸟，右键为该框的删除菜单。</summary>
@@ -209,7 +193,7 @@ public sealed class PhotoPane : Control
         base.OnPointerMoved(e);
         if (!IsInteractive || _view is null) return;
         var position = e.GetPosition(this);
-        if (_drawing) { _regionEnd = position; InvalidateVisual(); }
+        if (_drawing) { _regionEnd = position; RefreshDrawing(); }
         else if (_dragging) { _view.PanBy(position.X - _dragPosition.X, position.Y - _dragPosition.Y); _dragPosition = position; Publish(true); }
     }
     /// <summary>只有有效框才提交，并在回调前解除捕获，防止异步识别过程中继续改变此框。</summary>
@@ -225,17 +209,17 @@ public sealed class PhotoPane : Control
                 ManualRegionSelected?.Invoke(photo, new BirdBox { X = region.X, Y = region.Y, Width = region.Width, Height = region.Height, Confidence = 1 }); return;
             }
         }
-        _drawing = _dragging = false; _capturedPointer = null; e.Pointer.Capture(null); InvalidateVisual();
+        _drawing = _dragging = false; _capturedPointer = null; e.Pointer.Capture(null); RefreshDrawing();
     }
     /// <summary>系统撤销捕获只取消当前手势，不提交半个选区。</summary>
     protected override void OnPointerCaptureLost(PointerCaptureLostEventArgs e)
-    { base.OnPointerCaptureLost(e); _dragging = _drawing = false; _capturedPointer = null; InvalidateVisual(); }
+    { base.OnPointerCaptureLost(e); _dragging = _drawing = false; _capturedPointer = null; RefreshDrawing(); }
     /// <summary>持久化与现有工程相同的相对视图，通知宿主更新白框及修改状态。</summary>
     private void Publish(bool user)
     {
         if (!IsDetail || _view is null) return;
         VisibleRegion = _view.VisibleRegion;
         if (_photo is not null) { _photo.ViewZoom = _view.Zoom; _photo.ViewCenterX = _view.CenterX; _photo.ViewCenterY = _view.CenterY; }
-        ViewChanged?.Invoke(user); InvalidateVisual();
+        ViewChanged?.Invoke(user); RefreshDrawing();
     }
 }

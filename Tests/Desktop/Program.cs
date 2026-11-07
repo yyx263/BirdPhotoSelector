@@ -38,8 +38,9 @@ internal static class Program
         try
         {
             Geometry();
+            InteractionChecks.Benchmark(root, true);
             await using var session = HeadlessUnitTestSession.StartNew(typeof(Program));
-            await session.Dispatch(async () => { await Desktop(root); _checks += await DesktopWorkflowChecks.Run(root); return 0; }, CancellationToken.None);
+            await session.Dispatch(async () => { await Desktop(root); _checks += await DesktopWorkflowChecks.Run(root); _checks += await InteractionChecks.LargeViewport(root); return 0; }, CancellationToken.None);
             Console.WriteLine($"PASS: {_checks} Avalonia desktop assertions on {System.Runtime.InteropServices.RuntimeInformation.OSDescription}."); return 0;
         }
         catch (Exception ex) { Console.Error.WriteLine("FAIL: " + ex); return 1; }
@@ -82,10 +83,12 @@ internal static class Program
         var services = new ApplicationServices(decoder, files, Path.Combine(root, "Autosaves"));
         using var controller = new DesktopController(services, 1);
         var window = new MainWindow(controller); window.Show();
+        _checks += await InteractionChecks.EmptyWindow(window);
         Check(!typeof(MainWindow).Assembly.GetReferencedAssemblies().Any(a => a.Name is "PresentationCore" or "PresentationFramework" or "WindowsBase" or "BirdPhotoSelector.Imaging.Windows"), "new desktop assembly has no WPF dependency");
         Check(await controller.ImportAsync([first, slow, third, ignored]) && controller.State.PhotoCount == 3, "actual JPEG import skips other formats");
         await controller.PreviewTask;
         Check(controller.State.CanRate && controller.Preview is not null, "decoded photo enables rating and gestures");
+        _checks += await InteractionChecks.ReadyWindow(window);
         var frame = controller.Preview!;
         var copied = frame.CopyRgb24(new BirdPhotoSelector.Imaging.PixelRect(0, 0, 1, 1));
         Check(copied.SequenceEqual(decoder.Inner.Decode(first).CopyRgb24(new BirdPhotoSelector.Imaging.PixelRect(0, 0, 1, 1))), "Avalonia display frame owns correct RGB pixels after temporary buffers are gone");
@@ -150,7 +153,7 @@ internal static class Program
         controller.State.LocatePhoto(controller.State.AllPhotos.First(p => p.Birds.Count == 4)); await controller.PreviewTask; Dispatcher.UIThread.RunJobs();
         var birds = window.FindControl<ListBox>("BirdList")!;
         Check(birds.Items.Count == 4, "new window displays all four persisted bird results");
-        string visuals = Path.Combine(Directory.GetCurrentDirectory(), "artifacts/desktop-2.0-alpha6"); Directory.CreateDirectory(visuals);
+        string visuals = Path.Combine(Directory.GetCurrentDirectory(), "artifacts/desktop-2.0-alpha7"); Directory.CreateDirectory(visuals);
         foreach (var size in new[] { new Size(1560, 920), new Size(1150, 780) })
         {
             window.Width = size.Width; window.Height = size.Height; Dispatcher.UIThread.RunJobs();

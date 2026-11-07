@@ -84,8 +84,8 @@ public sealed class RatingConverter : IValueConverter
     public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
     {
         var rating = value is PhotoRating r ? r : PhotoRating.Unmarked;
-        if (parameter?.ToString() == "color") return Brush.Parse(rating switch { PhotoRating.Reject => "#FA8C8C", PhotoRating.Keep => "#9EDCC5", PhotoRating.Favorite => "#F2CD74", _ => "#B5C2CB" });
-        return rating switch { PhotoRating.Reject => "×", PhotoRating.Keep => "✓", PhotoRating.Favorite => "★", _ => "○" };
+        if (parameter?.ToString() == "color") return Brush.Parse(rating switch { PhotoRating.Reject => "#E08787", PhotoRating.Keep => "#9DDFC4", PhotoRating.Favorite => "#F4CB71", _ => "#B5C2CB" });
+        return rating switch { PhotoRating.Reject => "×", PhotoRating.Keep => "✓", PhotoRating.Favorite => "★", _ => "●" };
     }
     /// <summary>评级数据只通过会话命令修改。</summary>
     public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) => throw new NotSupportedException();
