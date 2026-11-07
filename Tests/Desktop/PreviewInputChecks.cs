@@ -30,13 +30,17 @@ internal static class PreviewInputChecks
         await ResultMenus(root);
         return _checks;
     }
-    /// <summary>用严格区分大小写的匹配验证选择器；以两种真实文本向量查询实际候选评分，排除行错位。</summary>
+    /// <summary>验证简洁小写选择器及实际导入规则；以两种真实文本向量查询实际候选评分，排除行错位。</summary>
     private static void PickerAndCandidates()
     {
         var patterns = PhotoFilePickerTypes.Photos.Patterns!;
-        foreach (string name in new[] { "bird.JPG", "bird.jpg", "bird.JpEg", "bird.CR2", "bird.NEF", "bird.ARW" })
-            Check(patterns.Any(p => FileSystemName.MatchesSimpleExpression(p, name, ignoreCase: false)), "case-sensitive picker includes " + name);
-        Check(!patterns.Any(p => FileSystemName.MatchesSimpleExpression(p, "bird.PNG", ignoreCase: false)), "case expansion does not broaden photo formats");
+        Check(patterns.Count == 24 && patterns.All(p => p == p.ToLowerInvariant()) && patterns.Distinct(StringComparer.OrdinalIgnoreCase).Count() == 24,
+            "picker displays each supported extension exactly once in lowercase");
+        foreach (string name in new[] { "bird.jpg", "bird.jpeg", "bird.cr2", "bird.nef", "bird.arw", "bird.dng" })
+            Check(patterns.Any(p => FileSystemName.MatchesSimpleExpression(p, name, ignoreCase: false)), "compact picker includes " + name);
+        Check(!patterns.Any(p => FileSystemName.MatchesSimpleExpression(p, "bird.png", ignoreCase: false)), "compact picker preserves supported format scope");
+        Check(PhotoImageFormats.IsJpeg("bird.JPG") && PhotoImageFormats.IsJpeg("bird.JpEg") && PhotoImageFormats.IsRaw("bird.NEF"),
+            "actual import format validation remains case insensitive");
         string directory = Path.Combine(Directory.GetCurrentDirectory(), "models/bioclip2");
         var catalog = SpeciesCandidateCatalog.Load(directory);
         using var names = JsonDocument.Parse(File.ReadAllText(Path.Combine(directory, "candidates.json")));

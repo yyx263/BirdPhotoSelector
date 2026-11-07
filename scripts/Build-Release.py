@@ -85,7 +85,7 @@ def platform_files(stage, payload, runtime):
     notes = f"羽选 {version()} · {package_platform(runtime)}\n\n解压后保留完整目录。内含 .NET、定位/鸟种模型和本平台原生组件，不需要安装 Python。\n"
     notes += "Windows 双击 BirdPhotoSelector.exe；Mac 双击 BirdPhotoSelector.app；Ubuntu 执行 ./start.sh。\n\n"
     if runtime.startswith("osx-"):
-        notes += "适用 Apple 芯片、macOS 14 或更高版本。本测试包尚未做 Apple 开发者证书签名与公证；系统阻止首次打开时，可在系统设置的隐私与安全性中允许打开。\n"
+        notes += "适用 Apple 芯片、macOS 14 或更高版本。本发布包尚未做 Apple 开发者证书签名与公证；系统阻止首次打开时，可在系统设置的隐私与安全性中允许打开。\n"
     if runtime.startswith("linux-"):
         notes += "适用 Ubuntu 22.04/24.04 x64 图形桌面（glibc >= 2.35）。需要系统 OpenSSL、ICU、Fontconfig、X11/XCB、EGL/GL、GIO 和中文字体。依赖安装示例见随包使用说明。\n"
     notes += f"\n在终端运行自检：\n{relative} --self-test self-test.json\n{relative} --smoke-test desktop-test.json\n第一项验证模型和原生库，第二项短暂打开最小化窗口后自动关闭。JSON 中 Passed 应为 true。\n\n再手动测试：导入 JPG/RAW、连续切图、识别/手动选区、评级、工程保存恢复和导出。先使用照片副本验证移除原件和回收站行为。\n\nWindows 已有本机检查；Mac/Ubuntu 交叉构建包需在目标机器完成桌面、中文输入和回收站验收。请反馈系统版本、操作步骤和自检 JSON。\n"
@@ -133,7 +133,7 @@ def build(runtime):
 
 
 def main():
-    """默认生成三套完整测试包；已存在输出时停止，避免静默覆盖。"""
+    """默认生成三套完整发布包；已存在输出时停止，避免静默覆盖。"""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--runtime", action="append", choices=(*RUNTIMES, "macos-arm64"), help="Repeat for several targets; default: all three")
     args = parser.parse_args()
