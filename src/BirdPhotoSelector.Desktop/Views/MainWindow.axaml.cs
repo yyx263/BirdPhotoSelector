@@ -180,8 +180,16 @@ public sealed partial class MainWindow : Window
         var result = await PromptDialog.AskAsync(this, "保存本次挑选", "当前挑选尚未保存，是否先保存工程？", ("返回", PromptResult.Cancel), ("不保存，继续", PromptResult.Continue), ("保存工程", PromptResult.Save));
         return result == PromptResult.Continue || result == PromptResult.Save && await SaveProjectAsync();
     }
-    /// <summary>清空只操作列表，沿用现有保存位置，不删除原照片。</summary>
-    private async void ClearList(object? sender, RoutedEventArgs e) => await Execute(Controller.ClearAsync);
+    /// <summary>有照片且空闲时先确认；取消、关闭提示或关闭主窗口均保留列表，不删除原照片。</summary>
+    private async void ClearList(object? sender, RoutedEventArgs e) => await GuardUi(async () =>
+    {
+        if (_closed || Controller.State.IsBusy || !Controller.State.HasPhotos) return;
+        var answer = await PromptDialog.AskAsync(this, "确认清空列表",
+            $"确定清空列表中的全部 {Controller.State.PhotoCount} 张照片吗？\n\n这会移除当前列表及其挑选记录，磁盘上的原照片不会删除。",
+            ("取消", PromptResult.Cancel), ("确认清空", PromptResult.Continue));
+        if (answer == PromptResult.Continue && !_closed && !Controller.State.IsBusy && Controller.State.HasPhotos)
+            await Execute(Controller.ClearAsync);
+    });
     /// <summary>开始背景分组，期间显示现有画面并可取消。</summary>
     private async void GroupPhotos(object? sender, RoutedEventArgs e) => await Execute(Controller.GroupAsync);
     /// <summary>只取消后台操作，不关闭窗口。</summary>
@@ -283,7 +291,7 @@ public sealed partial class MainWindow : Window
     /// <summary>帮助包含真实快捷键及可访问的项目来源。</summary>
     private async void ShowHelp(object? sender, RoutedEventArgs e) => await GuardUi(async () =>
     {
-        var result = await PromptDialog.AskAsync(this, "羽选 v2.0.0-alpha.9", "添加本地 JPG / RAW 照片，或打开已有 JSON 工程。\n\n方向键 / WASD：连续切图（到组首尾自动跨组）\nPage Up / Down：切换组\n1 / 2 / 3 / 4：未标记 / 舍弃 / 保留 / 精选\n右侧滚轮：缩放；左键拖动：平移\nR：还原鸟类视图\nCtrl / Command + Z：撤销鸟种/选区编辑\nCtrl / Command + S：保存工程\n\n每五分钟自动保存有变更的工程。未命名工程保存在本机恢复目录。\n\nhttps://github.com/yyx263/BirdPhotoSelector", ("关闭", PromptResult.Cancel), ("打开 GitHub", PromptResult.Continue));
+        var result = await PromptDialog.AskAsync(this, "羽选 v2.0.0-alpha.10", "添加本地 JPG / RAW 照片，或打开已有 JSON 工程。\n\n方向键 / WASD：连续切图（到组首尾自动跨组）\nPage Up / Down：切换组\n1 / 2 / 3 / 4：未标记 / 舍弃 / 保留 / 精选\n右侧滚轮：缩放；左键拖动：平移\nR：还原鸟类视图\nCtrl / Command + Z：撤销鸟种/选区编辑\nCtrl / Command + S：保存工程\n\n每五分钟自动保存有变更的工程。未命名工程保存在本机恢复目录。\n\nhttps://github.com/yyx263/BirdPhotoSelector", ("关闭", PromptResult.Cancel), ("打开 GitHub", PromptResult.Continue));
         if (result == PromptResult.Continue && !_closed) await Launcher.LaunchUriAsync(new Uri("https://github.com/yyx263/BirdPhotoSelector"));
     });
     /// <summary>先结束当前 Closing 回调，再异步确认；禁止在关闭过程直接打开模态窗口。</summary>

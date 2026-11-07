@@ -70,9 +70,30 @@ internal static class DesktopWorkflowChecks
         await Export(window, controller, dir, files);
         string project = Path.Combine(dir, "edited.json"); await controller.SaveAsync(project); await controller.OpenAsync(project); await controller.PreviewTask;
         Check(controller.State.RecentSpecies.Items.Count > 0 && controller.State.AllPhotos.Any(p => p.Birds.Any(b => b.ManualSpecies is not null)), "project roundtrip retains manual species and recent choices");
+        await ConfirmClearList(window, controller);
         controller.State.Dirty = false; window.Close(); await Flush();
         if (Environment.GetEnvironmentVariable("BIRD_MODEL_PATH") is { Length: > 0 }) await RealModel(root);
         return _checks;
+    }
+    /// <summary>通过真实按钮与模态窗口验证取消、关闭和确认；原照片与已保存工程始终保留。</summary>
+    private static async Task ConfirmClearList(MainWindow window, DesktopController controller)
+    {
+        var photos = controller.State.AllPhotos.ToArray();
+        var selected = controller.State.CurrentPhoto;
+        string[] originals = photos.SelectMany(photo => photo.Assets).Select(asset => asset.CanonicalPath).ToArray();
+        string? project = controller.ProjectPath;
+        Click(window, "清空列表"); var prompt = await Owned<PromptDialog>(window);
+        Check(prompt.Title!.Contains("确认清空列表") && photos.SequenceEqual(controller.State.AllPhotos), "clear-list button opens confirmation before changing photos");
+        Click(prompt, "取消"); await Flush();
+        Check(photos.SequenceEqual(controller.State.AllPhotos) && ReferenceEquals(selected, controller.State.CurrentPhoto), "canceling clear-list preserves photo objects and selection");
+        Click(window, "清空列表"); prompt = await Owned<PromptDialog>(window); prompt.Close(); await Flush();
+        Check(photos.SequenceEqual(controller.State.AllPhotos), "closing clear-list confirmation grants no permission to clear");
+        Click(window, "清空列表"); prompt = await Owned<PromptDialog>(window); Click(prompt, "确认清空");
+        for (int i = 0; i < 100 && controller.State.PhotoCount > 0; i++) await Flush();
+        await controller.WhenIdleAsync();
+        Check(controller.State.PhotoCount == 0 && originals.All(File.Exists) && controller.ProjectPath == project && File.Exists(project), "confirmed clear removes list entries and preserves originals and saved project");
+        Click(window, "清空列表"); await Flush();
+        Check(!window.OwnedWindows.OfType<PromptDialog>().Any(dialog => dialog.IsVisible), "empty list does not open redundant clear confirmation");
     }
     /// <summary>搜索窗口实际输入、近期列表和关闭取消不修改工程。</summary>
     private static async Task Picker(MainWindow window, DesktopController controller, PhotoItem photo)

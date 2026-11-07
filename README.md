@@ -1,6 +1,6 @@
 # 羽选 BirdPhotoSelector
 
-本地鸟类照片筛选应用，当前开发版 **2.0.0-alpha.9**：新增不按评级筛选的“导出全部”，修复删除 JPG 后剩余 RAW 缩略图丢失。`dev` 为 Avalonia 跨平台工程，`main` 为稳定分支；旧 WPF 版本的历史源码保存在 `dev_win` 分支。
+本地鸟类照片筛选应用，当前开发版 **2.0.0-alpha.10**：清空列表前增加确认，取消或关闭提示会保留挑选；包含导出全部及剩余 RAW 缩略图恢复。`dev` 为 Avalonia 跨平台工程，`main` 为稳定分支；旧 WPF 版本的历史源码保存在 `dev_win` 分支。
 
 ## 使用测试包
 
@@ -8,9 +8,9 @@
 
 | 目标 | 包 | 启动 |
 | --- | --- | --- |
-| Windows x64 | `BirdPhotoSelector-2.0.0-alpha.9-win-x64.zip` | 解压后运行 `BirdPhotoSelector.exe` |
-| Apple 芯片 Mac | `BirdPhotoSelector-2.0.0-alpha.9-macos-arm64.tar.gz` | 解压后打开 `BirdPhotoSelector.app` |
-| Ubuntu x64 | `BirdPhotoSelector-2.0.0-alpha.9-linux-x64.tar.gz` | 解压后运行 `./start.sh` |
+| Windows x64 | `BirdPhotoSelector-2.0.0-alpha.10-win-x64.zip` | 解压后运行 `BirdPhotoSelector.exe` |
+| Apple 芯片 Mac | `BirdPhotoSelector-2.0.0-alpha.10-macos-arm64.tar.gz` | 解压后打开 `BirdPhotoSelector.app` |
+| Ubuntu x64 | `BirdPhotoSelector-2.0.0-alpha.10-linux-x64.tar.gz` | 解压后运行 `./start.sh` |
 
 Mac 目标为 macOS 14+，Ubuntu 目标为 22.04/24.04 图形桌面。Windows 有本机运行检查；Mac/Ubuntu 在 Windows 交叉构建并核对原生架构，仍需目标机器测试，不能把打包成功当作实机验收。本测试版未做 Apple 开发者证书签名与公证。
 
