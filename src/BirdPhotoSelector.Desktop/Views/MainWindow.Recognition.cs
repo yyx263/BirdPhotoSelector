@@ -1,4 +1,6 @@
 using System.ComponentModel;
+using Avalonia;
+using Avalonia.VisualTree;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Input;
@@ -49,7 +51,7 @@ public sealed partial class MainWindow
     /// <summary>名录延迟加载，仅确认后将人工鸟种应用到原照片，等待期间不预先改动。</summary>
     private async Task PickSpecies(PhotoItem photo, DetectedBird? replaced = null)
     {
-        if (!Controller.State.CanRate || !ReferenceEquals(Controller.State.CurrentPhoto, photo)) return;
+        if (!Controller.State.CanRate || !ReferenceEquals(Controller.State.CurrentPhoto, photo) || replaced is not null && !photo.Birds.Contains(replaced)) return;
         _speciesCatalog ??= SpeciesNameCatalog.Load();
         var picker = new SpeciesPickerDialog(_speciesCatalog.Records, Controller.State.RecentSpecies.Items, replaced?.EffectiveSpecies);
         var selected = await picker.ShowDialog<SpeciesIdentity?>(this);
@@ -61,9 +63,14 @@ public sealed partial class MainWindow
     /// <summary>自动和手动结果提供相同的删除/更换菜单，删除入口同时删除对应选区。</summary>
     private void ResultContextRequested(object? sender, ContextRequestedEventArgs e)
     {
-        if (!Controller.State.CanEditBirdRegions || sender is not Control { DataContext: DetectedBird bird } control || Controller.State.CurrentPhoto is not { } photo) return;
+        if (!Controller.State.CanEditBirdRegions || Controller.State.CurrentPhoto is not { } photo) return;
+        // 在列表层接收事件，覆盖整行的文字、空白和外边距；空列表区域不借用上次选中的鸟。
+        var row = (e.Source as Visual)?.GetSelfAndVisualAncestors().OfType<ListBoxItem>()
+            .FirstOrDefault(item => item.GetVisualAncestors().Contains(BirdList));
+        if (row?.DataContext is not DetectedBird bird || !photo.Birds.Contains(bird)) return;
         var menu = new ContextMenu(); var delete = new MenuItem { Header = "删除鸟种" }; var replace = new MenuItem { Header = "更换鸟种" };
         delete.Click += (_, _) => { if (!_closed) Controller.DeleteResult(photo, bird); };
-        replace.Click += async (_, _) => await GuardUi(() => PickSpecies(photo, bird)); menu.Items.Add(delete); menu.Items.Add(replace); menu.Open(control); e.Handled = true;
+        replace.Click += async (_, _) => await GuardUi(() => PickSpecies(photo, bird)); menu.Items.Add(delete); menu.Items.Add(replace);
+        row.ContextMenu = menu; e.Handled = true; menu.Open(row);
     }
 }

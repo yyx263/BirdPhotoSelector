@@ -49,7 +49,7 @@ internal static class Program
             Geometry();
             InteractionChecks.Benchmark(root, true);
             await using var session = HeadlessUnitTestSession.StartNew(typeof(Program));
-            await session.Dispatch(async () => { if (args.Contains("--decode-probe")) { DecodePerformanceProbe.Run(root, args.Contains("--after") ? "after" : "before"); return 0; } _checks += InteractionChecks.DisplayPixels(); await Desktop(root); _checks += await DesktopWorkflowChecks.Run(root); _checks += await ExportAllAndRawChecks.Run(root); _checks += await InteractionChecks.LargeViewport(root); return 0; }, CancellationToken.None);
+            await session.Dispatch(async () => { if (args.Contains("--preview-input-checks")) { _checks += await PreviewInputChecks.Run(root); return 0; } if (args.Contains("--decode-probe")) { DecodePerformanceProbe.Run(root, args.Contains("--after") ? "after" : "before"); return 0; } _checks += InteractionChecks.DisplayPixels(); await Desktop(root); _checks += await PreviewInputChecks.Run(root); _checks += await DesktopWorkflowChecks.Run(root); _checks += await ExportAllAndRawChecks.Run(root); _checks += await InteractionChecks.LargeViewport(root); return 0; }, CancellationToken.None);
             Console.WriteLine($"PASS: {_checks} Avalonia desktop assertions on {System.Runtime.InteropServices.RuntimeInformation.OSDescription}."); return 0;
         }
         catch (Exception ex) { Console.Error.WriteLine("FAIL: " + ex); return 1; }

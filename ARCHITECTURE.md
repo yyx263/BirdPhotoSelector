@@ -1,6 +1,6 @@
 # v2.0 跨平台工程
 
-当前里程碑 **2.0.0-alpha.10**：清空列表前确认；保留 alpha.9 的全评级导出及原件移除后的 RAW 缩略图恢复；沿用 alpha.8 的大图 GPU 缓存和解码/显示链路优化。alpha.6 已完成：只保留 Avalonia 宿主，清理旧 WPF 源码/项目/测试宿主与历史输出，建立三平台目录发布、原生目标隔离、逐文件/模型/归档校验和实际发布目录自检。`dev` 持续开发，`main` 保持稳定。
+当前里程碑 **2.0.0-alpha.11**：四向手动选区可见、整行鸟种菜单及文件选择器后缀大小写兼容；保留 alpha.9 的全评级导出及原件移除后的 RAW 缩略图恢复；沿用 alpha.8 的大图 GPU 缓存和解码/显示链路优化。alpha.6 已完成：只保留 Avalonia 宿主，清理旧 WPF 源码/项目/测试宿主与历史输出，建立三平台目录发布、原生目标隔离、逐文件/模型/归档校验和实际发布目录自检。`dev` 持续开发，`main` 保持稳定。
 
 ## 依赖方向
 
@@ -120,3 +120,17 @@ Windows/OpenGL 原生窗口固定两张 24MP 图、70 帧缩放/换图对照：�
 回归覆盖四种评级全部导出、格式与鸟种范围、实际副本字节、非当前照片换源、取消后的真实删除状态；有本地 RAW 样本时再通过实际 LibRaw 恢复缩略图并校验原件哈希。
 
 本轮验证：图像核心 50、业务 50、实际后端 176、工作流 67、桌面 124（含真实模型及 RAW 样本），另有真实窗口预览检查。核心/业务日志位于 `artifacts/regression-alpha9.log`，修正新增测试夹具后完成的桌面与实际窗口结果位于 `artifacts/desktop-alpha9.log`。
+
+## alpha.11 输入回归与候选审计
+
+临时选区的起止点不是固定左上/右下。绘制前用最小坐标与绝对宽高构造矩形，提交仍走共享 TryMapRegion；鼠标移动仅使 OverlaySurface 失效，不重新提交原图。
+
+鸟种菜单由 BirdList 在 ContextRequested 隧道路由统一处理，并从实际命中元素定位所属 ListBoxItem，覆盖模板空白与行边距。每次打开均绑定当前 PhotoItem/DetectedBird；先于容器已挂载菜单处理，避免撤销恢复了深拷贝记录后旧回调仍引用已删除对象。空列表区域不借用上次选中记录，更换入口拒绝已不属于当前照片的旧结果。
+
+PhotoFilePickerTypes 显式展开既有 glob 的后缀字母大小写，避免 GTK/Portal 与 Windows 的匹配差异；不强制更换系统文件选择器、不尝试自行挂载设备。Ubuntu 24.04/.JPG 是用户提供的环境信息，首次目录空白仍需目标机器区分筛选与挂载/刷新因素。
+
+本地模型审计：1394 个候选中，环颈雉 Phasianus colchicus 位于零基行 929（官方向量索引 343483），白冠长尾雉 Syrmaticus reevesii 位于行 1245（官方索引 343534）。两行与固定官方 TreeOfLife 文本向量一致，候选/向量文件 SHA-256 与元数据匹配，两个向量不同，余弦约 0.79059；实际 SpeciesCandidateCatalog 自向量查询分别返回各自名称。该检查排除缺候选/行错位，不能代替具体照片的视觉识别验收。当前 FindBest 始终返回候选最高分，置信度是候选集内竞争值，不是校准准确率，低置信度也不会自动输出未知。完整审计在忽略的 artifacts/pheasant-candidate-audit.json。
+
+PreviewInputChecks 使用真实鼠标右键和绘制像素验证四方向拖动、自动/手动结果行多处命中、删除/撤销/更换，并核对区分大小写的文件名模式。可用检查参数 --preview-input-checks 单独运行；修复前后的记录在 artifacts/preview-input-before.log 和 preview-input-after.log。
+
+本轮完整桌面验证通过 153 项（含真实 YOLO/BioCLIP、RAW、24MP 手势及新增鼠标/像素检查），实际窗口导入预览通过；日志 artifacts/desktop-alpha11.log。其余图像/业务模块未改动，不重复运行无关检查。

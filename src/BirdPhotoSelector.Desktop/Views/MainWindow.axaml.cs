@@ -50,6 +50,8 @@ public sealed partial class MainWindow : Window
         AddHandler(KeyDownEvent, HandleKeys, RoutingStrategies.Tunnel);
         GroupList.AddHandler(PointerWheelChangedEvent, ScrollThumbnails, RoutingStrategies.Tunnel);
         PhotoList.AddHandler(PointerWheelChangedEvent, ScrollThumbnails, RoutingStrategies.Tunnel);
+        // 先于行容器的旧菜单处理，确保撤销/换图后重新捕获当前鸟，而非使用回收行中的旧引用。
+        BirdList.AddHandler(ContextRequestedEvent, ResultContextRequested, RoutingStrategies.Tunnel);
         _autoSaveTimer.Tick += async (_, _) => await Controller.AutoSaveIfDueAsync();
         Opened += async (_, _) =>
         {
@@ -140,7 +142,7 @@ public sealed partial class MainWindow : Window
     private async void AddPhotos(object? sender, RoutedEventArgs e) => await GuardUi(async () =>
     {
         var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions { Title = "选择 JPG / RAW 照片", AllowMultiple = true,
-            FileTypeFilter = [new FilePickerFileType("照片") { Patterns = ["*.jpg", "*.jpeg", "*.crw", "*.cr2", "*.cr3", "*.nef", "*.nrw", "*.arw", "*.sr2", "*.srf", "*.orf", "*.rw2", "*.dng", "*.raf", "*.pef", "*.srw", "*.raw", "*.rwl", "*.3fr", "*.fff", "*.iiq", "*.mos", "*.mrw", "*.x3f"] }, FilePickerFileTypes.All] });
+            FileTypeFilter = [PhotoFilePickerTypes.Photos, FilePickerFileTypes.All] });
         var paths = files.Select(f => f.TryGetLocalPath()).OfType<string>().ToArray();
         if (!_closed && paths.Length > 0) await Execute(() => Controller.ImportAsync(paths));
     });
@@ -291,7 +293,7 @@ public sealed partial class MainWindow : Window
     /// <summary>帮助包含真实快捷键及可访问的项目来源。</summary>
     private async void ShowHelp(object? sender, RoutedEventArgs e) => await GuardUi(async () =>
     {
-        var result = await PromptDialog.AskAsync(this, "羽选 v2.0.0-alpha.10", "添加本地 JPG / RAW 照片，或打开已有 JSON 工程。\n\n方向键 / WASD：连续切图（到组首尾自动跨组）\nPage Up / Down：切换组\n1 / 2 / 3 / 4：未标记 / 舍弃 / 保留 / 精选\n右侧滚轮：缩放；左键拖动：平移\nR：还原鸟类视图\nCtrl / Command + Z：撤销鸟种/选区编辑\nCtrl / Command + S：保存工程\n\n每五分钟自动保存有变更的工程。未命名工程保存在本机恢复目录。\n\nhttps://github.com/yyx263/BirdPhotoSelector", ("关闭", PromptResult.Cancel), ("打开 GitHub", PromptResult.Continue));
+        var result = await PromptDialog.AskAsync(this, "羽选 v2.0.0-alpha.11", "添加本地 JPG / RAW 照片，或打开已有 JSON 工程。\n\n方向键 / WASD：连续切图（到组首尾自动跨组）\nPage Up / Down：切换组\n1 / 2 / 3 / 4：未标记 / 舍弃 / 保留 / 精选\n右侧滚轮：缩放；左键拖动：平移\nR：还原鸟类视图\nCtrl / Command + Z：撤销鸟种/选区编辑\nCtrl / Command + S：保存工程\n\n每五分钟自动保存有变更的工程。未命名工程保存在本机恢复目录。\n\nhttps://github.com/yyx263/BirdPhotoSelector", ("关闭", PromptResult.Cancel), ("打开 GitHub", PromptResult.Continue));
         if (result == PromptResult.Continue && !_closed) await Launcher.LaunchUriAsync(new Uri("https://github.com/yyx263/BirdPhotoSelector"));
     });
     /// <summary>先结束当前 Closing 回调，再异步确认；禁止在关闭过程直接打开模态窗口。</summary>

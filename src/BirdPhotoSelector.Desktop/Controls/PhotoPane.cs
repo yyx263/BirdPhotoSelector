@@ -193,7 +193,7 @@ public sealed partial class PhotoPane : Control
         base.OnPointerMoved(e);
         if (!IsInteractive || _view is null) return;
         var position = e.GetPosition(this);
-        if (_drawing) { _regionEnd = position; RefreshDrawing(); }
+        if (_drawing) { _regionEnd = position; _overlays.InvalidateVisual(); }
         else if (_dragging) { _view.PanBy(position.X - _dragPosition.X, position.Y - _dragPosition.Y); _dragPosition = position; Publish(true); }
     }
     /// <summary>只有有效框才提交，并在回调前解除捕获，防止异步识别过程中继续改变此框。</summary>

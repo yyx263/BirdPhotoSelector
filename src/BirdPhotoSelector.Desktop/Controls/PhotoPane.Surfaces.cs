@@ -85,8 +85,11 @@ public sealed partial class PhotoPane
             if (!owner.IsDetail) owner.DrawOverlays(context, image);
             else if (owner._drawing)
             {
+                // 起点不一定在左上角；负宽高不会被绘制，但松手时的选区计算仍可能成功。
                 using (context.PushClip(image.Intersect(new Rect(Bounds.Size))))
-                    context.DrawRectangle(Brush.Parse("#259EDCC5"), new Pen(Brush.Parse("#D09EDCC5"), 1.5, DashStyle.Dash), new Rect(owner._regionStart, owner._regionEnd));
+                    context.DrawRectangle(Brush.Parse("#259EDCC5"), new Pen(Brush.Parse("#D09EDCC5"), 1.5, DashStyle.Dash), new Rect(
+                        Math.Min(owner._regionStart.X, owner._regionEnd.X), Math.Min(owner._regionStart.Y, owner._regionEnd.Y),
+                        Math.Abs(owner._regionEnd.X - owner._regionStart.X), Math.Abs(owner._regionEnd.Y - owner._regionStart.Y)));
             }
         }
     }
